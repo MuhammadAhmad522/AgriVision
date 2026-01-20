@@ -1,0 +1,62 @@
+# Xcode
+#
+# gitignore contributors: writers on GitHub
+
+## Build results
+build/
+DerivedData/
+
+## Dependency manager
+Pods/
+Carthage/Checkouts/
+Carthage/Build/
+vendor/bundle/
+
+## User-specific
+*.moved-aside
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+
+## Localization
+*.lock
+*.mo
+*.po
+
+## macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+
+
+## Xcode filenames
+# .xcodeproj/
+xcuserdata/
+
+# .xcworkspace/
+# !.xcworkspace/contents.xcstrings
+# !.xcworkspace/xcshareddata/
+
+## Project-specific
+# Add any project-specific ignore rules here if needed
+# local_settings.py
+# *.log
+
+## Swift Package Manager
+.build/
+.swiftpm/
+
+## Crashlytics
+com_apple_xcode_dsym_uuids.plist
+
+## Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+## Other
+*.swp
+*~
+*.orig
