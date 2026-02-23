@@ -8,49 +8,56 @@
 import UIKit
 import SwiftUI
 
+/**
+ The `SceneDelegate` manages the UI lifecycle for a specific window or "scene."
+ This is where we set up the app's initial view hierarchy and navigation.
+ */
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     var window: UIWindow?
+    
+    /// The `AppCoordinator` is the "brain" of our navigation. 
+    /// It decides which screen to show first and handles transitions between them.
     var appCoordinator: AppCoordinator?
 
+    /**
+     This method is called when a new window (scene) is about to be displayed.
+     We use it to initialize our main window and start our navigation flow.
+     */
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
+        // 1. Ensure the scene being passed is a UIWindowScene (the standard for iOS apps)
         guard let windowScene = scene as? UIWindowScene else { return }
 
+        // 2. Create a new UIWindow to hold our app's content
         let window = UIWindow(windowScene: windowScene)
         self.window = window
         
+        // 3. Initialize the Coordinator. This pattern keeps navigation logic 
+        // out of the Views, making the code cleaner and easier to maintain.
         let coordinator = AppCoordinator(window: window)
         self.appCoordinator = coordinator
+        
+        // 4. Tell the coordinator to start, which will set up the first screen (Dashboard).
         coordinator.start()
     }
 
     func sceneDidDisconnect(_ scene: UIScene) {
-        // Called as the scene is being released by the system.
-        // This occurs shortly after the scene enters the background, or when its session is discarded.
-        // Release any resources associated with this scene that can be re-created the next time the scene connects.
-        // The scene may re-connect later, as its session was not necessarily discarded (see `application:didDiscardSceneSessions` instead).
+        // Called when the system releases the scene (e.g., app is suspended).
     }
 
     func sceneDidBecomeActive(_ scene: UIScene) {
-        // Called when the scene has moved from an inactive state to an active state.
-        // Use this method to restart any tasks that were paused (or not yet started) when the scene was inactive.
+        // Called when the app moves to the foreground and starts interacting with the user.
     }
 
     func sceneWillResignActive(_ scene: UIScene) {
-        // Called when the scene will move from an active state to an inactive state.
-        // This may occur due to temporary interruptions (ex. an incoming phone call).
+        // Called when the app is about to move to the background (e.g., user gets a phone call).
     }
 
     func sceneWillEnterForeground(_ scene: UIScene) {
-        // Called as the scene transitions from the background to the foreground.
-        // Use this method to undo the changes made on entering the background.
+        // Called as the app transitions from the background back to the foreground.
     }
 
     func sceneDidEnterBackground(_ scene: UIScene) {
-        // Called as the scene transitions from the foreground to the background.
-        // Use this method to save data, release shared resources, and store enough scene-specific state information
-        // to restore the scene back to its current state.
+        // Called as the app moves into the background. Save data or release resources here.
     }
-
-
 }
