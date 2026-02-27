@@ -43,7 +43,7 @@ struct DashboardView: View {
                             // \`Spacer\` acts like a flexible spring, pushing elements to the far left and far right.
                             Spacer()
                             
-                            Text("\\(String(format: "%.1f", reading.value)) \\(reading.unit)")
+                            Text("\(String(format: "%.1f", reading.value)) \(reading.unit)")
                                 .fontWeight(.bold)
                                 .foregroundColor(.green)
                         }
