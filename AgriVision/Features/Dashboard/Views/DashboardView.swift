@@ -78,7 +78,7 @@ struct DashboardView: View {
  without having to launch the entire app in the simulator.
  */
 #Preview {
-    NavigationView {
+    NavigationStack {
         DashboardView(viewModel: DashboardViewModel())
     }
 }
