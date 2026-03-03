@@ -2,7 +2,7 @@ import UIKit
 import SwiftUI
 
 /**
- \`AppCoordinator\` is the "main boss" or root coordinator for the entire application.
+ `AppCoordinator` is the "main boss" or root coordinator for the entire application.
  Its job is to set up the very first screen the user sees when the app launches.
  */
 class AppCoordinator: Coordinator {
@@ -18,18 +18,36 @@ class AppCoordinator: Coordinator {
     init(window: UIWindow) {
         self.window = window
         self.navigationController = UINavigationController()
+        // Hide the navigation bar by default for a cleaner, full-screen experience
+        self.navigationController.isNavigationBarHidden = true
     }
     
-    /// This is where the magic happens. Calling \`start()\` kicks off the app's UI.
+    /// This is where the magic happens. Calling `start()` kicks off the app's UI.
     func start() {
-        // 1. Setup the first screen (the Dashboard)
-        showMain()
+        // We always show onboarding first as per user request.
+        // In a production app, we would check UserDefaults here.
+        showOnboarding()
         
-        // 2. We tell the main window to use our \`navigationController\` as the root.
+        // 2. We tell the main window to use our `navigationController` as the root.
         window.rootViewController = navigationController
         
         // 3. Make the window visible on the device screen.
         window.makeKeyAndVisible()
+    }
+    
+    /// Starts the onboarding flow using its dedicated coordinator.
+    private func showOnboarding() {
+        let onboardingCoordinator = OnboardingCoordinator(navigationController: navigationController)
+        onboardingCoordinator.onFinished = { [weak self] in
+            // Mark onboarding as complete
+            UserDefaults.standard.set(true, forKey: "hasSeenOnboarding")
+            // Clean up the child coordinator
+            self?.childCoordinators.removeAll { $0 === onboardingCoordinator }
+            // Switch to the main dashboard
+            self?.showMain()
+        }
+        childCoordinators.append(onboardingCoordinator)
+        onboardingCoordinator.start()
     }
     
     /// A private helper method used to build and display the Dashboard screen.
@@ -43,11 +61,12 @@ class AppCoordinator: Coordinator {
         // Step 3: Create the View. We give the View the ViewModel so they can talk to each other.
         let view = DashboardView(viewModel: viewModel)
         
-        // Step 4: Because \`DashboardView\` is a SwiftUI view, we need a "wrapper" (UIHostingController)
+        // Step 4: Because `DashboardView` is a SwiftUI view, we need a "wrapper" (UIHostingController)
         // so our UIKit-based navigation controller knows how to show it.
         let hostingController = UIHostingController(rootView: view)
         
         // Step 5: Place the hosting controller into the navigation stack.
-        navigationController.setViewControllers([hostingController], animated: false)
+        // We use setViewControllers with animation if we are coming from another flow.
+        navigationController.setViewControllers([hostingController], animated: true)
     }
 }

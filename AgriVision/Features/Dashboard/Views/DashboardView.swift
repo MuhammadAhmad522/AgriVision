@@ -70,6 +70,29 @@ struct DashboardView: View {
         }
     }
 }
+struct SensorReadingRow: View {
+    let reading: SensorReading
+    
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading) {
+                Text(reading.type)
+                    .font(.headline)
+                
+                Text(reading.timestamp, style: .time)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            Text("\(String(format: "%.1f", reading.value)) \(reading.unit)")
+                .fontWeight(.bold)
+                .foregroundColor(AppColors.mediumGreen)
+        }
+        .padding(.vertical, 4)
+    }
+}
 
 // MARK: - Preview
 
