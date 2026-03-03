@@ -98,7 +98,7 @@ struct OnboardingView: View {
                     }
                     .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never)) // Hides the default dots.
                     .coordinateSpace(name: "OnboardingTabView") // Define a local coordinate space.
-                    // When the preference value changes (due to swiping), we update our state.
+                        // When the preference value changes (due to swiping), we update our state.
                     .onPreferenceChange(ScrollOffsetPreferenceKey.self) { dictionary in
                         // If we are currently animating via a button click, we skip these updates
                         // to prevent "fighting" between the manual animation and geometry reports.
@@ -108,7 +108,8 @@ struct OnboardingView: View {
                         // This allows the wave to follow the finger during manual swipes.
                         // The formula 'minX - (index * width)' always gives the same 'global zero' position.
                         if let (index, minX) = dictionary.first {
-                            scrollOffset = minX - (CGFloat(index) * containerWidth)
+                            // Rounded to the nearest whole pixel to prevent sub-pixel stuttering.
+                            scrollOffset = (minX - (CGFloat(index) * containerWidth)).rounded()
                         }
                     }
                     .onChange(of: outerGeo.size.width) { newWidth in
@@ -131,8 +132,7 @@ struct OnboardingView: View {
                         // The circular "Next" button with a chevron icon.
                         Button(action: {
                             if currentPage < pages.count - 1 {
-                                // Move to the next page.
-                                // We set the flag to disable preference updates during the transition.
+                                // Important: We set the flag BEFORE we start the animation.
                                 isProgrammaticChange = true
                                 
                                 // Using interactiveSpring for a smoother, more "natural" feel that matches

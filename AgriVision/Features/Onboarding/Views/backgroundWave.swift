@@ -29,6 +29,7 @@ struct BackgroundWave: View {
                         lineJoin: .round
                     )
                 )
+                .drawingGroup() // Flattens the view into a single GPU-rendered layer for performance.
                 // Moves the wave based on the current page and vertical position.
                 .offset(x: horizontalOffset, y: 420 * scale)
                 .frame(width: baseWidth * scale)
