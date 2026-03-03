@@ -5,14 +5,14 @@ enum UIConstants {
     enum Onboarding {
         static let blurredImageFrame: CGFloat = 420
         static let mainImageFrame: CGFloat = 320
-        static let imageAreaHeight: CGFloat = 400
+        static let imageAreaHeight: CGFloat = 350
         static let blurredImageBlurRadius: CGFloat = 20
         static let blurredImageOpacity: Double = 0.9
         static let horizontalPadding: CGFloat = 24
         static let pageTransitionOffsetMultiplier: CGFloat = 0.45
         
         static let titleSize: CGFloat = 22
-        static let mainTitleSize: CGFloat = 60
+        static let mainTitleSize: CGFloat = 50
         static let descriptionSize: CGFloat = 18
     }
     

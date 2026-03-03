@@ -135,13 +135,15 @@ struct OnboardingView: View {
                                 // We set the flag to disable preference updates during the transition.
                                 isProgrammaticChange = true
                                 
-                                withAnimation(.easeInOut(duration: 0.5)) {
+                                // Using interactiveSpring for a smoother, more "natural" feel that matches
+                                // SwiftUI's internal TabView movement.
+                                withAnimation(.interactiveSpring(response: 0.5, dampingFraction: 0.85, blendDuration: 0)) {
                                     currentPage += 1
                                     scrollOffset = -CGFloat(currentPage) * containerWidth
                                 }
                                 
                                 // After the animation finishes, we re-enable preference updates.
-                                // 0.6s gives a slight buffer for the 0.5s animation.
+                                // 0.6s gives a slight buffer for the animation.
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                                     isProgrammaticChange = false
                                 }
@@ -221,6 +223,8 @@ struct OnboardingPageView: View {
                 Text(page.title)
                     .font(.system(size: isFirstPage ? UIConstants.Onboarding.mainTitleSize : UIConstants.Onboarding.titleSize, weight: .bold))
                     .multilineTextAlignment(.center)
+                    .lineLimit(nil) // Allows the text to wrap as needed.
+                    .minimumScaleFactor(0.5) // Shrinks the font if it still doesn't fit.
                     .foregroundColor(AppColors.mediumGreen)
                     .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
                     .padding(.horizontal, 30)
@@ -230,6 +234,8 @@ struct OnboardingPageView: View {
                     Text(page.description)
                         .font(.system(size: UIConstants.Onboarding.descriptionSize))
                         .multilineTextAlignment(.center)
+                        .lineLimit(nil)
+                        .minimumScaleFactor(0.5)
                         .foregroundColor(AppColors.charcoalGreen)
                         .padding(.horizontal, 40)
                 }
