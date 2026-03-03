@@ -187,10 +187,16 @@ struct OnboardingPageView: View {
                     Image(blurredName)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: UIConstants.Onboarding.blurredImageFrame, height: UIConstants.Onboarding.blurredImageFrame)
+                        .frame(
+                            width: page.imageName == "onboarding_image_3" ? 500 : UIConstants.Onboarding.blurredImageFrame,
+                            height: page.imageName == "onboarding_image_3" ? 500 : UIConstants.Onboarding.blurredImageFrame
+                        )
                         .opacity(UIConstants.Onboarding.blurredImageOpacity)
-                        .blur(radius: UIConstants.Onboarding.blurredImageBlurRadius)
-                        .offset(x: page.imageName == "onboarding_image_3" ? 30 : -50, y: 30)
+                        .blur(radius: page.imageName == "onboarding_image_3" ? 30 : UIConstants.Onboarding.blurredImageBlurRadius)
+                        .offset(
+                            x: page.imageName == "onboarding_image_3" ? 30 : -50,
+                            y: page.imageName == "onboarding_image_3" ? 100 : 30
+                        )
                 }
                 
                 // Displays either a system icon or a custom asset image.

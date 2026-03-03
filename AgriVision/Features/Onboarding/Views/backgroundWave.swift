@@ -87,7 +87,6 @@ struct WaveBackground: View {
                 
                 // The actual thick wave moving behind our content.
                 BackgroundWave(horizontalOffset: animationOffset)
-                    .blur(radius: 2) // Makes the wave look softer and more elegant.
             }
         }
     }
