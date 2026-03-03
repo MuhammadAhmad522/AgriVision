@@ -1,19 +1,31 @@
 import SwiftUI
 
-struct OnboardingPage: Identifiable {
-    let id = UUID()
-    let title: String
-    let description: String
-    let imageName: String
-    let blurredImageName: String? // Optional blurred layer
-    let isSystemImage: Bool
+// A PreferenceKey is used to send data from a child view up to its parent.
+// We use this to track the horizontal scroll position of each page.
+struct ScrollOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue: [Int: CGFloat] = [:]
+    static func reduce(value: inout [Int: CGFloat], nextValue: () -> [Int: CGFloat]) {
+        // Merge the dictionaries, keeping the newest values.
+        value.merge(nextValue()) { (_, new) in new }
+    }
 }
 
+
+// This is the main view for the onboarding screens.
+// It uses a TabView to let users swipe through different pages.
 struct OnboardingView: View {
+    // Keeps track of which page is currently being shown (0, 1, 2, etc.)
     @State private var currentPage = 0
+    // Tracks the continuous scroll offset as the user swipes.
+    @State private var scrollOffset: CGFloat = 0
+    // Stores the actual width of the onboarding container for accurate math.
+    @State private var containerWidth: CGFloat = UIScreen.main.bounds.width
     
-    let pages = [
-      
+    // A lucky closure (function) that runs when the user finishes all onboarding steps.
+    let onComplete: () -> Void
+    
+    // Our list of pages, each with its own title and images.
+    private let pages: [OnboardingPage] = [
         OnboardingPage(
             title: "AgriVision",
             description: "",
@@ -38,67 +50,115 @@ struct OnboardingView: View {
     ]
     
     var body: some View {
-        ZStack {
-            WaveBackground(currentPage: currentPage)
-                .ignoresSafeArea()
-            
-            VStack {
-                HStack {
-                    Spacer()
-                    Button("Skip") {
-                        // Handle skip
-                    }
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(AppColors.limeGreen)
-                    .padding(.trailing, 24)
-                }
-                .padding(.top, 10)
+        // GeometryReader at the top level to capture the true screen/container width.
+        GeometryReader { outerGeo in
+            // ZStack overlays views on top of each other.
+            ZStack {
+                // Animated background that shifts as we change pages.
+                // We pass the continuous scrollOffset so it moves smoothly during swipes.
+                WaveBackground(scrollOffset: scrollOffset)
+                    .ignoresSafeArea()
                 
-                TabView(selection: $currentPage) {
-                    ForEach(0..<pages.count, id: \.self) { index in
-                        OnboardingPageView(page: pages[index], isFirstPage: index == 0)
-                            .tag(index)
-                    }
-                }
-                .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
-                
-                VStack(spacing: 20) {
-                    // Page Indicator
-                    HStack(spacing: 8) {
-                        ForEach(0..<pages.count, id: \.self) { index in
-                            Circle()
-                                .fill(currentPage == index ? AppColors.charcoalGreen : AppColors.limeGreen.opacity(0.3))
-                                .frame(width: 8, height: 8)
+                // Main vertical container for the logic and navigation.
+                VStack {
+                    // Top bar with the "Skip" button.
+                    HStack {
+                        Spacer()
+                        Button("Skip") {
+                            // When skip is tapped, we skip straight to the end.
+                            onComplete()
                         }
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(AppColors.limeGreen)
+                        .padding(.trailing, 24)
                     }
+                    .padding(.top, 10)
                     
-                    // Next Button
-                    Button(action: {
-                        if currentPage < pages.count - 1 {
-                            withAnimation {
-                                currentPage += 1
-                            }
-                        } else {
-                            // Finish onboarding
+                    // The swipeable area (the core of the onboarding).
+                    TabView(selection: $currentPage) {
+                        ForEach(0..<pages.count, id: \.self) { index in
+                            // Create a separate view for each page's content.
+                            OnboardingPageView(page: pages[index], isFirstPage: index == 0)
+                                .tag(index) // Marks this page with its index for selection.
+                                // We use GeometryReader to track the position of each page.
+                                // This ensures we always have a valid offset during swipes.
+                                .background(
+                                    GeometryReader { geometry in
+                                        Color.clear
+                                            .preference(
+                                                key: ScrollOffsetPreferenceKey.self,
+                                                value: [index: geometry.frame(in: .named("OnboardingTabView")).minX]
+                                            )
+                                    }
+                                )
                         }
-                    }) {
-                        Image(systemName: "chevron.right.2")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(AppColors.mediumGreen)
-                            .padding(12)
-                            .background(
-                                Circle()
-                                    .fill(Color.white)
-                                    .shadow(color: AppColors.mediumGreen.opacity(0.3), radius: 4, x: 0, y: 4)
-                            )
                     }
+                    .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never)) // Hides the default dots.
+                    .coordinateSpace(name: "OnboardingTabView") // Define a local coordinate space.
+                    // When the preference value changes (due to swiping), we update our state.
+                    .onPreferenceChange(ScrollOffsetPreferenceKey.self) { dictionary in
+                        // Update container width if it changed (e.g. rotation).
+                        if containerWidth != outerGeo.size.width {
+                            containerWidth = outerGeo.size.width
+                        }
+                        
+                        // We calculate the global scroll offset using ANY visible page.
+                        // This allows the wave to follow the finger during manual swipes.
+                        // The formula 'minX - (index * width)' always gives the same 'global zero' position.
+                        if let (index, minX) = dictionary.first {
+                            scrollOffset = minX - (CGFloat(index) * containerWidth)
+                        }
+                    }
+    
+                    
+                    // Bottom control area: indicators and the "Next" button.
+                    VStack(spacing: 20) {
+                        // Custom Page Indicator (the little circles).
+                        HStack(spacing: 8) {
+                            ForEach(0..<pages.count, id: \.self) { index in
+                                Circle()
+                                    .fill(currentPage == index ? AppColors.charcoalGreen : AppColors.limeGreen.opacity(0.3))
+                                    .frame(width: 8, height: 8)
+                            }
+                        }
+                        
+                        // The circular "Next" button with a chevron icon.
+                        Button(action: {
+                            if currentPage < pages.count - 1 {
+                                // Move to the next page.
+                                // CRITICAL: We animate BOTH the selection and the scrollOffset.
+                                // This solves the issue where TabView programmatic changes 
+                                // don't stream geometry updates to preferences smoothly.
+                                withAnimation(.easeInOut(duration: 0.4)) {
+                                    currentPage += 1
+                                    scrollOffset = -CGFloat(currentPage) * containerWidth
+                                }
+                            } else {
+                                // If we're on the last page, finish the onboarding.
+                                onComplete()
+                            }
+                        }) {
+                            Image(systemName: "chevron.right.2")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(AppColors.mediumGreen)
+                                .padding(12)
+                                .background(
+                                    Circle()
+                                        .fill(Color.white)
+                                        .shadow(color: AppColors.mediumGreen.opacity(0.3), radius: 4, x: 0, y: 4)
+                                )
+                        }
+                    }
+                    .padding(.bottom, 50)
                 }
-                .padding(.bottom, 50)
             }
         }
     }
+
 }
 
+
+// A helper view that displays the content of a single onboarding page.
 struct OnboardingPageView: View {
     let page: OnboardingPage
     let isFirstPage: Bool
@@ -107,19 +167,20 @@ struct OnboardingPageView: View {
         VStack(spacing: 40) {
             Spacer()
             
-            // Image Area
+            // The image area with optional blurred background effects.
             ZStack {
-                // Optional blurred background leaf (high-fidelity SVG)
+                // Shows a blurred background leaf if it exists.
                 if let blurredName = page.blurredImageName {
                     Image(blurredName)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: 520, height: 520) // Larger spread for the 'luminous' glow
-                        .opacity(0.9)
-                        .blur(radius: 20) // Extra softening for 'shades of light' feel
-                        .offset(x: page.imageName == "onboarding_image_3" ? 30 : 0, y: 0) // Centered, but shifted right for Page 3
+                        .frame(width: UIConstants.Onboarding.blurredImageFrame, height: UIConstants.Onboarding.blurredImageFrame)
+                        .opacity(UIConstants.Onboarding.blurredImageOpacity)
+                        .blur(radius: UIConstants.Onboarding.blurredImageBlurRadius)
+                        .offset(x: page.imageName == "onboarding_image_3" ? 30 : -50, y: 30)
                 }
                 
+                // Displays either a system icon or a custom asset image.
                 if page.isSystemImage {
                     Image(systemName: page.imageName)
                         .resizable()
@@ -130,23 +191,25 @@ struct OnboardingPageView: View {
                     Image(page.imageName)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: 320, height: 320)
+                        .frame(width: UIConstants.Onboarding.mainImageFrame, height: UIConstants.Onboarding.mainImageFrame)
                         .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
                 }
             }
-            .frame(height: 400)
+            .frame(height: UIConstants.Onboarding.imageAreaHeight)
             
+            // The text content area for titles and descriptions.
             VStack(spacing: 16) {
                 Text(page.title)
-                    .font(.system(size: isFirstPage ? 60 : 22, weight: .bold))
+                    .font(.system(size: isFirstPage ? UIConstants.Onboarding.mainTitleSize : UIConstants.Onboarding.titleSize, weight: .bold))
                     .multilineTextAlignment(.center)
                     .foregroundColor(AppColors.mediumGreen)
                     .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
                     .padding(.horizontal, 30)
                 
+                // Only shows the description text if it's not empty.
                 if !page.description.isEmpty {
                     Text(page.description)
-                        .font(.system(size: 18))
+                        .font(.system(size: UIConstants.Onboarding.descriptionSize))
                         .multilineTextAlignment(.center)
                         .foregroundColor(AppColors.charcoalGreen)
                         .padding(.horizontal, 40)
@@ -158,6 +221,11 @@ struct OnboardingPageView: View {
     }
 }
 
+// This allows us to preview the OnboardingView in Xcode.
 #Preview {
-    OnboardingView()
+    NavigationStack {
+        OnboardingView(onComplete: {})
+            .navigationBarHidden(true)
+    }
 }
+

@@ -1,48 +1,61 @@
 import SwiftUI
 
+// This view draws a single wave that can be shifted horizontally.
 struct BackgroundWave: View {
-    let horizontalOffset: CGFloat // Synchronized with page transitions
+    let horizontalOffset: CGFloat // This is how much the wave has moved based on swiping.
     
     var body: some View {
+        // GeometryReader lets us know the size of the screen.
         GeometryReader { proxy in
-            // baseWidth from Figma CSS: 1322px
+            // These numbers are based on the original design dimensions.
             let baseWidth: CGFloat = 1322
             let screenWidth = proxy.size.width
-            let scale = screenWidth / 900 // Scale relative to Figma screen width
+            let scale = screenWidth / 900 // Scales the wave to fit different screen sizes.
             
+            // A gradient color from light green to medium green.
             let gradient = LinearGradient(
                 colors: [AppColors.limeGreen, AppColors.mediumGreen],
                 startPoint: .leading,
                 endPoint: .trailing
             )
             
+            // Draws the custom wave shape.
             BackgroundWaveShape()
                 .stroke(
                     gradient,
                     style: StrokeStyle(
-                        lineWidth: 300 * scale, // Thicker for the "zoomed-in" look
+                        lineWidth: 300 * scale, // Makes the wave look thick and "premium".
                         lineCap: .round,
                         lineJoin: .round
                     )
                 )
+                // Moves the wave based on the current page and vertical position.
                 .offset(x: horizontalOffset, y: 420 * scale)
                 .frame(width: baseWidth * scale)
         }
     }
 }
 
+// A custom shape that defines the "curry" path of the wave.
 private struct BackgroundWaveShape: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
-        // coordinates spanning across 3 screens (approx 1322 Figma px)
-        // Path adjusted to match the organic flow of the provided user image
+        
+        // We move the "pen" to a starting point and then draw curves.
+        // Curves use "control points" to create the smooth, organic look.
         path.move(to: CGPoint(x: -50, y: 150))
+        
+        // First curve
         path.addCurve(to: CGPoint(x: 450, y: 100),
                       control1: CGPoint(x: 150, y: 220),
                       control2: CGPoint(x: 250, y: 20))
+        
+        // Second curve
         path.addCurve(to: CGPoint(x: 950, y: 160),
                       control1: CGPoint(x: 650, y: 180),
                       control2: CGPoint(x: 750, y: 280))
+        
+        // Third curve
         path.addCurve(to: CGPoint(x: 1450, y: 120),
                       control1: CGPoint(x: 1150, y: 40),
                       control2: CGPoint(x: 1250, y: 200))
@@ -51,27 +64,39 @@ private struct BackgroundWaveShape: Shape {
     }
 }
 
+// This is the background for the entire onboarding view.
+// It includes the cream color and the animated wave on top.
 struct WaveBackground: View {
-    let currentPage: Int
+    // The continuous horizontal position of the pages during a swipe.
+    let scrollOffset: CGFloat
     
     var body: some View {
         GeometryReader { proxy in
             let screenWidth = proxy.size.width
-            // Calculate offset based on current page
-            let animationOffset = -CGFloat(currentPage) * (screenWidth * 0.45)
+            
+            // We calculate how much the wave should shift based on the scroll position.
+            // Using a multiplier (like 0.45) creates a parallax-like effect where 
+            // the background moves slower than the foreground content.
+            // The scrollOffset is usually negative (moving left), so we use it directly.
+            let animationOffset = scrollOffset * UIConstants.Onboarding.pageTransitionOffsetMultiplier
             
             ZStack {
+                // The base cream color that covers the whole screen.
                 AppColors.cream
                     .ignoresSafeArea()
                 
-                // Single, premium thick wave as requested
+                // The actual thick wave moving behind our content.
                 BackgroundWave(horizontalOffset: animationOffset)
-                    .blur(radius: 2) // Subtle softening for a premium feel
+                    .blur(radius: 2) // Makes the wave look softer and more elegant.
             }
         }
     }
 }
 
+
+// Preview allows us to see the background without running the whole app.
 #Preview {
-     WaveBackground(currentPage: 0)
+     WaveBackground(scrollOffset: 0)
 }
+
+
