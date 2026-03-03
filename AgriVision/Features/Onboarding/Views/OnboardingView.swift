@@ -20,6 +20,9 @@ struct OnboardingView: View {
     @State private var scrollOffset: CGFloat = 0
     // Stores the actual width of the onboarding container for accurate math.
     @State private var containerWidth: CGFloat = UIScreen.main.bounds.width
+    // A flag to prevent preference updates from fighting the manual animation 
+    // during a programmatic button click.
+    @State private var isProgrammaticChange = false
     
     // A lucky closure (function) that runs when the user finishes all onboarding steps.
     let onComplete: () -> Void
@@ -97,10 +100,9 @@ struct OnboardingView: View {
                     .coordinateSpace(name: "OnboardingTabView") // Define a local coordinate space.
                     // When the preference value changes (due to swiping), we update our state.
                     .onPreferenceChange(ScrollOffsetPreferenceKey.self) { dictionary in
-                        // Update container width if it changed (e.g. rotation).
-                        if containerWidth != outerGeo.size.width {
-                            containerWidth = outerGeo.size.width
-                        }
+                        // If we are currently animating via a button click, we skip these updates
+                        // to prevent "fighting" between the manual animation and geometry reports.
+                        guard !isProgrammaticChange else { return }
                         
                         // We calculate the global scroll offset using ANY visible page.
                         // This allows the wave to follow the finger during manual swipes.
@@ -108,6 +110,10 @@ struct OnboardingView: View {
                         if let (index, minX) = dictionary.first {
                             scrollOffset = minX - (CGFloat(index) * containerWidth)
                         }
+                    }
+                    .onChange(of: outerGeo.size.width) { newWidth in
+                        // Update container width if it changed (e.g. orientation changes).
+                        containerWidth = newWidth
                     }
     
                     
@@ -126,12 +132,18 @@ struct OnboardingView: View {
                         Button(action: {
                             if currentPage < pages.count - 1 {
                                 // Move to the next page.
-                                // CRITICAL: We animate BOTH the selection and the scrollOffset.
-                                // This solves the issue where TabView programmatic changes 
-                                // don't stream geometry updates to preferences smoothly.
-                                withAnimation(.easeInOut(duration: 0.4)) {
+                                // We set the flag to disable preference updates during the transition.
+                                isProgrammaticChange = true
+                                
+                                withAnimation(.easeInOut(duration: 0.5)) {
                                     currentPage += 1
                                     scrollOffset = -CGFloat(currentPage) * containerWidth
+                                }
+                                
+                                // After the animation finishes, we re-enable preference updates.
+                                // 0.6s gives a slight buffer for the 0.5s animation.
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                                    isProgrammaticChange = false
                                 }
                             } else {
                                 // If we're on the last page, finish the onboarding.
@@ -154,6 +166,7 @@ struct OnboardingView: View {
             }
         }
     }
+
 
 }
 
