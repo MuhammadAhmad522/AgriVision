@@ -46,17 +46,31 @@ class AppCoordinator: Coordinator {
         navigationController.setViewControllers([hostingController], animated: false)
     }
     
-    /// Starts the onboarding flow using its dedicated coordinator.
+    /// Shows the onboarding screen.
     private func showOnboarding() {
+        // Check if user has already seen onboarding. If so, go straight to main.
+        if UserDefaults.standard.bool(forKey: "hasSeenOnboarding") {
+            showMain()
+            return
+        }
+        
         let onboardingCoordinator = OnboardingCoordinator(navigationController: navigationController)
-        onboardingCoordinator.onFinished = { [weak self] in
+        
+        // We capture both 'self' and 'onboardingCoordinator' weakly to prevent a RETAIN CYCLE.
+        // If we capture 'onboardingCoordinator' strongly here, it will never be deallocated.
+        onboardingCoordinator.onFinished = { [weak self, weak onboardingCoordinator] in
+            guard let self = self, let coordinator = onboardingCoordinator else { return }
+            
             // Mark onboarding as complete
             UserDefaults.standard.set(true, forKey: "hasSeenOnboarding")
-            // Clean up the child coordinator
-            self?.childCoordinators.removeAll { $0 === onboardingCoordinator }
-            // Switch to the main dashboard
-            self?.showMain()
+            
+            // Remove the coordinator from our tracker.
+            self.childCoordinators.removeAll { $0 === coordinator }
+            
+            // Transition to the main dashboard.
+            self.showMain()
         }
+        
         childCoordinators.append(onboardingCoordinator)
         onboardingCoordinator.start()
     }
