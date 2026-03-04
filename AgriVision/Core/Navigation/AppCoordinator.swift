@@ -24,15 +24,26 @@ class AppCoordinator: Coordinator {
     
     /// This is where the magic happens. Calling `start()` kicks off the app's UI.
     func start() {
-        // We always show onboarding first as per user request.
-        // In a production app, we would check UserDefaults here.
-        showOnboarding()
+        // 1. Show the cinematic splash screen first. 
+        showSplash()
         
         // 2. We tell the main window to use our `navigationController` as the root.
         window.rootViewController = navigationController
         
         // 3. Make the window visible on the device screen.
         window.makeKeyAndVisible()
+        
+        // 4. After a short delay (2.5s for the cinematic fade-in), transition to onboarding.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+            self?.showOnboarding()
+        }
+    }
+    
+    /// Displays a full-screen cinematic splash screen with the AgriVision logo.
+    private func showSplash() {
+        let splashView = SplashView()
+        let hostingController = UIHostingController(rootView: splashView)
+        navigationController.setViewControllers([hostingController], animated: false)
     }
     
     /// Starts the onboarding flow using its dedicated coordinator.
