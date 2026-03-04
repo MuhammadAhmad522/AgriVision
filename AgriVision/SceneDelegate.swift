@@ -28,8 +28,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         // 1. Ensure the scene being passed is a UIWindowScene (the standard for iOS apps)
         guard let windowScene = scene as? UIWindowScene else { return }
 
-        // 2. Create a new UIWindow to hold our app's content
+        // 2. Create a new UIWindow to hold our app's content, sized correctly to the screen
         let window = UIWindow(windowScene: windowScene)
+        window.frame = windowScene.coordinateSpace.bounds
         self.window = window
         
         // 3. Initialize the Coordinator. This pattern keeps navigation logic 
