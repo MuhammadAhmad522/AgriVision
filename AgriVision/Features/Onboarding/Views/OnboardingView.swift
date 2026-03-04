@@ -14,6 +14,7 @@ struct ScrollOffsetPreferenceKey: PreferenceKey {
 // This is the main view for the onboarding screens.
 // It uses a TabView to let users swipe through different pages.
 struct OnboardingView: View {
+    // For the native TabView, we need to track both the selection and the offset.
     // Keeps track of which page is currently being shown (0, 1, 2, etc.)
     @State private var currentPage = 0
     // Tracks the continuous scroll offset as the user swipes.
@@ -98,23 +99,18 @@ struct OnboardingView: View {
                     }
                     .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never)) // Hides the default dots.
                     .coordinateSpace(name: "OnboardingTabView") // Define a local coordinate space.
-                        // When the preference value changes (due to swiping), we update our state.
+                    // When the preference value changes (due to swiping), we update our state.
                     .onPreferenceChange(ScrollOffsetPreferenceKey.self) { dictionary in
                         // If we are currently animating via a button click, we skip these updates
                         // to prevent "fighting" between the manual animation and geometry reports.
                         guard !isProgrammaticChange else { return }
                         
-                        // We calculate the global scroll offset using ANY visible page.
-                        // This allows the wave to follow the finger during manual swipes.
-                        // The formula 'minX - (index * width)' always gives the same 'global zero' position.
-                        if let (index, minX) = dictionary.first {
-                            // Rounded to the nearest whole pixel to prevent sub-pixel stuttering.
-                            scrollOffset = (minX - (CGFloat(index) * containerWidth)).rounded()
+                        // We calculate the global scroll offset using the FIRST available page (lowest index).
+                        // Using a deterministic anchor (min index) prevents the "stuttering" that happens 
+                        // when multiple pages report coordinates and fight for dominance.
+                        if let (index, minX) = dictionary.min(by: { $0.key < $1.key }) {
+                            scrollOffset = minX - (CGFloat(index) * containerWidth)
                         }
-                    }
-                    .onChange(of: outerGeo.size.width) { newWidth in
-                        // Update container width if it changed (e.g. orientation changes).
-                        containerWidth = newWidth
                     }
     
                     
@@ -135,16 +131,16 @@ struct OnboardingView: View {
                                 // Important: We set the flag BEFORE we start the animation.
                                 isProgrammaticChange = true
                                 
-                                // Using interactiveSpring for a smoother, more "natural" feel that matches
-                                // SwiftUI's internal TabView movement.
-                                withAnimation(.interactiveSpring(response: 0.5, dampingFraction: 0.85, blendDuration: 0)) {
+                                // Move to the next page.
+                                // We use easeInOut to perfectly sync with the TabView's default transition speed.
+                                withAnimation(.easeInOut(duration: 0.5)) {
                                     currentPage += 1
                                     scrollOffset = -CGFloat(currentPage) * containerWidth
                                 }
                                 
-                                // After the animation finishes, we re-enable preference updates.
-                                // 0.6s gives a slight buffer for the animation.
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                                // After the animation finishes, we re-enable preference updates with a 
+                                // 0.8s delay to ensure the TabView has completely settled.
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
                                     isProgrammaticChange = false
                                 }
                             } else {
@@ -163,13 +159,17 @@ struct OnboardingView: View {
                                 )
                         }
                     }
-                    .padding(.bottom, 50)
                 }
+                .padding(.bottom, 50)
+            }
+            .onChange(of: outerGeo.size.width) { newWidth in
+                containerWidth = newWidth
+            }
+            .onAppear {
+                containerWidth = outerGeo.size.width
             }
         }
     }
-
-
 }
 
 
@@ -189,15 +189,13 @@ struct OnboardingPageView: View {
                     Image(blurredName)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(
-                            width: page.imageName == "onboarding_image_3" ? 500 : UIConstants.Onboarding.blurredImageFrame,
-                            height: page.imageName == "onboarding_image_3" ? 500 : UIConstants.Onboarding.blurredImageFrame
-                        )
+                        .frame(width: page.imageName == "onboarding_leaf_2" ? UIConstants.Onboarding.blurredImageFrame * 1.15 : UIConstants.Onboarding.blurredImageFrame, 
+                               height: page.imageName == "onboarding_leaf_2" ? UIConstants.Onboarding.blurredImageFrame * 1.15 : UIConstants.Onboarding.blurredImageFrame)
                         .opacity(UIConstants.Onboarding.blurredImageOpacity)
-                        .blur(radius: page.imageName == "onboarding_image_3" ? 30 : UIConstants.Onboarding.blurredImageBlurRadius)
+                        .blur(radius: UIConstants.Onboarding.blurredImageBlurRadius)
                         .offset(
-                            x: page.imageName == "onboarding_image_3" ? 30 : -50,
-                            y: page.imageName == "onboarding_image_3" ? 100 : 30
+                            x: page.imageName == "onboarding_leaf_2" ? -20 : (page.imageName == "onboarding_image_3" ? 10 : -50),
+                            y: page.imageName == "onboarding_leaf_2" ? 40 : (page.imageName == "onboarding_image_3" ? 60 : 30)
                         )
                 }
                 
@@ -212,7 +210,11 @@ struct OnboardingPageView: View {
                     Image(page.imageName)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: UIConstants.Onboarding.mainImageFrame, height: UIConstants.Onboarding.mainImageFrame)
+                        .frame(
+                            width: page.imageName == "onboarding_leaf_2" ? UIConstants.Onboarding.mainImageFrame * 1.15 : UIConstants.Onboarding.mainImageFrame,
+                            height: page.imageName == "onboarding_leaf_2" ? UIConstants.Onboarding.mainImageFrame * 1.15 : UIConstants.Onboarding.mainImageFrame
+                        )
+                        .offset(y: page.imageName == "onboarding_leaf_2" ? -40 : 0)
                         .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
                 }
             }
@@ -223,8 +225,8 @@ struct OnboardingPageView: View {
                 Text(page.title)
                     .font(.system(size: isFirstPage ? UIConstants.Onboarding.mainTitleSize : UIConstants.Onboarding.titleSize, weight: .bold))
                     .multilineTextAlignment(.center)
-                    .lineLimit(nil) // Allows the text to wrap as needed.
-                    .minimumScaleFactor(0.5) // Shrinks the font if it still doesn't fit.
+                    .lineLimit(nil)
+                    .minimumScaleFactor(0.8)
                     .foregroundColor(AppColors.mediumGreen)
                     .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
                     .padding(.horizontal, 30)
@@ -235,7 +237,7 @@ struct OnboardingPageView: View {
                         .font(.system(size: UIConstants.Onboarding.descriptionSize))
                         .multilineTextAlignment(.center)
                         .lineLimit(nil)
-                        .minimumScaleFactor(0.5)
+                        .minimumScaleFactor(0.8)
                         .foregroundColor(AppColors.charcoalGreen)
                         .padding(.horizontal, 40)
                 }

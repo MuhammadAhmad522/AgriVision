@@ -8,7 +8,8 @@ struct BackgroundWave: View {
         // GeometryReader lets us know the size of the screen.
         GeometryReader { proxy in
             // These numbers are based on the original design dimensions.
-            let baseWidth: CGFloat = 1322
+            // Increased to 2100 to ensure the extended path isn't clipped.
+            let baseWidth: CGFloat = 2100
             let screenWidth = proxy.size.width
             let scale = screenWidth / 900 // Scales the wave to fit different screen sizes.
             
@@ -61,6 +62,11 @@ private struct BackgroundWaveShape: Shape {
                       control1: CGPoint(x: 1150, y: 40),
                       control2: CGPoint(x: 1250, y: 200))
         
+        // Fourth curve (Added to extend length for the 3rd page parallax shift)
+        path.addCurve(to: CGPoint(x: 1950, y: 150),
+                      control1: CGPoint(x: 1650, y: 60),
+                      control2: CGPoint(x: 1750, y: 240))
+        
         return path
     }
 }
@@ -88,6 +94,7 @@ struct WaveBackground: View {
                 
                 // The actual thick wave moving behind our content.
                 BackgroundWave(horizontalOffset: animationOffset)
+                // .blur removed for "crystal clear" look requested by user.
             }
         }
     }
