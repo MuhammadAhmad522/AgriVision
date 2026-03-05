@@ -22,28 +22,44 @@ class OnboardingViewModel: ObservableObject {
     
     // MARK: - Data
     
-    /// Our list of pages, now housed in the ViewModel for better separation.
+    /// Our list of pages. Layout configuration is stored in the model so that
+    /// `OnboardingPageView` does not need to compare image names to decide sizing/offsets.
     let pages: [OnboardingPage] = [
         OnboardingPage(
             title: "AgriVision",
             description: "",
             imageName: "onboarding_leaf",
             blurredImageName: "onboarding_leaf_blurred",
-            isSystemImage: false
+            isSystemImage: false,
+            imageScale: 1.0,
+            imageYOffset: 0,
+            blurredImageScale: 1.0,
+            blurredImageXOffset: -50,
+            blurredImageYOffset: 30
         ),
         OnboardingPage(
             title: "Map Your Fields.\nGet Smart Alerts and AI Insights.",
             description: "",
             imageName: "onboarding_leaf_2",
             blurredImageName: "onboarding_leaf_2_blurred",
-            isSystemImage: false
+            isSystemImage: false,
+            imageScale: 1.15,
+            imageYOffset: -40,
+            blurredImageScale: 1.15,
+            blurredImageXOffset: -20,
+            blurredImageYOffset: 40
         ),
         OnboardingPage(
             title: "Analyze soil, crop health, and field conditions using advanced satellite, IoT sensor and AI technology.",
             description: "",
             imageName: "onboarding_image_3",
             blurredImageName: "onboarding_image_3_blurred",
-            isSystemImage: false
+            isSystemImage: false,
+            imageScale: 1.0,
+            imageYOffset: 0,
+            blurredImageScale: 1.0,
+            blurredImageXOffset: 10,
+            blurredImageYOffset: 60
         )
     ]
     
