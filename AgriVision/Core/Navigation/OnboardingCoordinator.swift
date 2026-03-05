@@ -14,7 +14,8 @@ class OnboardingCoordinator: Coordinator {
     }
     
     func start() {
-        let view = OnboardingView(onComplete: { [weak self] in
+        let viewModel = OnboardingViewModel()
+        let view = OnboardingView(viewModel: viewModel, onComplete: { [weak self] in
             self?.onFinished?()
         })
         let hostingController = UIHostingController(rootView: view)
