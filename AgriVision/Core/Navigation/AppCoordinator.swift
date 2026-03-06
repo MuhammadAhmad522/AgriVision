@@ -67,12 +67,30 @@ class AppCoordinator: Coordinator {
             // Remove the coordinator from our tracker.
             self.childCoordinators.removeAll { $0 === coordinator }
             
-            // Transition to the main dashboard.
-            self.showMain()
+            // Transition to the Auth flow instead of Main.
+            self.showAuth()
         }
         
         childCoordinators.append(onboardingCoordinator)
         onboardingCoordinator.start()
+    }
+    
+    /// Shows the authentication flow (Login/Signup).
+    private func showAuth() {
+        let authCoordinator = AuthCoordinator(navigationController: navigationController)
+        
+        authCoordinator.onFinished = { [weak self, weak authCoordinator] in
+            guard let self = self, let coordinator = authCoordinator else { return }
+            
+            // Remove the coordinator from our tracker.
+            self.childCoordinators.removeAll { $0 === coordinator }
+            
+            // Now transition to the main dashboard.
+            self.showMain()
+        }
+        
+        childCoordinators.append(authCoordinator)
+        authCoordinator.start()
     }
     
     /// A private helper method used to build and display the Dashboard screen.
