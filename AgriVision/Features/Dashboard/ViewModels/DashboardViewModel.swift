@@ -6,57 +6,57 @@ import Combine
  It uses the `ObservableObject` protocol, which means SwiftUI Views can "watch" it for changes.
  Whenever a property marked with `@Published` changes, the UI will automatically update.
  */
-class DashboardViewModel: ObservableObject {
-    
+final class DashboardViewModel: ObservableObject {
+
     // MARK: - Published Properties
-    
-    /// The title of the screen. Because it's `@Published`, if we change this, the Navigation Title updates automatically.
+
+    /// The title of the screen.
     @Published var title: String = "Dashboard"
-    
-    /// The list of sensor readings. Our View will loop over this array to show data on the screen.
+
+    /// The list of sensor readings displayed by the View.
     @Published var readings: [SensorReading] = []
-    
-    /// A boolean flag to track if we are currently loading data. We use this to show a loading spinner.
+
+    /// A boolean flag indicating an in-flight data request. Used to show a loading spinner.
     @Published var isLoading: Bool = false
-    
+
+    /// A human-readable error message set when data fetching fails, `nil` otherwise.
+    /// The View observes this to surface error banners or alerts without containing
+    /// any error-handling logic itself (Single Responsibility Principle).
+    @Published var errorMessage: String?
+
     // MARK: - Private Properties
-    
-    /// The service responsible for giving us data.
-    /// By keeping this private, we make sure the View can't accidentally mess with our data fetching logic.
+
+    /// The service responsible for supplying data.
+    /// Kept as a protocol (`AgriDataService`) so the ViewModel never depends on a
+    /// concrete repository — satisfying the Dependency Inversion Principle.
     private let dataService: AgriDataService
-    
+
     // MARK: - Initialization
-    
-    /// This is called "Dependency Injection".
-    /// When we create the ViewModel, we *give* it the data service it needs.
-    /// It defaults to `MockAgriDataRepository`, but we could easily pass a real network service later.
-    init(dataService: AgriDataService = MockAgriDataRepository()) {
+
+    /// Initializer-based dependency injection: the caller supplies the concrete data service.
+    /// No default value is provided here so that the composition root (Coordinator) is always
+    /// the single place where concrete types are chosen (Dependency Inversion Principle).
+    init(dataService: AgriDataService) {
         self.dataService = dataService
     }
-    
+
     // MARK: - Methods
-    
-    /// This method reaches out to the Data Service to get new readings.
-    /// `@MainActor` is very important here! It forces this method to run on the "Main Thread."
-    /// In iOS, any changes that affect the User Interface (like updating `readings` or `isLoading`)
-    /// MUST happen on the Main Thread, or the app will crash.
+
+    /// Fetches new sensor readings from the data service.
+    /// `@MainActor` ensures all `@Published` mutations happen on the main thread.
     @MainActor
     func refreshData() async {
-        // 1. Tell the UI we are loading. Because `isLoading` is @Published, the UI updates instantly.
         isLoading = true
-        
-        // `defer` ensures this block of code runs at the very end of the function,
-        // right before the function finishes, no matter what happens (success or error).
-        // This guarantees we always turn off the loading spinner.
+        errorMessage = nil
+
         defer { isLoading = false }
-        
+
         do {
-            // 2. Try to fetch the data. The `await` keyword means the app pauses here
-            // (without freezing the screen!) until the data comes back.
             readings = try await dataService.fetchSensorReadings()
         } catch {
-            // 3. If something goes wrong (like a network failure), we handle it here.
-            print("Error fetching data: \(error)")
+            // Surface the error to the View via the published `errorMessage` property
+            // rather than silently printing it. The View decides how to present it.
+            errorMessage = error.localizedDescription
         }
     }
 }
