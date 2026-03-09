@@ -14,11 +14,20 @@ struct ScrollOffsetPreferenceKey: PreferenceKey {
 struct OnboardingView: View {
     @StateObject private var viewModel: OnboardingViewModel
     let onComplete: () -> Void
-    
-    /// Accepts an externally created ViewModel so the Coordinator (or a test) can own it.
-    /// Defaults to a fresh `OnboardingViewModel` so SwiftUI Previews still work without changes.
-    init(viewModel: OnboardingViewModel = OnboardingViewModel(), onComplete: @escaping () -> Void) {
+
+    /// Primary initializer: accepts an externally created ViewModel so the Coordinator
+    /// (or a test) can own it. Using `StateObject(wrappedValue:)` ensures the ViewModel
+    /// is only created once — SwiftUI ignores subsequent instances — while still allowing
+    /// the caller to control creation (avoiding the eager-allocation pitfall of a default arg).
+    init(viewModel: OnboardingViewModel, onComplete: @escaping () -> Void) {
         self._viewModel = StateObject(wrappedValue: viewModel)
+        self.onComplete = onComplete
+    }
+
+    /// Convenience initializer for SwiftUI Previews or simple call sites that don't
+    /// need to own the ViewModel. The ViewModel is created lazily inside `StateObject`.
+    init(onComplete: @escaping () -> Void) {
+        self._viewModel = StateObject(wrappedValue: OnboardingViewModel())
         self.onComplete = onComplete
     }
     

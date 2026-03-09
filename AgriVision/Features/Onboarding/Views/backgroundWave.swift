@@ -72,7 +72,7 @@ private struct BackgroundWaveShape: Shape {
         return path
     }
 
-    func path(in rect: CGRect) -> Path {
+    func path(in _: CGRect) -> Path {
         // Delegate to the shared helper to avoid duplicating the bezier-curve path.
         return makeCurvyPath()
     }

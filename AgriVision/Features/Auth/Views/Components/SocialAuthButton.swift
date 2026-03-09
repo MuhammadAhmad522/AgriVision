@@ -2,19 +2,25 @@ import SwiftUI
 
 struct SocialAuthButton: View {
     let title: String
-    let systemImage: String? = nil // Could use for other social logins
+    /// Optional override for the system icon. Defaults to `"g.circle.fill"` so that existing
+    /// call sites (Google login) require no change, while future providers can pass their own icon.
+    let systemImage: String?
     let action: () -> Void
-    
+
+    init(title: String, systemImage: String? = nil, action: @escaping () -> Void) {
+        self.title = title
+        self.systemImage = systemImage
+        self.action = action
+    }
+
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                // Using a system icon as a placeholder for Google if no asset is provided
-                // In a real app, this would be the Google G logo asset
-                Image(systemName: "g.circle.fill")
+                Image(systemName: systemImage ?? "g.circle.fill")
                     .resizable()
                     .frame(width: 20, height: 20)
                     .foregroundColor(.authGreen)
-                
+
                 Text(title)
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.authGreen)
