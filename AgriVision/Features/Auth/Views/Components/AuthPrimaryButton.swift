@@ -9,7 +9,7 @@ struct AuthPrimaryButton: View {
             Text(title)
                 .font(.system(size: 16, weight: .bold))
                 .foregroundColor(.white)
-                .frame(width: 326, height: 40)
+                .frame(width: UIConstants.Auth.formWidth, height: UIConstants.Auth.primaryButtonHeight)
                 .background(LinearGradient.authPrimaryGradient)
                 .cornerRadius(8)
         }

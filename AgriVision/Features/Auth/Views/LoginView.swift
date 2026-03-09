@@ -1,61 +1,49 @@
 import SwiftUI
 
 struct LoginView: View {
-    @State private var email = ""
-    @State private var password = ""
-    @State private var rememberMe = false
-    
+    /// `@ObservedObject` — the View observes but does not own the ViewModel;
+    /// ownership lives in `AuthContainerView` which was given it by the Coordinator.
+    @ObservedObject var viewModel: LoginViewModel
     var onSignupTap: () -> Void
-    
+
     var body: some View {
         VStack(spacing: 20) {
-            AuthTextField(label: "Email", placeholder: "ahmad@mail.com", text: $email, keyboardType: .emailAddress, autoCapitalization: .never)
-            
-            AuthTextField(label: "Password", placeholder: "*******", text: $password, isSecure: true, autoCapitalization: .never)
-            
+            AuthTextField(label: "Email", placeholder: "ahmad@mail.com", text: $viewModel.email, keyboardType: .emailAddress, autoCapitalization: .never)
+
+            AuthTextField(label: "Password", placeholder: "*******", text: $viewModel.password, isSecure: true, autoCapitalization: .never)
+
             HStack {
-                Button(action: {
-                    rememberMe.toggle()
-                }) {
+                Button(action: { viewModel.rememberMe.toggle() }) {
                     HStack(spacing: 8) {
-                        Image(systemName: rememberMe ? "checkmark.square.fill" : "square")
+                        Image(systemName: viewModel.rememberMe ? "checkmark.square.fill" : "square")
                             .foregroundColor(.authGreen)
                         Text("Remember Me")
                             .font(.system(size: 14))
                             .foregroundColor(.authGreen)
                     }
                 }
-                
+
                 Spacer()
-                
-                Button(action: {
-                    // Forgot password action
-                }) {
+
+                Button(action: { viewModel.forgotPassword() }) {
                     Text("Forgot Password")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.authGreen)
                 }
             }
-            .frame(width: 326)
-            
+            .frame(width: UIConstants.Auth.formWidth)
+
             AuthPrimaryButton(title: "Login") {
-                // Login action
+                viewModel.login()
             }
             .padding(.top, 10)
-            
-            HStack {
-                Rectangle().fill(Color.authBorder).frame(height: 1)
-                Text("OR")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(.authPlaceholder)
-                Rectangle().fill(Color.authBorder).frame(height: 1)
-            }
-            .frame(width: 326)
-            
+
+            OrDividerView()
+
             SocialAuthButton(title: "Continue with Google") {
-                // Google login action
+                // TODO: Google login action
             }
-            
+
             Button(action: onSignupTap) {
                 HStack(spacing: 4) {
                     Text("Not a Member?")
@@ -74,6 +62,6 @@ struct LoginView: View {
 }
 
 #Preview {
-    LoginView(onSignupTap: {})
+    LoginView(viewModel: LoginViewModel(), onSignupTap: {})
         .background(Color.authCream)
 }

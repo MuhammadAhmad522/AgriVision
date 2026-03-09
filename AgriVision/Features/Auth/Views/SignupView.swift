@@ -1,44 +1,34 @@
 import SwiftUI
 
 struct SignupView: View {
-    @State private var firstName = ""
-    @State private var lastName = ""
-    @State private var email = ""
-    @State private var password = ""
-    @State private var confirmPassword = ""
-    
+    /// `@ObservedObject` — the View observes but does not own the ViewModel;
+    /// ownership lives in `AuthContainerView` which was given it by the Coordinator.
+    @ObservedObject var viewModel: SignupViewModel
     var onLoginTap: () -> Void
-    
+
     var body: some View {
         VStack(spacing: 16) {
-            AuthTextField(label: "First Name", placeholder: "Muhammad", text: $firstName, autoCapitalization: .words)
-            
-            AuthTextField(label: "Last Name", placeholder: "Ahmad", text: $lastName, autoCapitalization: .words)
-            
-            AuthTextField(label: "Email", placeholder: "ahmad@mail.com", text: $email, keyboardType: .emailAddress, autoCapitalization: .never)
-            
-            AuthTextField(label: "Password", placeholder: "*******", text: $password, isSecure: true, autoCapitalization: .never)
-            
-            AuthTextField(label: "Confirm Password", placeholder: "*******", text: $confirmPassword, isSecure: true, autoCapitalization: .never)
-            
+            AuthTextField(label: "First Name", placeholder: "Muhammad", text: $viewModel.firstName, autoCapitalization: .words)
+
+            AuthTextField(label: "Last Name", placeholder: "Ahmad", text: $viewModel.lastName, autoCapitalization: .words)
+
+            AuthTextField(label: "Email", placeholder: "ahmad@mail.com", text: $viewModel.email, keyboardType: .emailAddress, autoCapitalization: .never)
+
+            AuthTextField(label: "Password", placeholder: "*******", text: $viewModel.password, isSecure: true, autoCapitalization: .never)
+
+            AuthTextField(label: "Confirm Password", placeholder: "*******", text: $viewModel.confirmPassword, isSecure: true, autoCapitalization: .never)
+
             AuthPrimaryButton(title: "Register") {
-                // Register action
+                viewModel.register()
             }
             .padding(.top, 10)
-            
-            HStack {
-                Rectangle().fill(Color.authBorder).frame(height: 1)
-                Text("OR")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(.authPlaceholder)
-                Rectangle().fill(Color.authBorder).frame(height: 1)
-            }
-            .frame(width: 326)
-            
+
+            OrDividerView()
+
             SocialAuthButton(title: "Continue with Google") {
-                // Google login action
+                // TODO: Google login action
             }
-            
+
             Button(action: onLoginTap) {
                 HStack(spacing: 4) {
                     Text("Already a Member?")
@@ -57,6 +47,6 @@ struct SignupView: View {
 }
 
 #Preview {
-    SignupView(onLoginTap: {})
+    SignupView(viewModel: SignupViewModel(), onLoginTap: {})
         .background(Color.authCream)
 }

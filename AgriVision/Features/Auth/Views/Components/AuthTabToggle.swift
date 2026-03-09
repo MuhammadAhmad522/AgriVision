@@ -1,10 +1,5 @@
 import SwiftUI
 
-enum AuthTab: String {
-    case login = "Login"
-    case signup = "Signup"
-}
-
 struct AuthTabToggle: View {
     @Binding var selectedTab: AuthTab
     
