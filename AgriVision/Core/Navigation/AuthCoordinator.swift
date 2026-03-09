@@ -23,12 +23,17 @@ final class AuthCoordinator: Coordinator {
         let loginViewModel = LoginViewModel()
         let signupViewModel = SignupViewModel()
 
-        // Step 2: Wire auth-complete signals from child ViewModels to this coordinator's
-        // `onFinished` closure. Neither ViewModel references the Coordinator (DIP / MVVM-C).
-        loginViewModel.onLoginSuccess = { [weak self] in self?.onFinished?() }
-        signupViewModel.onSignupSuccess = { [weak self] in self?.onFinished?() }
+        // Step 2: Wire the AuthViewModel's `onAuthComplete` callback to this coordinator's
+        // `onFinished` closure. `AuthViewModel` is the single "auth finished" signal owner;
+        // child ViewModels funnel their success events into it (DIP / MVVM-C).
+        authViewModel.onAuthComplete = { [weak self] in self?.onFinished?() }
 
-        // Step 3: Inject all ViewModels into the View.
+        // Step 3: Forward child-ViewModel success events into `AuthViewModel.authCompleted()`
+        // so AuthViewModel remains the single point of authority for "user is authenticated".
+        loginViewModel.onLoginSuccess = { [weak authViewModel] in authViewModel?.authCompleted() }
+        signupViewModel.onSignupSuccess = { [weak authViewModel] in authViewModel?.authCompleted() }
+
+        // Step 4: Inject all ViewModels into the View.
         let authView = AuthContainerView(
             viewModel: authViewModel,
             loginViewModel: loginViewModel,

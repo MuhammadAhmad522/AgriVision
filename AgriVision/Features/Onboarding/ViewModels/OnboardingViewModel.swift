@@ -1,5 +1,5 @@
 import Combine
-import CoreGraphics
+import Foundation
 
 /**
  `OnboardingViewModel` handles the logic and state for the onboarding experience.

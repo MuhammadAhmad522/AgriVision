@@ -3,7 +3,8 @@ import SwiftUI
 
 /**
  `AppCoordinator` is the root coordinator for the application.
- Its sole responsibility is managing the top-level flow: Splash → Onboarding → Dashboard.
+ Its sole responsibility is managing the top-level flow: Splash → Onboarding → Auth → Dashboard
+ (with shortcuts that skip Onboarding or Auth when the user has already completed them).
 
  All dependencies are injected via the initializer (Dependency Inversion Principle).
  Concrete navigation for each feature is delegated to child coordinators (Single Responsibility Principle).
@@ -61,7 +62,8 @@ final class AppCoordinator: Coordinator {
 
     private func showOnboarding() {
         if onboardingStateService.hasSeenOnboarding {
-            showMain()
+            // Onboarding already completed, but the user still needs to log in.
+            showAuth()
             return
         }
 

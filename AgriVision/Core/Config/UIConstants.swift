@@ -45,5 +45,11 @@ enum UIConstants {
         static let socialButtonHeight: CGFloat = 44
         /// Height of the text field input area.
         static let textFieldHeight: CGFloat = 40
+        /// Overall width of the Login/Signup tab toggle capsule.
+        static let toggleWidth: CGFloat = 236
+        /// Height of the tab toggle capsule.
+        static let toggleHeight: CGFloat = 41
+        /// Width of each individual tab button inside the toggle (toggleWidth / 2).
+        static let tabWidth: CGFloat = 118
     }
 }

@@ -8,11 +8,9 @@ struct AuthTabToggle: View {
             // Background capsule
             Capsule()
                 .fill(Color.authCream)
-                .frame(width: 236, height: 41)
-                // Use background shadow/blur effect to match Figma
+                .frame(width: UIConstants.Auth.toggleWidth, height: UIConstants.Auth.toggleHeight)
                 .shadow(color: Color.black.opacity(0.04), radius: 10, x: 0, y: 0)
                 .overlay(
-                    // Blur effect overlay if needed, but Capsule fill is a good start
                     Capsule().fill(Color.authCream.opacity(0.5))
                 )
 
@@ -26,7 +24,7 @@ struct AuthTabToggle: View {
                     Text("Login")
                         .font(.system(size: 16, weight: selectedTab == .login ? .bold : .medium))
                         .foregroundColor(selectedTab == .login ? .white : .authGreen)
-                        .frame(width: 118, height: 41)
+                        .frame(width: UIConstants.Auth.tabWidth, height: UIConstants.Auth.toggleHeight)
                 }
                 .background(
                     ZStack {
@@ -47,7 +45,7 @@ struct AuthTabToggle: View {
                     Text("Signup")
                         .font(.system(size: 16, weight: selectedTab == .signup ? .bold : .medium))
                         .foregroundColor(selectedTab == .signup ? .white : .authGreen)
-                        .frame(width: 118, height: 41)
+                        .frame(width: UIConstants.Auth.tabWidth, height: UIConstants.Auth.toggleHeight)
                 }
                 .background(
                     ZStack {
@@ -59,7 +57,7 @@ struct AuthTabToggle: View {
                     }
                 )
             }
-            .frame(width: 236, height: 41)
+            .frame(width: UIConstants.Auth.toggleWidth, height: UIConstants.Auth.toggleHeight)
             .clipShape(Capsule())
         }
     }

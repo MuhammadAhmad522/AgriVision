@@ -4,7 +4,7 @@ import SwiftUI
 /// `DashboardCoordinator` owns the navigation flow for the Dashboard feature.
 ///
 /// Extracting this from `AppCoordinator` satisfies the Single Responsibility Principle (SRP):
-/// `AppCoordinator` is now only responsible for the top-level app flow (Splash → Onboarding → Dashboard),
+/// `AppCoordinator` is now only responsible for the top-level app flow (Splash → Onboarding → Auth → Dashboard),
 /// while `DashboardCoordinator` owns everything that happens *inside* the Dashboard.
 ///
 /// The injected `AgriDataService` satisfies the Dependency Inversion Principle (DIP): the

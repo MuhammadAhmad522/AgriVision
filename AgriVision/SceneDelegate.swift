@@ -33,9 +33,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         window.frame = windowScene.coordinateSpace.bounds
         self.window = window
         
-        // 3. Build concrete dependencies at the composition root and inject them.
-        //    This is the only place in the app where concrete types are instantiated;
-        //    everywhere else depends on protocols (Dependency Inversion Principle).
+        // 3. Build concrete service implementations at the composition root and inject them.
+        //    This is the only place in the runtime app where concrete service implementations
+        //    are chosen; everywhere else depends on protocols (Dependency Inversion Principle).
         let onboardingStateService = UserDefaultsOnboardingStateService()
         let dataService = MockAgriDataRepository()
 
