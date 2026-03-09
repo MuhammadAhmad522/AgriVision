@@ -38,7 +38,7 @@ struct AuthTextField: View {
                 }
             }
             .padding(.horizontal, 16)
-            .frame(height: 40)
+            .frame(height: UIConstants.Auth.textFieldHeight)
             .background(Color.authCream)
             .cornerRadius(8)
             .overlay(
@@ -46,7 +46,7 @@ struct AuthTextField: View {
                     .stroke(Color.authInputBorder, lineWidth: 1)
             )
         }
-        .frame(maxWidth: 326)
+        .frame(maxWidth: UIConstants.Auth.formWidth)
     }
 }
 

@@ -19,7 +19,7 @@ struct SocialAuthButton: View {
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.authGreen)
             }
-            .frame(width: 326, height: 44)
+            .frame(width: UIConstants.Auth.formWidth, height: UIConstants.Auth.socialButtonHeight)
             .background(Color.white)
             .cornerRadius(8)
             .overlay(
