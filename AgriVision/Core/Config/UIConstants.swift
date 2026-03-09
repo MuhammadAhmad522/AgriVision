@@ -2,6 +2,11 @@ import SwiftUI
 
 /// Centralized layout constants to ensure consistency and avoid magic numbers.
 enum UIConstants {
+    enum Splash {
+        /// How long (in seconds) the splash screen is displayed before transitioning.
+        static let duration: TimeInterval = 2.5
+    }
+
     enum Onboarding {
         static let blurredImageFrame: CGFloat = 420
         static let mainImageFrame: CGFloat = 320
