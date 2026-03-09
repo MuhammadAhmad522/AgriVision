@@ -63,7 +63,7 @@ extension Color {
 
 extension LinearGradient {
     static let authPrimaryGradient = LinearGradient(
-        gradient: Gradient(colors: [AppColors.authDarkGreen.opacity(0.2), AppColors.authLightGreen.opacity(0.9994)]),
+        gradient: Gradient(colors: [AppColors.authDarkGreen, AppColors.authLightGreen]),
         startPoint: .bottom,
         endPoint: .top
     )

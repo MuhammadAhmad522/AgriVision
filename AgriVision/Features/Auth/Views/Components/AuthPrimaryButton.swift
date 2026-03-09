@@ -12,6 +12,7 @@ struct AuthPrimaryButton: View {
                 .frame(width: UIConstants.Auth.formWidth, height: UIConstants.Auth.primaryButtonHeight)
                 .background(LinearGradient.authPrimaryGradient)
                 .cornerRadius(8)
+                .shadow(color: AppColors.authDarkGreen.opacity(0.3), radius: 8, x: 0, y: 4)
         }
     }
 }

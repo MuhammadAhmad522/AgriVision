@@ -4,6 +4,8 @@ struct AuthContainerView: View {
     @StateObject private var viewModel: AuthViewModel
     @StateObject private var loginViewModel: LoginViewModel
     @StateObject private var signupViewModel: SignupViewModel
+    
+    @State private var containerHeight: CGFloat = 0
 
     /// All three ViewModels are injected by the Coordinator (DIP / MVVM-C).
     /// `@StateObject` with `StateObject(wrappedValue:)` keeps them alive for the
@@ -79,7 +81,13 @@ struct AuthContainerView: View {
 
                         Spacer(minLength: UIConstants.Auth.scrollSpacerMinLength)
                     }
-                    .frame(minHeight: proxy.size.height)
+                    .frame(maxWidth: .infinity, minHeight: containerHeight > 0 ? containerHeight : proxy.size.height)
+                }
+                .onAppear {
+                    // Capture initial height so layout doesn't jump and conflict with keyboard avoidance
+                    if containerHeight == 0 {
+                        containerHeight = proxy.size.height
+                    }
                 }
             }
         }
