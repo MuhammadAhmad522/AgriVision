@@ -12,8 +12,24 @@ struct ScrollOffsetPreferenceKey: PreferenceKey {
 
 
 struct OnboardingView: View {
-    @StateObject private var viewModel = OnboardingViewModel()
+    @StateObject private var viewModel: OnboardingViewModel
     let onComplete: () -> Void
+
+    /// Primary initializer: accepts an externally created ViewModel so the Coordinator
+    /// (or a test) can own it. Using `StateObject(wrappedValue:)` ensures the ViewModel
+    /// is only created once — SwiftUI ignores subsequent instances — while still allowing
+    /// the caller to control creation (avoiding the eager-allocation pitfall of a default arg).
+    init(viewModel: OnboardingViewModel, onComplete: @escaping () -> Void) {
+        self._viewModel = StateObject(wrappedValue: viewModel)
+        self.onComplete = onComplete
+    }
+
+    /// Convenience initializer for SwiftUI Previews or simple call sites that don't
+    /// need to own the ViewModel. The ViewModel is created lazily inside `StateObject`.
+    init(onComplete: @escaping () -> Void) {
+        self._viewModel = StateObject(wrappedValue: OnboardingViewModel())
+        self.onComplete = onComplete
+    }
     
     var body: some View {
         GeometryReader { outerGeo in
@@ -59,7 +75,11 @@ struct OnboardingView: View {
                             }
                         }
                         
-                        Button(action: { viewModel.handleNextAction(onComplete: onComplete) }) {
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.5)) {
+                                viewModel.handleNextAction(onComplete: onComplete)
+                            }
+                        }) {
                             Image(systemName: "chevron.right.2")
                                 .font(.system(size: 20, weight: .bold))
                                 .foregroundColor(AppColors.mediumGreen)
@@ -98,17 +118,14 @@ struct OnboardingPageView: View {
             ZStack {
                 // Shows a blurred background leaf if it exists.
                 if let blurredName = page.blurredImageName {
+                    let blurredSize = UIConstants.Onboarding.blurredImageFrame * page.blurredImageScale
                     Image(blurredName)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: page.imageName == "onboarding_leaf_2" ? UIConstants.Onboarding.blurredImageFrame * 1.15 : UIConstants.Onboarding.blurredImageFrame, 
-                               height: page.imageName == "onboarding_leaf_2" ? UIConstants.Onboarding.blurredImageFrame * 1.15 : UIConstants.Onboarding.blurredImageFrame)
+                        .frame(width: blurredSize, height: blurredSize)
                         .opacity(UIConstants.Onboarding.blurredImageOpacity)
                         .blur(radius: UIConstants.Onboarding.blurredImageBlurRadius)
-                        .offset(
-                            x: page.imageName == "onboarding_leaf_2" ? -20 : (page.imageName == "onboarding_image_3" ? 10 : -50),
-                            y: page.imageName == "onboarding_leaf_2" ? 40 : (page.imageName == "onboarding_image_3" ? 60 : 30)
-                        )
+                        .offset(x: page.blurredImageXOffset, y: page.blurredImageYOffset)
                 }
                 
                 // Displays either a system icon or a custom asset image.
@@ -119,14 +136,12 @@ struct OnboardingPageView: View {
                         .frame(width: 200, height: 200)
                         .foregroundColor(AppColors.mediumGreen)
                 } else {
+                    let mainSize = UIConstants.Onboarding.mainImageFrame * page.imageScale
                     Image(page.imageName)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(
-                            width: page.imageName == "onboarding_leaf_2" ? UIConstants.Onboarding.mainImageFrame * 1.15 : UIConstants.Onboarding.mainImageFrame,
-                            height: page.imageName == "onboarding_leaf_2" ? UIConstants.Onboarding.mainImageFrame * 1.15 : UIConstants.Onboarding.mainImageFrame
-                        )
-                        .offset(y: page.imageName == "onboarding_leaf_2" ? -40 : 0)
+                        .frame(width: mainSize, height: mainSize)
+                        .offset(y: page.imageYOffset)
                         .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
                 }
             }

@@ -40,8 +40,9 @@ struct BackgroundWave: View {
 
 // A custom shape that defines the "curvy" path of the wave.
 private struct BackgroundWaveShape: Shape {
-    /// Helper to create a curvy wave path.
-    func createCurvyPath(size: CGSize, frequency: CGFloat, amplitude: CGFloat, offset: CGFloat, phase: Angle) -> Path {
+    /// Builds the four-segment bezier wave path used for the onboarding background.
+    /// Extracted as a named helper so `path(in:)` does not duplicate the same curves.
+    private func makeCurvyPath() -> Path {
         var path = Path()
         
         // We move the "pen" to a starting point and then draw curves.
@@ -71,46 +72,9 @@ private struct BackgroundWaveShape: Shape {
         return path
     }
 
-    func path(in rect: CGRect) -> Path {
-        // The original path drawing logic is now within createCurvyPath,
-        // but the provided snippet for createCurvyPath was incomplete and
-        // seemed to be a partial replacement for the existing path logic.
-        // To maintain functionality and incorporate the new helper,
-        // I'm assuming the intent was to move the existing path logic into
-        // the new helper, and then call the helper from here.
-        // However, the helper's signature suggests it's for a more generic
-        // wave, while the existing path is hardcoded.
-        // For now, I'll keep the original path logic in `path(in rect: CGRect)`
-        // and add the new `createCurvyPath` as a separate, unused helper
-        // as per the instruction's placement.
-        
-        var path = Path()
-        
-        // We move the "pen" to a starting point and then draw curves.
-        // Curves use "control points" to create the smooth, organic look.
-        path.move(to: CGPoint(x: -50, y: 150))
-        
-        // First curve
-        path.addCurve(to: CGPoint(x: 450, y: 100),
-                      control1: CGPoint(x: 150, y: 220),
-                      control2: CGPoint(x: 250, y: 20))
-        
-        // Second curve
-        path.addCurve(to: CGPoint(x: 950, y: 160),
-                      control1: CGPoint(x: 650, y: 180),
-                      control2: CGPoint(x: 750, y: 280))
-        
-        // Third curve
-        path.addCurve(to: CGPoint(x: 1450, y: 120),
-                      control1: CGPoint(x: 1150, y: 40),
-                      control2: CGPoint(x: 1250, y: 200))
-        
-        // Fourth curve (Added to extend length for the 3rd page parallax shift)
-        path.addCurve(to: CGPoint(x: 1950, y: 150),
-                      control1: CGPoint(x: 1650, y: 60),
-                      control2: CGPoint(x: 1750, y: 240))
-        
-        return path
+    func path(in _: CGRect) -> Path {
+        // Delegate to the shared helper to avoid duplicating the bezier-curve path.
+        return makeCurvyPath()
     }
 }
 

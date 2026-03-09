@@ -33,9 +33,17 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         window.frame = windowScene.coordinateSpace.bounds
         self.window = window
         
-        // 3. Initialize the Coordinator. This pattern keeps navigation logic 
-        // out of the Views, making the code cleaner and easier to maintain.
-        let coordinator = AppCoordinator(window: window)
+        // 3. Build concrete service implementations at the composition root and inject them.
+        //    This is the only place in the runtime app where concrete service implementations
+        //    are chosen; everywhere else depends on protocols (Dependency Inversion Principle).
+        let onboardingStateService = UserDefaultsOnboardingStateService()
+        let dataService = MockAgriDataRepository()
+
+        let coordinator = AppCoordinator(
+            window: window,
+            onboardingStateService: onboardingStateService,
+            dataService: dataService
+        )
         self.appCoordinator = coordinator
         
         // 4. Tell the coordinator to start, which will set up the first screen (Dashboard).
