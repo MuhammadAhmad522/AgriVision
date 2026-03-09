@@ -2,6 +2,11 @@ import SwiftUI
 
 /// Centralized layout constants to ensure consistency and avoid magic numbers.
 enum UIConstants {
+    enum Splash {
+        /// How long (in seconds) the splash screen is displayed before transitioning.
+        static let duration: TimeInterval = 2.5
+    }
+
     enum Onboarding {
         static let blurredImageFrame: CGFloat = 420
         static let mainImageFrame: CGFloat = 320
@@ -19,5 +24,32 @@ enum UIConstants {
     enum Dashboard {
         static let sensorIconSize: CGFloat = 40
         static let cornerRadius: CGFloat = 12
+    }
+
+    enum Auth {
+        /// Width used by form inputs, primary buttons, social buttons, and the OR divider.
+        static let formWidth: CGFloat = 326
+        /// Width of the glassmorphic card container.
+        static let cardWidth: CGFloat = 371
+        /// Corner radius of the glassmorphic card container.
+        static let cardCornerRadius: CGFloat = 50
+        /// Minimum height for the top and bottom spacers inside the scroll view.
+        static let scrollSpacerMinLength: CGFloat = 60
+        /// Top padding for the tab toggle inside the card.
+        static let cardTopPadding: CGFloat = 25
+        /// Horizontal padding applied to the card's inner content.
+        static let cardHorizontalPadding: CGFloat = 22
+        /// Height of the primary action button (Login / Register).
+        static let primaryButtonHeight: CGFloat = 40
+        /// Height of social authentication buttons.
+        static let socialButtonHeight: CGFloat = 44
+        /// Height of the text field input area.
+        static let textFieldHeight: CGFloat = 40
+        /// Overall width of the Login/Signup tab toggle capsule.
+        static let toggleWidth: CGFloat = 236
+        /// Height of the tab toggle capsule.
+        static let toggleHeight: CGFloat = 41
+        /// Width of each individual tab button inside the toggle (toggleWidth / 2).
+        static let tabWidth: CGFloat = 118
     }
 }
