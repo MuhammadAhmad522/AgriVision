@@ -66,7 +66,11 @@ struct OnboardingView: View {
                             }
                         }
                         
-                        Button(action: { viewModel.handleNextAction(onComplete: onComplete) }) {
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.5)) {
+                                viewModel.handleNextAction(onComplete: onComplete)
+                            }
+                        }) {
                             Image(systemName: "chevron.right.2")
                                 .font(.system(size: 20, weight: .bold))
                                 .foregroundColor(AppColors.mediumGreen)
