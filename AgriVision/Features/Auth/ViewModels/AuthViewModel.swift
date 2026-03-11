@@ -18,7 +18,7 @@ final class AuthViewModel: ObservableObject {
 
     // MARK: - Published State
 
-    @Published var selectedTab: AuthTab = .signup
+    @Published var selectedTab: AuthTab = .login
 
     // MARK: - Coordinator Callback
 
