@@ -25,6 +25,10 @@ final class OnboardingCoordinator: Coordinator {
             self?.onFinished?()
         })
         let hostingController = UIHostingController(rootView: view)
+        
+        // Hide the navigation bar for the onboarding flow
+        navigationController.setNavigationBarHidden(true, animated: true)
+        
         navigationController.setViewControllers([hostingController], animated: true)
     }
 }

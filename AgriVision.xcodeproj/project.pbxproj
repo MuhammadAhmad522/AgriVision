@@ -6,26 +6,21 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		E077629B2F61698300AC45B5 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = E077629A2F61698300AC45B5 /* FirebaseAuth */; };
+		E077629D2F61698C00AC45B5 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = E077629C2F61698C00AC45B5 /* FirebaseAnalytics */; };
+		E077629F2F61699100AC45B5 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = E077629E2F61699100AC45B5 /* FirebaseCore */; };
+		E07762A22F616FD500AC45B5 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = E07762A12F616FD500AC45B5 /* GoogleSignIn */; };
+		E07762A42F616FD500AC45B5 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = E07762A32F616FD500AC45B5 /* GoogleSignInSwift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		E0F972EF2F1DFB5B00088DA1 /* AgriVision.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AgriVision.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		E0F973012F1DFB5C00088DA1 /* Exceptions for "AgriVision" folder in "AgriVision" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = E0F972EE2F1DFB5B00088DA1 /* AgriVision */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		E0F972F12F1DFB5B00088DA1 /* AgriVision */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				E0F973012F1DFB5C00088DA1 /* Exceptions for "AgriVision" folder in "AgriVision" target */,
-			);
 			path = AgriVision;
 			sourceTree = "<group>";
 		};
@@ -36,16 +31,29 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E07762A42F616FD500AC45B5 /* GoogleSignInSwift in Frameworks */,
+				E077629D2F61698C00AC45B5 /* FirebaseAnalytics in Frameworks */,
+				E07762A22F616FD500AC45B5 /* GoogleSignIn in Frameworks */,
+				E077629F2F61699100AC45B5 /* FirebaseCore in Frameworks */,
+				E077629B2F61698300AC45B5 /* FirebaseAuth in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		E07762992F61698300AC45B5 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		E0F972E62F1DFB5B00088DA1 = {
 			isa = PBXGroup;
 			children = (
 				E0F972F12F1DFB5B00088DA1 /* AgriVision */,
+				E07762992F61698300AC45B5 /* Frameworks */,
 				E0F972F02F1DFB5B00088DA1 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -78,6 +86,11 @@
 			);
 			name = AgriVision;
 			packageProductDependencies = (
+				E077629A2F61698300AC45B5 /* FirebaseAuth */,
+				E077629C2F61698C00AC45B5 /* FirebaseAnalytics */,
+				E077629E2F61699100AC45B5 /* FirebaseCore */,
+				E07762A12F616FD500AC45B5 /* GoogleSignIn */,
+				E07762A32F616FD500AC45B5 /* GoogleSignInSwift */,
 			);
 			productName = AgriVision;
 			productReference = E0F972EF2F1DFB5B00088DA1 /* AgriVision.app */;
@@ -109,6 +122,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				E0D9B5D42F6005C700EC136E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				E07762A02F616FD500AC45B5 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E0F972F02F1DFB5B00088DA1 /* Products */;
@@ -150,7 +164,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = AgriVision/Info.plist;
+				INFOPLIST_FILE = "AgriVision/AgriVision-Info.plist";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -180,7 +194,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = AgriVision/Info.plist;
+				INFOPLIST_FILE = "AgriVision/AgriVision-Info.plist";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -346,6 +360,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		E07762A02F616FD500AC45B5 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.1.0;
+			};
+		};
 		E0D9B5D42F6005C700EC136E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
@@ -355,6 +377,34 @@
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		E077629A2F61698300AC45B5 /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E0D9B5D42F6005C700EC136E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		E077629C2F61698C00AC45B5 /* FirebaseAnalytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E0D9B5D42F6005C700EC136E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalytics;
+		};
+		E077629E2F61699100AC45B5 /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E0D9B5D42F6005C700EC136E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+		E07762A12F616FD500AC45B5 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E07762A02F616FD500AC45B5 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		E07762A32F616FD500AC45B5 /* GoogleSignInSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E07762A02F616FD500AC45B5 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignInSwift;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = E0F972E72F1DFB5B00088DA1 /* Project object */;
 }

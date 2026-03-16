@@ -25,15 +25,23 @@ final class AppCoordinator: Coordinator {
     /// The data service supplied to child coordinators.
     /// Injected as a protocol so the real vs. mock implementation is chosen at the composition root (DIP).
     private let dataService: AgriDataService
+    
+    /// The authentication service handling user login/signup.
+    private let authService: AuthService
+    private let preferencesService: PreferencesService
 
     init(
         window: UIWindow,
         onboardingStateService: OnboardingStateService,
-        dataService: AgriDataService
+        dataService: AgriDataService,
+        authService: AuthService,
+        preferencesService: PreferencesService
     ) {
         self.window = window
         self.onboardingStateService = onboardingStateService
         self.dataService = dataService
+        self.authService = authService
+        self.preferencesService = preferencesService
         self.navigationController = UINavigationController()
         // Hide the navigation bar by default for a cleaner, full-screen experience.
         self.navigationController.isNavigationBarHidden = true
@@ -62,8 +70,12 @@ final class AppCoordinator: Coordinator {
 
     private func showOnboarding() {
         if onboardingStateService.hasSeenOnboarding {
-            // Onboarding already completed, but the user still needs to log in.
-            showAuth()
+            // Check if user is already logged in
+            if authService.isUserLoggedIn {
+                showMain()
+            } else {
+                showAuth()
+            }
             return
         }
 
@@ -84,7 +96,7 @@ final class AppCoordinator: Coordinator {
     }
     /// Shows the authentication flow (Login/Signup).
     private func showAuth() {
-        let authCoordinator = AuthCoordinator(navigationController: navigationController)
+        let authCoordinator = AuthCoordinator(navigationController: navigationController, authService: authService, preferencesService: preferencesService)
         
         authCoordinator.onFinished = { [weak self, weak authCoordinator] in
             guard let self = self, let coordinator = authCoordinator else { return }
@@ -103,8 +115,15 @@ final class AppCoordinator: Coordinator {
     private func showMain() {
         let dashboardCoordinator = DashboardCoordinator(
             navigationController: navigationController,
-            dataService: dataService
+            dataService: dataService,
+            authService: authService
         )
+        dashboardCoordinator.onSignOut = { [weak self] in
+            // When sign out occurs in the dashboard, we unwind to the auth flow.
+            self?.childCoordinators.removeAll { $0 === dashboardCoordinator }
+            self?.showAuth()
+        }
+        
         childCoordinators.append(dashboardCoordinator)
         dashboardCoordinator.start()
     }

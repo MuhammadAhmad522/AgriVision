@@ -33,7 +33,7 @@ struct LoginView: View {
             }
             .frame(width: UIConstants.Auth.formWidth)
 
-            AuthPrimaryButton(title: "Login") {
+            AuthPrimaryButton(title: "Login", isLoading: viewModel.isLoading) {
                 viewModel.login()
             }
             .padding(.top, 10)
@@ -41,7 +41,16 @@ struct LoginView: View {
             OrDividerView()
 
             SocialAuthButton(title: "Continue with Google") {
-                // TODO: Google login action
+                viewModel.continueWithGoogle()
+            }
+            .disabled(viewModel.isLoading)
+            .opacity(viewModel.isLoading ? 0.6 : 1.0)
+
+            if let error = viewModel.errorMessage {
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(.red)
+                    .padding(.horizontal)
             }
 
             Button(action: onSignupTap) {
@@ -62,6 +71,6 @@ struct LoginView: View {
 }
 
 #Preview {
-    LoginView(viewModel: LoginViewModel(), onSignupTap: {})
+    LoginView(viewModel: LoginViewModel(authService: MockAuthService(), preferencesService: MockPreferencesService()), onSignupTap: {})
         .background(Color.authCream)
 }
