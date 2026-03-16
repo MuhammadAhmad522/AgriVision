@@ -6,6 +6,8 @@
 //
 
 import UIKit
+import Firebase
+import GoogleSignIn
 
 /**
  The `AppDelegate` is the traditional entry point for an iOS application.
@@ -20,7 +22,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
      Use this for initial setup that doesn't involve the UI (e.g., configuring analytics or third-party SDKs).
      */
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        FirebaseApp.configure()
         return true
+    }
+    
+    // MARK: - Handlers
+    
+    func application(_ app: UIApplication,
+                     open url: URL,
+                     options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {
+      return GIDSignIn.sharedInstance.handle(url)
     }
 
     // MARK: - UISceneSession Lifecycle

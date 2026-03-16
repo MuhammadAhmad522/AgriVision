@@ -101,7 +101,7 @@ struct AuthContainerView: View {
 #Preview {
     AuthContainerView(
         viewModel: AuthViewModel(),
-        loginViewModel: LoginViewModel(),
-        signupViewModel: SignupViewModel()
+        loginViewModel: LoginViewModel(authService: MockAuthService(), preferencesService: MockPreferencesService()),
+        signupViewModel: SignupViewModel(authService: MockAuthService())
     )
 }

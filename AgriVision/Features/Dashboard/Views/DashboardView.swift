@@ -13,13 +13,33 @@ struct DashboardView: View {
 
     var body: some View {
         List {
-            // Error banner — rendered only when the ViewModel exposes an error message.
-            // The View does not interpret or transform the error; it simply displays it.
-            if let errorMessage = viewModel.errorMessage {
+            // Welcome Section
+            if let userName = viewModel.userName {
                 Section {
-                    Text(errorMessage)
-                        .foregroundColor(.red)
-                        .font(.subheadline)
+                    HStack {
+                        Image(systemName: "person.circle.fill")
+                            .font(.largeTitle)
+                            .foregroundColor(.accentColor)
+                        
+                        VStack(alignment: .leading) {
+                            Text("Welcome back,")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            Text(userName)
+                                .font(.headline)
+                        }
+                    }
+                    .padding(.vertical, 8)
+                }
+            }
+            
+            // Account Settings
+            Section(header: Text("Account Settings")) {
+                Button(action: {
+                    viewModel.linkGoogleAccount()
+                }) {
+                    Label("Link Google Account", systemImage: "link")
+                        .foregroundColor(AppColors.authGreen)
                 }
             }
 
@@ -34,6 +54,13 @@ struct DashboardView: View {
             }
         }
         .navigationTitle(viewModel.title)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Sign Out") {
+                    viewModel.signOut()
+                }
+            }
+        }
         .onAppear {
             Task {
                 await viewModel.refreshData()
@@ -41,6 +68,23 @@ struct DashboardView: View {
         }
         .refreshable {
             await viewModel.refreshData()
+        }
+        .overlay(alignment: .top) {
+            Group {
+                if let errorMessage = viewModel.errorMessage {
+                    ToastView(message: errorMessage, type: .error)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                } else if let successMessage = viewModel.successMessage {
+                    ToastView(message: successMessage, type: .success)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
+            // Add padding to ensure it doesn't touch the top edge
+            // and has side padding from the screen edges
+            .padding(.top, 10)
+            .padding(.horizontal, 16)
+            .animation(.spring(response: 0.5, dampingFraction: 0.7), value: viewModel.errorMessage)
+            .animation(.spring(response: 0.5, dampingFraction: 0.7), value: viewModel.successMessage)
         }
     }
 }
@@ -73,6 +117,6 @@ struct SensorReadingRow: View {
 
 #Preview {
     NavigationStack {
-        DashboardView(viewModel: DashboardViewModel(dataService: MockAgriDataRepository()))
+        DashboardView(viewModel: DashboardViewModel(dataService: MockAgriDataRepository(), authService: MockAuthService(isLoggedIn: true)))
     }
 }

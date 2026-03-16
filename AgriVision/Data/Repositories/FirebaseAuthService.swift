@@ -1,0 +1,193 @@
+import Foundation
+import FirebaseCore
+import FirebaseAuth
+import GoogleSignIn
+
+/// Concrete implementation of `AuthService` using Firebase Authentication.
+///
+/// This class handles the specific details of the Firebase SDK and Google Sign-In SDK.
+final class FirebaseAuthService: AuthService {
+    
+    init() {}
+
+    /// Returns true if a user is currently signed in.
+    var isUserLoggedIn: Bool {
+        return Auth.auth().currentUser != nil
+    }
+
+    /// Returns the display name of the current user, if available.
+    var currentUserDisplayName: String? {
+        return Auth.auth().currentUser?.displayName
+    }
+    
+    /// Returns the photo URL of the current user, if available.
+    var currentUserPhotoURL: URL? {
+        return Auth.auth().currentUser?.photoURL
+    }
+
+    /// Returns true if the user's email is verified.
+    var isEmailVerified: Bool {
+        return Auth.auth().currentUser?.isEmailVerified ?? false
+    }
+
+    /// Initiates the Google Sign-In flow.
+    ///
+    /// Uses the top-most view controller to present the Google Sign-In sheet.
+    /// This uses the modern `GIDSignIn` async API.
+    @MainActor
+    func signInWithGoogle() async throws {
+        // Get the top-most view controller to present the sign-in web view.
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let rootViewController = windowScene.windows.first?.rootViewController else {
+            throw AuthError.unknown("Could not find root view controller.")
+        }
+        
+        // Helper to find the very top controller (handling presented controllers)
+        var topController = rootViewController
+        while let presented = topController.presentedViewController {
+            topController = presented
+        }
+
+        do {
+            // Ensure any previous session is cleared to force a fresh token fetch
+            // which helps avoid "expired credential" errors.
+            if GIDSignIn.sharedInstance.currentUser != nil {
+                GIDSignIn.sharedInstance.signOut()
+            }
+
+            // Perform the sign-in flow using the modern async API.
+            // Note: Make sure GIDClientID is set in Info.plist
+            let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: topController)
+            
+            let user = result.user
+            
+            // Authenticate with Firebase using the Google credential.
+            guard let idToken = user.idToken?.tokenString else {
+                throw AuthError.unknown("Failed to get ID Token from Google User.")
+            }
+            
+            let accessToken = user.accessToken.tokenString
+            
+            let credential = GoogleAuthProvider.credential(withIDToken: idToken,
+                                                           accessToken: accessToken)
+            
+            try await Auth.auth().signIn(with: credential)
+        } catch {
+            throw mapError(error)
+        }
+    }
+
+    /// Signs in with email and password.
+    func signIn(email: String, password: String) async throws {
+        do {
+            try await Auth.auth().signIn(withEmail: email, password: password)
+        } catch {
+            throw mapError(error)
+        }
+    }
+
+    /// Signs up a new user with email and password, and sets their display name.
+    func signUp(email: String, password: String, name: String) async throws {
+        do {
+            let result = try await Auth.auth().createUser(withEmail: email, password: password)
+            let changeRequest = result.user.createProfileChangeRequest()
+            changeRequest.displayName = name
+            try await changeRequest.commitChanges()
+        } catch {
+            throw mapError(error)
+        }
+    }
+    
+    /// Sends an email verification link to the currently signed-in user.
+    func sendEmailVerification() async throws {
+        guard let user = Auth.auth().currentUser else {
+            throw AuthError.userNotFound
+        }
+        try await user.sendEmailVerification()
+    }
+    
+    /// Reloads the current user's data (e.g. email verification status).
+    func reloadUser() async throws {
+        guard let user = Auth.auth().currentUser else { return }
+        try await user.reload()
+    }
+    
+    /// Sends a password reset email to the given address.
+    func resetPassword(email: String) async throws {
+        do {
+            try await Auth.auth().sendPasswordReset(withEmail: email)
+        } catch {
+            throw mapError(error)
+        }
+    }
+    
+    private func mapError(_ error: Error) -> AuthError {
+        let nsError = error as NSError
+        
+        // Firebase Auth error codes
+        if nsError.domain == AuthErrorDomain {
+            if let code = AuthErrorCode(rawValue: nsError.code) {
+                switch code {
+                case .userNotFound: return .userNotFound
+                case .wrongPassword: return .wrongPassword
+                case .emailAlreadyInUse: return .emailAlreadyInUse
+                case .invalidEmail: return .invalidEmail
+                case .weakPassword: return .weakPassword
+                case .invalidCredential:
+                    return .unknown("The Google credential is invalid. Please try again.")
+                default: break
+                }
+            }
+        }
+        return .unknown(error.localizedDescription)
+    }
+
+    /// Signs out from both Firebase and Google.
+    func signOut() throws {
+        try Auth.auth().signOut()
+        GIDSignIn.sharedInstance.signOut()
+    }
+
+    /// Fetches the sign-in methods allowed for the given email.
+    func fetchSignInMethods(forEmail email: String) async throws -> [String] {
+        do {
+            return try await Auth.auth().fetchSignInMethods(forEmail: email)
+        } catch {
+            throw mapError(error)
+        }
+    }
+    
+    /// Links the current user account with Google.
+    @MainActor
+    func linkGoogleAccount() async throws {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let rootViewController = windowScene.windows.first?.rootViewController else {
+            throw AuthError.unknown("Could not find root view controller.")
+        }
+        
+        var topController = rootViewController
+        while let presented = topController.presentedViewController {
+            topController = presented
+        }
+
+        do {
+            let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: topController)
+            let user = result.user
+            
+            guard let idToken = user.idToken?.tokenString else {
+                throw AuthError.unknown("Failed to get ID Token from Google User.")
+            }
+            
+            let accessToken = user.accessToken.tokenString
+            let credential = GoogleAuthProvider.credential(withIDToken: idToken, accessToken: accessToken)
+            
+            guard let currentUser = Auth.auth().currentUser else {
+                throw AuthError.userNotFound
+            }
+            
+            let _ = try await currentUser.link(with: credential)
+        } catch {
+            throw mapError(error)
+        }
+    }
+}

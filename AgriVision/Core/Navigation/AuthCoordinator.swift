@@ -10,28 +10,44 @@ final class AuthCoordinator: Coordinator {
     var childCoordinators: [Coordinator] = []
     var navigationController: UINavigationController
 
+    private let authService: AuthService
+    private let preferencesService: PreferencesService
+
     /// Closure called when the authentication process is finished (e.g., user logged in).
     var onFinished: (() -> Void)?
 
-    init(navigationController: UINavigationController) {
+    init(navigationController: UINavigationController, authService: AuthService, preferencesService: PreferencesService) {
         self.navigationController = navigationController
+        self.authService = authService
+        self.preferencesService = preferencesService
     }
 
     func start() {
         // Step 1: Create the ViewModels.
         let authViewModel = AuthViewModel()
-        let loginViewModel = LoginViewModel()
-        let signupViewModel = SignupViewModel()
+        let loginViewModel = LoginViewModel(authService: authService, preferencesService: preferencesService)
+        let signupViewModel = SignupViewModel(authService: authService)
 
         // Step 2: Wire the AuthViewModel's `onAuthComplete` callback to this coordinator's
-        // `onFinished` closure. `AuthViewModel` is the single "auth finished" signal owner;
-        // child ViewModels funnel their success events into it (DIP / MVVM-C).
+        // `onFinished` closure.
         authViewModel.onAuthComplete = { [weak self] in self?.onFinished?() }
 
-        // Step 3: Forward child-ViewModel success events into `AuthViewModel.authCompleted()`
-        // so AuthViewModel remains the single point of authority for "user is authenticated".
+        // Step 3: Forward child-ViewModel success events.
         loginViewModel.onLoginSuccess = { [weak authViewModel] in authViewModel?.authCompleted() }
-        signupViewModel.onSignupSuccess = { [weak authViewModel] in authViewModel?.authCompleted() }
+        loginViewModel.onRequireVerification = { [weak self] in
+            self?.showVerificationScreen()
+        }
+        loginViewModel.onForgotPassword = { [weak self] in
+            self?.showForgotPassword()
+        }
+        
+        // Handle Google Sign-in Success (skip verification)
+        signupViewModel.onSignupAutoLogin = { [weak authViewModel] in authViewModel?.authCompleted() }
+        
+        // Handle Email Signup Success (show verification screen)
+        signupViewModel.onRequireVerification = { [weak self] in
+            self?.showVerificationScreen()
+        }
 
         // Step 4: Inject all ViewModels into the View.
         let authView = AuthContainerView(
@@ -40,6 +56,38 @@ final class AuthCoordinator: Coordinator {
             signupViewModel: signupViewModel
         )
         let hostingController = UIHostingController(rootView: authView)
+        
+        // Hide the navigation bar for the auth flow
+        navigationController.setNavigationBarHidden(true, animated: true)
+        
         navigationController.setViewControllers([hostingController], animated: true)
+    }
+    
+    private func showVerificationScreen() {
+        let verifyViewModel = VerifyEmailViewModel(authService: authService)
+        verifyViewModel.onVerificationVerified = { [weak self] in
+            self?.onFinished?()
+        }
+        
+        let verifyView = VerifyEmailView(viewModel: verifyViewModel)
+        let hostingController = UIHostingController(rootView: verifyView)
+        // Show navigation bar
+        navigationController.setNavigationBarHidden(false, animated: true)
+        navigationController.pushViewController(hostingController, animated: true)
+    }
+
+    private func showForgotPassword() {
+        let viewModel = ForgotPasswordViewModel(authService: authService)
+        
+        viewModel.onBack = { [weak self] in
+            self?.navigationController.popViewController(animated: true)
+        }
+        
+        let view = ForgotPasswordView(viewModel: viewModel)
+        let hostingController = UIHostingController(rootView: view)
+        
+        // Keep navigation bar hidden to maintain consistent UI style
+        navigationController.setNavigationBarHidden(true, animated: true)
+        navigationController.pushViewController(hostingController, animated: true)
     }
 }
