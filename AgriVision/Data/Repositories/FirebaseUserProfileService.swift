@@ -14,23 +14,7 @@ final class FirebaseUserProfileService: UserProfileService {
         do {
             try await changeRequest.commitChanges()
         } catch {
-            throw mapError(error)
+            throw FirebaseAuthErrorMapper.map(error)
         }
-    }
-
-    private func mapError(_ error: Error) -> AgriVisionError {
-        let nsError = error as NSError
-
-        if nsError.domain == AuthErrorDomain,
-           let code = AuthErrorCode(rawValue: nsError.code) {
-            switch code {
-            case .userNotFound: return .userNotFound
-            case .networkError: return .networkUnavailable
-            case .tooManyRequests: return .tooManyRequests
-            default: break
-            }
-        }
-
-        return .unknown(error.localizedDescription)
     }
 }

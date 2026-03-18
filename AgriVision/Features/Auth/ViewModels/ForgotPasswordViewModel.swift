@@ -29,9 +29,9 @@ final class ForgotPasswordViewModel: ObservableObject {
         Task {
             do {
                 if email.isEmpty {
-                      // explicit check just in case validator misses it or for faster feedback
-                      throw ValidationError.emptyField("Email")
-                 }
+                    // explicit check just in case validator misses it or for faster feedback
+                    throw ValidationError.emptyField("Email")
+                }
                 try InputValidator.validate(email: email)
                 try await authService.resetPassword(email: email)
                 isLoading = false
@@ -43,4 +43,3 @@ final class ForgotPasswordViewModel: ObservableObject {
         }
     }
 }
-
