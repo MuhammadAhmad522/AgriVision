@@ -55,22 +55,22 @@ final class SignupViewModel: ObservableObject {
         case .firstName:
             firstNameError = nil
             do { try InputValidator.validate(value: value, fieldName: "First Name") }
-            catch { firstNameError = error.localizedDescription }
+            catch { firstNameError = error.userFacingMessage }
             
         case .lastName:
             lastNameError = nil
             do { try InputValidator.validate(value: value, fieldName: "Last Name") }
-            catch { lastNameError = error.localizedDescription }
+            catch { lastNameError = error.userFacingMessage }
             
         case .email:
             emailError = nil
             do { try InputValidator.validate(email: value) }
-            catch { emailError = error.localizedDescription }
+            catch { emailError = error.userFacingMessage }
             
         case .password:
             passwordError = nil
             do { try InputValidator.validate(password: value, minLength: 8) }
-            catch { passwordError = error.localizedDescription }
+            catch { passwordError = error.userFacingMessage }
             
         case .confirmPassword:
             confirmPasswordError = nil
@@ -113,7 +113,7 @@ final class SignupViewModel: ObservableObject {
             } catch {
                 isLoading = false
                 // Map generic errors or show specific backend errors
-                errorMessage = error.localizedDescription
+                errorMessage = error.userFacingMessage
             }
         }
     }
@@ -130,7 +130,7 @@ final class SignupViewModel: ObservableObject {
                 onSignupAutoLogin?()
             } catch {
                 isLoading = false
-                errorMessage = error.localizedDescription
+                errorMessage = error.userFacingMessage
             }
         }
     }

@@ -122,20 +122,16 @@ final class FirebaseAuthService: AuthService {
     }
 
     /// Signs out from both Firebase and Google.
+    ///
+    /// Google session is always cleared locally to prevent stale-account reuse on next sign-in.
+    /// If Firebase sign-out fails, a mapped domain error is still surfaced to the caller.
     func signOut() throws {
-        var signOutError: Error?
+        defer { GIDSignIn.sharedInstance.signOut() }
 
         do {
             try Auth.auth().signOut()
         } catch {
-            signOutError = error
-        }
-
-        // Always clear Google local session even if Firebase sign-out fails.
-        GIDSignIn.sharedInstance.signOut()
-
-        if let signOutError {
-            throw FirebaseAuthErrorMapper.map(signOutError)
+            throw FirebaseAuthErrorMapper.map(error)
         }
     }
     
