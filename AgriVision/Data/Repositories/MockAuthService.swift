@@ -41,7 +41,7 @@ final class MockAuthService: AuthService {
         isLoggedInStub = true
     }
 
-    func signUp(email: String, password: String, name: String) async throws {
+    func signUp(email: String, password: String) async throws {
         if shouldFail {
             throw AuthError.emailAlreadyInUse
         }
@@ -76,19 +76,6 @@ final class MockAuthService: AuthService {
             throw AuthError.userNotFound
         }
         try await Task.sleep(nanoseconds: 500_000_000)
-    }
-    
-    func fetchSignInMethods(forEmail email: String) async throws -> [String] {
-        if shouldFail {
-            throw AuthError.unknown("Fetch methods failed")
-        }
-        // Return dummy methods for testing
-        if email.contains("google") {
-            return ["google.com"]
-        } else if email.contains("password") {
-            return ["password"]
-        }
-        return []
     }
     
     func linkGoogleAccount() async throws {

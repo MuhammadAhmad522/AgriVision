@@ -34,11 +34,13 @@ final class SignupViewModel: ObservableObject {
     // MARK: - Dependencies
     
     private let authService: AuthService
+    private let userProfileService: UserProfileService
     
     // MARK: - Integration
 
-    init(authService: AuthService) {
+    init(authService: AuthService, userProfileService: UserProfileService) {
         self.authService = authService
+        self.userProfileService = userProfileService
     }
 
     // MARK: - Coordinator Callback
@@ -97,8 +99,11 @@ final class SignupViewModel: ObservableObject {
         Task {
             do {
                 let fullName = "\(firstName) \(lastName)"
-                // Create User
-                try await authService.signUp(email: email, password: password, name: fullName)
+                // Create User credentials
+                try await authService.signUp(email: email, password: password)
+                
+                // Update profile separately from credential creation (SRP)
+                try await userProfileService.updateDisplayName(fullName)
                 
                 // Send Verification Email
                 try await authService.sendEmailVerification()

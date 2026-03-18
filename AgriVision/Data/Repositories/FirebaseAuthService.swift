@@ -1,7 +1,7 @@
 import Foundation
-import FirebaseCore
 import FirebaseAuth
 import GoogleSignIn
+import UIKit
 
 /// Concrete implementation of `AuthService` using Firebase Authentication.
 ///
@@ -89,13 +89,10 @@ final class FirebaseAuthService: AuthService {
         }
     }
 
-    /// Signs up a new user with email and password, and sets their display name.
-    func signUp(email: String, password: String, name: String) async throws {
+    /// Signs up a new user with email and password.
+    func signUp(email: String, password: String) async throws {
         do {
-            let result = try await Auth.auth().createUser(withEmail: email, password: password)
-            let changeRequest = result.user.createProfileChangeRequest()
-            changeRequest.displayName = name
-            try await changeRequest.commitChanges()
+            _ = try await Auth.auth().createUser(withEmail: email, password: password)
         } catch {
             throw mapError(error)
         }
@@ -124,7 +121,7 @@ final class FirebaseAuthService: AuthService {
         }
     }
     
-    private func mapError(_ error: Error) -> AuthError {
+    private func mapError(_ error: Error) -> AgriVisionError {
         let nsError = error as NSError
         
         // Firebase Auth error codes
@@ -136,6 +133,8 @@ final class FirebaseAuthService: AuthService {
                 case .emailAlreadyInUse: return .emailAlreadyInUse
                 case .invalidEmail: return .invalidEmail
                 case .weakPassword: return .weakPassword
+                case .tooManyRequests: return .tooManyRequests
+                case .networkError: return .networkUnavailable
                 case .invalidCredential:
                     return .unknown("The Google credential is invalid. Please try again.")
                 default: break
@@ -147,14 +146,9 @@ final class FirebaseAuthService: AuthService {
 
     /// Signs out from both Firebase and Google.
     func signOut() throws {
-        try Auth.auth().signOut()
-        GIDSignIn.sharedInstance.signOut()
-    }
-
-    /// Fetches the sign-in methods allowed for the given email.
-    func fetchSignInMethods(forEmail email: String) async throws -> [String] {
         do {
-            return try await Auth.auth().fetchSignInMethods(forEmail: email)
+            try Auth.auth().signOut()
+            GIDSignIn.sharedInstance.signOut()
         } catch {
             throw mapError(error)
         }

@@ -66,6 +66,6 @@ struct SignupView: View {
 }
 
 #Preview {
-    SignupView(viewModel: SignupViewModel(authService: MockAuthService()), onLoginTap: {})
+    SignupView(viewModel: SignupViewModel(authService: MockAuthService(), userProfileService: MockUserProfileService()), onLoginTap: {})
         .background(Color.authCream)
 }
