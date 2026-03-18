@@ -64,7 +64,7 @@ final class DashboardViewModel: ObservableObject {
             try authService.signOut()
             onSignOut?()
         } catch {
-            errorMessage = "Failed to sign out: \(error.localizedDescription)"
+            errorMessage = "Failed to sign out: \(error.userFacingMessage)"
         }
     }
     
@@ -90,7 +90,7 @@ final class DashboardViewModel: ObservableObject {
                     }
                 }
             } catch {
-                let errorMsg = "Failed to link account: \(error.localizedDescription)"
+                let errorMsg = "Failed to link account: \(error.userFacingMessage)"
                 await MainActor.run {
                     isLoading = false
                     errorMessage = errorMsg
@@ -120,7 +120,7 @@ final class DashboardViewModel: ObservableObject {
         } catch {
             // Surface the error to the View via the published `errorMessage` property
             // rather than silently printing it. The View decides how to present it.
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage
         }
     }
 }

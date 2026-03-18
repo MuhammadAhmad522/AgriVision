@@ -31,7 +31,7 @@ final class VerifyEmailViewModel: ObservableObject {
                 }
                 self.isLoading = false
             } catch {
-                self.message = error.localizedDescription
+                self.message = error.userFacingMessage
                 self.isLoading = false
             }
         }
@@ -47,7 +47,7 @@ final class VerifyEmailViewModel: ObservableObject {
                 self.message = "Verification email sent!"
                 self.isLoading = false
             } catch {
-                self.message = error.localizedDescription
+                self.message = error.userFacingMessage
                 self.isLoading = false
             }
         }
