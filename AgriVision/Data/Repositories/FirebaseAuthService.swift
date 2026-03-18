@@ -76,7 +76,7 @@ final class FirebaseAuthService: AuthService {
             
             try await Auth.auth().signIn(with: credential)
         } catch {
-            throw mapError(error)
+            throw FirebaseAuthErrorMapper.map(error)
         }
     }
 
@@ -85,7 +85,7 @@ final class FirebaseAuthService: AuthService {
         do {
             try await Auth.auth().signIn(withEmail: email, password: password)
         } catch {
-            throw mapError(error)
+            throw FirebaseAuthErrorMapper.map(error)
         }
     }
 
@@ -94,7 +94,7 @@ final class FirebaseAuthService: AuthService {
         do {
             _ = try await Auth.auth().createUser(withEmail: email, password: password)
         } catch {
-            throw mapError(error)
+            throw FirebaseAuthErrorMapper.map(error)
         }
     }
     
@@ -117,31 +117,8 @@ final class FirebaseAuthService: AuthService {
         do {
             try await Auth.auth().sendPasswordReset(withEmail: email)
         } catch {
-            throw mapError(error)
+            throw FirebaseAuthErrorMapper.map(error)
         }
-    }
-    
-    private func mapError(_ error: Error) -> AgriVisionError {
-        let nsError = error as NSError
-        
-        // Firebase Auth error codes
-        if nsError.domain == AuthErrorDomain {
-            if let code = AuthErrorCode(rawValue: nsError.code) {
-                switch code {
-                case .userNotFound: return .userNotFound
-                case .wrongPassword: return .wrongPassword
-                case .emailAlreadyInUse: return .emailAlreadyInUse
-                case .invalidEmail: return .invalidEmail
-                case .weakPassword: return .weakPassword
-                case .tooManyRequests: return .tooManyRequests
-                case .networkError: return .networkUnavailable
-                case .invalidCredential:
-                    return .unknown("The Google credential is invalid. Please try again.")
-                default: break
-                }
-            }
-        }
-        return .unknown(error.localizedDescription)
     }
 
     /// Signs out from both Firebase and Google.
@@ -150,7 +127,7 @@ final class FirebaseAuthService: AuthService {
             try Auth.auth().signOut()
             GIDSignIn.sharedInstance.signOut()
         } catch {
-            throw mapError(error)
+            throw FirebaseAuthErrorMapper.map(error)
         }
     }
     
@@ -176,7 +153,7 @@ final class FirebaseAuthService: AuthService {
             
             let _ = try await currentUser.link(with: credential)
         } catch {
-            throw mapError(error)
+            throw FirebaseAuthErrorMapper.map(error)
         }
     }
 }
