@@ -14,6 +14,7 @@ enum AgriVisionError: LocalizedError {
     case weakPassword
     case tooManyRequests
     case networkUnavailable
+    case passwordResetRequiresPasswordSignIn
     case operationFailed
     case unknown(String)
     
@@ -28,6 +29,7 @@ enum AgriVisionError: LocalizedError {
         case .weakPassword: return "The password is too weak."
         case .tooManyRequests: return "Too many attempts. Please wait a moment and try again."
         case .networkUnavailable: return "Network error. Please check your internet connection and try again."
+        case .passwordResetRequiresPasswordSignIn: return "This account uses Google sign-in. Please continue with Google."
         case .operationFailed: return "We couldn’t complete your request right now. Please try again."
         case .unknown(let message): return message
         }

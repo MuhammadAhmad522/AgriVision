@@ -33,7 +33,10 @@ final class FirebaseAuthService: AuthService {
     private func getTopViewController() throws -> UIViewController {
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let rootViewController = windowScene.windows.first?.rootViewController else {
-            throw AgriVisionError.unknown("Could not find root view controller.")
+            #if DEBUG
+            print("Failed to resolve top view controller for Google sign-in flow.")
+            #endif
+            throw AgriVisionError.invalidInternalState
         }
         
         var topController = rootViewController
@@ -66,7 +69,10 @@ final class FirebaseAuthService: AuthService {
             
             // Authenticate with Firebase using the Google credential.
             guard let idToken = user.idToken?.tokenString else {
-                throw AgriVisionError.unknown("Failed to get ID Token from Google User.")
+                #if DEBUG
+                print("Google Sign-In returned nil ID token during sign-in flow.")
+                #endif
+                throw AgriVisionError.invalidInternalState
             }
             
             let accessToken = user.accessToken.tokenString
@@ -115,6 +121,10 @@ final class FirebaseAuthService: AuthService {
     /// Sends a password reset email to the given address.
     func resetPassword(email: String) async throws {
         do {
+            let signInMethods = try await Auth.auth().fetchSignInMethods(forEmail: email)
+            if signInMethods.contains("google.com") && !signInMethods.contains("password") {
+                throw AgriVisionError.passwordResetRequiresPasswordSignIn
+            }
             try await Auth.auth().sendPasswordReset(withEmail: email)
         } catch {
             throw FirebaseAuthErrorMapper.map(error)
@@ -145,7 +155,10 @@ final class FirebaseAuthService: AuthService {
             let user = result.user
             
             guard let idToken = user.idToken?.tokenString else {
-                throw AgriVisionError.unknown("Failed to get ID Token from Google User.")
+                #if DEBUG
+                print("Google Sign-In returned nil ID token during account-link flow.")
+                #endif
+                throw AgriVisionError.invalidInternalState
             }
             
             let accessToken = user.accessToken.tokenString

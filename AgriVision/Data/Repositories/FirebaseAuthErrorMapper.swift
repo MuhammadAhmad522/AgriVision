@@ -3,6 +3,10 @@ import FirebaseAuth
 
 enum FirebaseAuthErrorMapper {
     static func map(_ error: Error) -> AgriVisionError {
+        if let agriVisionError = error as? AgriVisionError {
+            return agriVisionError
+        }
+
         let nsError = error as NSError
 
         if nsError.domain == AuthErrorDomain,
