@@ -26,7 +26,7 @@ final class MockAuthService: AuthService {
     
     func signInWithGoogle() async throws {
         if shouldFail {
-            throw AuthError.unknown("Mock sign-in failed.")
+            throw AgriVisionError.unknown("Mock sign-in failed.")
         }
         // Simulate network delay
         try await Task.sleep(nanoseconds: 1_000_000_000)
@@ -35,7 +35,7 @@ final class MockAuthService: AuthService {
 
     func signIn(email: String, password: String) async throws {
         if shouldFail {
-            throw AuthError.wrongPassword
+            throw AgriVisionError.wrongPassword
         }
         try await Task.sleep(nanoseconds: 1_000_000_000)
         isLoggedInStub = true
@@ -43,7 +43,7 @@ final class MockAuthService: AuthService {
 
     func signUp(email: String, password: String) async throws {
         if shouldFail {
-            throw AuthError.emailAlreadyInUse
+            throw AgriVisionError.emailAlreadyInUse
         }
         try await Task.sleep(nanoseconds: 1_000_000_000)
         isLoggedInStub = true
@@ -58,7 +58,7 @@ final class MockAuthService: AuthService {
     
     func sendEmailVerification() async throws {
         if shouldFail {
-            throw AuthError.unknown("Mock verification failed.")
+            throw AgriVisionError.unknown("Mock verification failed.")
         }
         try await Task.sleep(nanoseconds: 500_000_000)
     }
@@ -73,14 +73,14 @@ final class MockAuthService: AuthService {
     
     func resetPassword(email: String) async throws {
         if shouldFail {
-            throw AuthError.userNotFound
+            throw AgriVisionError.userNotFound
         }
         try await Task.sleep(nanoseconds: 500_000_000)
     }
     
     func linkGoogleAccount() async throws {
         if shouldFail {
-            throw AuthError.unknown("Link account failed")
+            throw AgriVisionError.unknown("Link account failed")
         }
         try await Task.sleep(nanoseconds: 500_000_000)
     }
