@@ -30,23 +30,26 @@ final class FirebaseAuthService: AuthService {
         return Auth.auth().currentUser?.isEmailVerified ?? false
     }
 
+    private func getTopViewController() throws -> UIViewController {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let rootViewController = windowScene.windows.first?.rootViewController else {
+            throw AuthError.unknown("Could not find root view controller.")
+        }
+        
+        var topController = rootViewController
+        while let presented = topController.presentedViewController {
+            topController = presented
+        }
+        return topController
+    }
+
     /// Initiates the Google Sign-In flow.
     ///
     /// Uses the top-most view controller to present the Google Sign-In sheet.
     /// This uses the modern `GIDSignIn` async API.
     @MainActor
     func signInWithGoogle() async throws {
-        // Get the top-most view controller to present the sign-in web view.
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let rootViewController = windowScene.windows.first?.rootViewController else {
-            throw AuthError.unknown("Could not find root view controller.")
-        }
-        
-        // Helper to find the very top controller (handling presented controllers)
-        var topController = rootViewController
-        while let presented = topController.presentedViewController {
-            topController = presented
-        }
+        let topController = try getTopViewController()
 
         do {
             // Ensure any previous session is cleared to force a fresh token fetch
@@ -160,15 +163,7 @@ final class FirebaseAuthService: AuthService {
     /// Links the current user account with Google.
     @MainActor
     func linkGoogleAccount() async throws {
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let rootViewController = windowScene.windows.first?.rootViewController else {
-            throw AuthError.unknown("Could not find root view controller.")
-        }
-        
-        var topController = rootViewController
-        while let presented = topController.presentedViewController {
-            topController = presented
-        }
+        let topController = try getTopViewController()
 
         do {
             let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: topController)
