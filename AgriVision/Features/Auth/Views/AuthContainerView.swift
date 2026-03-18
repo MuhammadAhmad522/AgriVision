@@ -63,20 +63,7 @@ struct AuthContainerView: View {
                         }
                         .padding(.horizontal, UIConstants.Auth.cardHorizontalPadding)
                         .frame(width: UIConstants.Auth.cardWidth)
-                        .background(
-                            RoundedRectangle(cornerRadius: UIConstants.Auth.cardCornerRadius)
-                                .fill(Color.white.opacity(0.1))
-                                .background(
-                                    Color.white.opacity(0.1)
-                                        .blur(radius: 20)
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: UIConstants.Auth.cardCornerRadius)
-                                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                                )
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: UIConstants.Auth.cardCornerRadius))
-                        .shadow(color: Color.black.opacity(0.1), radius: 20, x: 0, y: 10)
+                        .glassmorphism(cornerRadius: UIConstants.Auth.cardCornerRadius)
                         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: viewModel.selectedTab)
 
                         Spacer(minLength: UIConstants.Auth.scrollSpacerMinLength)
@@ -104,4 +91,32 @@ struct AuthContainerView: View {
         loginViewModel: LoginViewModel(authService: MockAuthService(), preferencesService: MockPreferencesService()),
         signupViewModel: SignupViewModel(authService: MockAuthService())
     )
+}
+
+struct GlassmorphismModifier: ViewModifier {
+    var cornerRadius: CGFloat
+    
+    func body(content: Content) -> some View {
+        content
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .fill(Color.white.opacity(0.1))
+                    .background(
+                        Color.white.opacity(0.1)
+                            .blur(radius: 20)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: cornerRadius)
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                    )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+            .shadow(color: Color.black.opacity(0.1), radius: 20, x: 0, y: 10)
+    }
+}
+
+extension View {
+    func glassmorphism(cornerRadius: CGFloat) -> some View {
+        self.modifier(GlassmorphismModifier(cornerRadius: cornerRadius))
+    }
 }

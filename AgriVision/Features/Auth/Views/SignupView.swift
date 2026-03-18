@@ -8,44 +8,24 @@ struct SignupView: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            AuthTextField(label: "First Name", placeholder: "Muhammad", text: $viewModel.firstName, autoCapitalization: .words)
-                .onChange(of: viewModel.firstName) { newValue in
-                    viewModel.validateField(.firstName, value: newValue)
-                }
-            if let error = viewModel.firstNameError {
-                Text(error).font(.caption).foregroundColor(.red).frame(maxWidth: .infinity, alignment: .leading)
+            ValidatedAuthTextField(label: "First Name", placeholder: "Muhammad", text: $viewModel.firstName, error: viewModel.firstNameError, autoCapitalization: .words) { newValue in
+                viewModel.validateField(.firstName, value: newValue)
             }
 
-            AuthTextField(label: "Last Name", placeholder: "Ahmad", text: $viewModel.lastName, autoCapitalization: .words)
-                .onChange(of: viewModel.lastName) { newValue in
-                    viewModel.validateField(.lastName, value: newValue)
-                }
-            if let error = viewModel.lastNameError {
-                Text(error).font(.caption).foregroundColor(.red).frame(maxWidth: .infinity, alignment: .leading)
+            ValidatedAuthTextField(label: "Last Name", placeholder: "Ahmad", text: $viewModel.lastName, error: viewModel.lastNameError, autoCapitalization: .words) { newValue in
+                viewModel.validateField(.lastName, value: newValue)
             }
 
-            AuthTextField(label: "Email", placeholder: "ahmad@mail.com", text: $viewModel.email, keyboardType: .emailAddress, autoCapitalization: .never)
-                .onChange(of: viewModel.email) { newValue in
-                    viewModel.validateField(.email, value: newValue)
-                }
-            if let error = viewModel.emailError {
-                Text(error).font(.caption).foregroundColor(.red).frame(maxWidth: .infinity, alignment: .leading)
+            ValidatedAuthTextField(label: "Email", placeholder: "ahmad@mail.com", text: $viewModel.email, error: viewModel.emailError, keyboardType: .emailAddress, autoCapitalization: .never) { newValue in
+                viewModel.validateField(.email, value: newValue)
             }
 
-            AuthTextField(label: "Password", placeholder: "*******", text: $viewModel.password, isSecure: true, autoCapitalization: .never)
-                .onChange(of: viewModel.password) { newValue in
-                    viewModel.validateField(.password, value: newValue)
-                }
-            if let error = viewModel.passwordError {
-                Text(error).font(.caption).foregroundColor(.red).frame(maxWidth: .infinity, alignment: .leading)
+            ValidatedAuthTextField(label: "Password", placeholder: "*******", text: $viewModel.password, error: viewModel.passwordError, isSecure: true, autoCapitalization: .never) { newValue in
+                viewModel.validateField(.password, value: newValue)
             }
 
-            AuthTextField(label: "Confirm Password", placeholder: "*******", text: $viewModel.confirmPassword, isSecure: true, autoCapitalization: .never)
-                .onChange(of: viewModel.confirmPassword) { newValue in
-                    viewModel.validateField(.confirmPassword, value: newValue)
-                }
-            if let error = viewModel.confirmPasswordError {
-                Text(error).font(.caption).foregroundColor(.red).frame(maxWidth: .infinity, alignment: .leading)
+            ValidatedAuthTextField(label: "Confirm Password", placeholder: "*******", text: $viewModel.confirmPassword, error: viewModel.confirmPasswordError, isSecure: true, autoCapitalization: .never) { newValue in
+                viewModel.validateField(.confirmPassword, value: newValue)
             }
 
             AuthPrimaryButton(title: "Register", isLoading: viewModel.isLoading) {
