@@ -30,9 +30,6 @@ enum AgriVisionError: LocalizedError {
     }
 }
 
-/// Backward-compatible alias for existing auth-focused call sites.
-typealias AuthError = AgriVisionError
-
 /// Protocol defining authentication capabilities.
 ///
 /// Follows Interface Segregation Principle (ISP) by keeping the interface focused on auth tasks.

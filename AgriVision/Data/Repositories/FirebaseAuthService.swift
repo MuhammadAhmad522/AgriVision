@@ -33,7 +33,7 @@ final class FirebaseAuthService: AuthService {
     private func getTopViewController() throws -> UIViewController {
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let rootViewController = windowScene.windows.first?.rootViewController else {
-            throw AuthError.unknown("Could not find root view controller.")
+            throw AgriVisionError.unknown("Could not find root view controller.")
         }
         
         var topController = rootViewController
@@ -66,7 +66,7 @@ final class FirebaseAuthService: AuthService {
             
             // Authenticate with Firebase using the Google credential.
             guard let idToken = user.idToken?.tokenString else {
-                throw AuthError.unknown("Failed to get ID Token from Google User.")
+                throw AgriVisionError.unknown("Failed to get ID Token from Google User.")
             }
             
             let accessToken = user.accessToken.tokenString
@@ -101,7 +101,7 @@ final class FirebaseAuthService: AuthService {
     /// Sends an email verification link to the currently signed-in user.
     func sendEmailVerification() async throws {
         guard let user = Auth.auth().currentUser else {
-            throw AuthError.userNotFound
+            throw AgriVisionError.userNotFound
         }
         try await user.sendEmailVerification()
     }
@@ -123,11 +123,19 @@ final class FirebaseAuthService: AuthService {
 
     /// Signs out from both Firebase and Google.
     func signOut() throws {
+        var signOutError: Error?
+
         do {
             try Auth.auth().signOut()
-            GIDSignIn.sharedInstance.signOut()
         } catch {
-            throw FirebaseAuthErrorMapper.map(error)
+            signOutError = error
+        }
+
+        // Always clear Google local session even if Firebase sign-out fails.
+        GIDSignIn.sharedInstance.signOut()
+
+        if let signOutError {
+            throw FirebaseAuthErrorMapper.map(signOutError)
         }
     }
     
@@ -141,14 +149,14 @@ final class FirebaseAuthService: AuthService {
             let user = result.user
             
             guard let idToken = user.idToken?.tokenString else {
-                throw AuthError.unknown("Failed to get ID Token from Google User.")
+                throw AgriVisionError.unknown("Failed to get ID Token from Google User.")
             }
             
             let accessToken = user.accessToken.tokenString
             let credential = GoogleAuthProvider.credential(withIDToken: idToken, accessToken: accessToken)
             
             guard let currentUser = Auth.auth().currentUser else {
-                throw AuthError.userNotFound
+                throw AgriVisionError.userNotFound
             }
             
             let _ = try await currentUser.link(with: credential)
