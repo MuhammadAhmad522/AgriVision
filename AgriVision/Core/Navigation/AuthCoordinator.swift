@@ -11,14 +11,21 @@ final class AuthCoordinator: Coordinator {
     var navigationController: UINavigationController
 
     private let authService: AuthService
+    private let userProfileService: UserProfileService
     private let preferencesService: PreferencesService
 
     /// Closure called when the authentication process is finished (e.g., user logged in).
     var onFinished: (() -> Void)?
 
-    init(navigationController: UINavigationController, authService: AuthService, preferencesService: PreferencesService) {
+    init(
+        navigationController: UINavigationController,
+        authService: AuthService,
+        userProfileService: UserProfileService,
+        preferencesService: PreferencesService
+    ) {
         self.navigationController = navigationController
         self.authService = authService
+        self.userProfileService = userProfileService
         self.preferencesService = preferencesService
     }
 
@@ -26,7 +33,7 @@ final class AuthCoordinator: Coordinator {
         // Step 1: Create the ViewModels.
         let authViewModel = AuthViewModel()
         let loginViewModel = LoginViewModel(authService: authService, preferencesService: preferencesService)
-        let signupViewModel = SignupViewModel(authService: authService)
+        let signupViewModel = SignupViewModel(authService: authService, userProfileService: userProfileService)
 
         // Step 2: Wire the AuthViewModel's `onAuthComplete` callback to this coordinator's
         // `onFinished` closure.

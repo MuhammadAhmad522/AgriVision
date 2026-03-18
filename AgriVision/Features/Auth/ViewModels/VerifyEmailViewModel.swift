@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 
+@MainActor
 final class VerifyEmailViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var message: String?
@@ -13,7 +14,6 @@ final class VerifyEmailViewModel: ObservableObject {
         self.authService = authService
     }
     
-    @MainActor
     func checkVerificationStatus() {
         isLoading = true
         message = nil
@@ -37,7 +37,6 @@ final class VerifyEmailViewModel: ObservableObject {
         }
     }
     
-    @MainActor
     func resendVerificationEmail() {
         isLoading = true
         message = nil

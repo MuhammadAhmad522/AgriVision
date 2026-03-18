@@ -39,6 +39,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         let onboardingStateService = UserDefaultsOnboardingStateService()
         let dataService = MockAgriDataRepository()
         let authService = FirebaseAuthService()
+        let userProfileService = FirebaseUserProfileService()
         let preferencesService = UserDefaultsPreferencesService()
 
         let coordinator = AppCoordinator(
@@ -46,6 +47,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             onboardingStateService: onboardingStateService,
             dataService: dataService,
             authService: authService,
+            userProfileService: userProfileService,
             preferencesService: preferencesService
         )
         self.appCoordinator = coordinator
