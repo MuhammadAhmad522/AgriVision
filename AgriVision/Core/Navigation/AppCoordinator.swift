@@ -3,11 +3,10 @@ import SwiftUI
 
 /**
  `AppCoordinator` is the root coordinator for the application.
- Its sole responsibility is managing the top-level flow: Splash → Onboarding → Auth → Dashboard
- (with shortcuts that skip Onboarding or Auth when the user has already completed them).
-
- All dependencies are injected via the initializer (Dependency Inversion Principle).
- Concrete navigation for each feature is delegated to child coordinators (Single Responsibility Principle).
+ It manages the top-level app flow: Splash → Onboarding → Auth → Dashboard.
+ 
+ It acts as the "boss" of the app, injecting necessary services (like Firebase) and handing off
+ specific, screen-to-screen navigation to child coordinators (like AuthCoordinator).
  */
 final class AppCoordinator: Coordinator {
 

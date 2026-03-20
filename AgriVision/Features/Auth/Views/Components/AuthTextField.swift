@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// A stylized, reusable text field used across authentication screens.
+/// It features a standard icon placeholder and an optional secure-entry toggle for passwords.
 struct AuthTextField: View {
     let label: String
     let placeholder: String
@@ -59,6 +61,8 @@ struct AuthTextField: View {
     .background(Color.gray.opacity(0.1))
 }
 
+/// A wrapper around `AuthTextField` that automatically displays real-time validation error messages
+/// underneath the field, adjusting its layout dynamically.
 struct ValidatedAuthTextField: View {
     let label: String
     let placeholder: String
