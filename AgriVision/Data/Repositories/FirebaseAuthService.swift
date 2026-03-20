@@ -121,10 +121,6 @@ final class FirebaseAuthService: AuthService {
     /// Sends a password reset email to the given address.
     func resetPassword(email: String) async throws {
         do {
-            let signInMethods = try await Auth.auth().fetchSignInMethods(forEmail: email)
-            if signInMethods.contains("google.com") && !signInMethods.contains("password") {
-                throw AgriVisionError.passwordResetRequiresPasswordSignIn
-            }
             try await Auth.auth().sendPasswordReset(withEmail: email)
         } catch {
             throw FirebaseAuthErrorMapper.map(error)
