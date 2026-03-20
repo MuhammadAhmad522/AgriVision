@@ -1,11 +1,9 @@
 import Foundation
 import Combine
 
-/// Owns the form state and actions for the Login screen.
-///
-/// Moving form fields out of the View and into the ViewModel satisfies SRP:
-/// the View becomes a passive renderer and this class is independently unit-testable
-/// with no UI dependencies (MVVM-C ViewModel requirements).
+/// Manages the logic behind the scenes for the Login screen.
+/// Data validation, tracking whether the app is loading, and communicating with Firebase
+/// all happen here so the SwiftUI View can remain purely focused on UI design.
 @MainActor
 final class LoginViewModel: ObservableObject {
 

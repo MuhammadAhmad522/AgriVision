@@ -7,9 +7,9 @@ struct AuthContainerView: View {
     
     @State private var containerHeight: CGFloat = 0
 
-    /// All three ViewModels are injected by the Coordinator (DIP / MVVM-C).
-    /// `@StateObject` with `StateObject(wrappedValue:)` keeps them alive for the
-    /// full lifetime of this View while ensuring the Coordinator owns creation.
+    // The Coordinator creates these ViewModels and passes them in.
+    // Using @StateObject here ensures this View keeps them alive in memory
+    // rather than accidentally destroying them during UI redraws.
     init(viewModel: AuthViewModel, loginViewModel: LoginViewModel, signupViewModel: SignupViewModel) {
         self._viewModel = StateObject(wrappedValue: viewModel)
         self._loginViewModel = StateObject(wrappedValue: loginViewModel)
@@ -24,8 +24,8 @@ struct AuthContainerView: View {
                 .aspectRatio(contentMode: .fill)
                 .ignoresSafeArea()
 
-            // `GeometryReader` replaces the previous `UIScreen.main.bounds.height`
-            // call, keeping this View free of UIKit dependencies (MVVM-C View rules).
+            // We use GeometryReader to get the dynamic screen size instead of
+            // UIScreen.main.bounds, making this view more adaptable to different devices.
             GeometryReader { proxy in
                 ScrollView(showsIndicators: false) {
                     VStack {
@@ -93,6 +93,8 @@ struct AuthContainerView: View {
     )
 }
 
+/// A custom, reusable modifier that applies a frosted-glass, multi-layered background effect.
+/// Use `.glassmorphism(cornerRadius:)` on any SwiftUI View to achieve the premium aesthetic.
 struct GlassmorphismModifier: ViewModifier {
     var cornerRadius: CGFloat
     

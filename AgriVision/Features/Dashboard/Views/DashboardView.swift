@@ -33,16 +33,7 @@ struct DashboardView: View {
                 }
             }
             
-            // Account Settings
-            Section(header: Text("Account Settings")) {
-                Button(action: {
-                    viewModel.linkGoogleAccount()
-                }) {
-                    Label("Link Google Account", systemImage: "link")
-                        .foregroundColor(AppColors.authGreen)
-                }
-            }
-
+            // Live Sensor Data
             Section(header: Text("Live Sensor Data")) {
                 if viewModel.isLoading {
                     ProgressView("Updating...")
@@ -56,8 +47,11 @@ struct DashboardView: View {
         .navigationTitle(viewModel.title)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button("Sign Out") {
-                    viewModel.signOut()
+                Button(action: {
+                    viewModel.openSettings()
+                }) {
+                    Image(systemName: "gearshape")
+                        .foregroundColor(AppColors.authGreen)
                 }
             }
         }

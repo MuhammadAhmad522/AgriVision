@@ -49,6 +49,9 @@ final class DashboardCoordinator: Coordinator {
         viewModel.onSignOut = { [weak self] in
             self?.onSignOut?()
         }
+        viewModel.onSettingsTap = { [weak self] in
+            self?.showSettings()
+        }
         
         let view = DashboardView(viewModel: viewModel)
         let hostingController = UIHostingController(rootView: view)
@@ -60,5 +63,23 @@ final class DashboardCoordinator: Coordinator {
         // Use push if we came from Intro, or setViewControllers if replacing
         // If we want to allow "Back" (unlikely for dashboard), use setViewControllers to reset stack
         navigationController.setViewControllers([hostingController], animated: true)
+    }
+
+    private func showSettings() {
+        let settingsCoordinator = SettingsCoordinator(navigationController: navigationController, authService: authService)
+        
+        settingsCoordinator.onSignOut = { [weak self] in
+            self?.onSignOut?()
+            // When signing out from settings, we want to pop everything
+            self?.navigationController.popToRootViewController(animated: false)
+        }
+        
+        settingsCoordinator.onFinished = { [weak self, weak settingsCoordinator] in
+            guard let self = self, let coordinator = settingsCoordinator else { return }
+            self.childCoordinators.removeAll { $0 === coordinator }
+        }
+        
+        childCoordinators.append(settingsCoordinator)
+        settingsCoordinator.start()
     }
 }
