@@ -38,11 +38,17 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         //    are chosen; everywhere else depends on protocols (Dependency Inversion Principle).
         let onboardingStateService = UserDefaultsOnboardingStateService()
         let dataService = MockAgriDataRepository()
+        let authService = FirebaseAuthService()
+        let userProfileService = FirebaseUserProfileService()
+        let preferencesService = UserDefaultsPreferencesService()
 
         let coordinator = AppCoordinator(
             window: window,
             onboardingStateService: onboardingStateService,
-            dataService: dataService
+            dataService: dataService,
+            authService: authService,
+            userProfileService: userProfileService,
+            preferencesService: preferencesService
         )
         self.appCoordinator = coordinator
         
