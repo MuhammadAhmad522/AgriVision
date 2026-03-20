@@ -89,7 +89,7 @@ struct AuthContainerView: View {
     AuthContainerView(
         viewModel: AuthViewModel(),
         loginViewModel: LoginViewModel(authService: MockAuthService(), preferencesService: MockPreferencesService()),
-        signupViewModel: SignupViewModel(authService: MockAuthService())
+        signupViewModel: SignupViewModel(authService: MockAuthService(), userProfileService: MockUserProfileService())
     )
 }
 

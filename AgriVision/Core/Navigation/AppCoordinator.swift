@@ -28,6 +28,7 @@ final class AppCoordinator: Coordinator {
     
     /// The authentication service handling user login/signup.
     private let authService: AuthService
+    private let userProfileService: UserProfileService
     private let preferencesService: PreferencesService
 
     init(
@@ -35,12 +36,14 @@ final class AppCoordinator: Coordinator {
         onboardingStateService: OnboardingStateService,
         dataService: AgriDataService,
         authService: AuthService,
+        userProfileService: UserProfileService,
         preferencesService: PreferencesService
     ) {
         self.window = window
         self.onboardingStateService = onboardingStateService
         self.dataService = dataService
         self.authService = authService
+        self.userProfileService = userProfileService
         self.preferencesService = preferencesService
         self.navigationController = UINavigationController()
         // Hide the navigation bar by default for a cleaner, full-screen experience.
@@ -96,7 +99,12 @@ final class AppCoordinator: Coordinator {
     }
     /// Shows the authentication flow (Login/Signup).
     private func showAuth() {
-        let authCoordinator = AuthCoordinator(navigationController: navigationController, authService: authService, preferencesService: preferencesService)
+        let authCoordinator = AuthCoordinator(
+            navigationController: navigationController,
+            authService: authService,
+            userProfileService: userProfileService,
+            preferencesService: preferencesService
+        )
         
         authCoordinator.onFinished = { [weak self, weak authCoordinator] in
             guard let self = self, let coordinator = authCoordinator else { return }

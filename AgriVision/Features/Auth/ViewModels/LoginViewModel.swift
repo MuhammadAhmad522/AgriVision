@@ -76,7 +76,7 @@ final class LoginViewModel: ObservableObject {
                 onLoginSuccess?()
             } catch {
                 isLoading = false
-                errorMessage = error.localizedDescription
+                errorMessage = error.userFacingMessage
             }
         }
     }
@@ -92,7 +92,7 @@ final class LoginViewModel: ObservableObject {
                 onLoginSuccess?()
             } catch {
                 isLoading = false
-                errorMessage = error.localizedDescription
+                errorMessage = error.userFacingMessage
             }
         }
     }

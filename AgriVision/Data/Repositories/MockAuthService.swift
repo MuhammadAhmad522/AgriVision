@@ -26,7 +26,7 @@ final class MockAuthService: AuthService {
     
     func signInWithGoogle() async throws {
         if shouldFail {
-            throw AuthError.unknown("Mock sign-in failed.")
+            throw AgriVisionError.unknown("Mock sign-in failed.")
         }
         // Simulate network delay
         try await Task.sleep(nanoseconds: 1_000_000_000)
@@ -35,15 +35,15 @@ final class MockAuthService: AuthService {
 
     func signIn(email: String, password: String) async throws {
         if shouldFail {
-            throw AuthError.wrongPassword
+            throw AgriVisionError.wrongPassword
         }
         try await Task.sleep(nanoseconds: 1_000_000_000)
         isLoggedInStub = true
     }
 
-    func signUp(email: String, password: String, name: String) async throws {
+    func signUp(email: String, password: String) async throws {
         if shouldFail {
-            throw AuthError.emailAlreadyInUse
+            throw AgriVisionError.emailAlreadyInUse
         }
         try await Task.sleep(nanoseconds: 1_000_000_000)
         isLoggedInStub = true
@@ -58,7 +58,7 @@ final class MockAuthService: AuthService {
     
     func sendEmailVerification() async throws {
         if shouldFail {
-            throw AuthError.unknown("Mock verification failed.")
+            throw AgriVisionError.unknown("Mock verification failed.")
         }
         try await Task.sleep(nanoseconds: 500_000_000)
     }
@@ -73,27 +73,14 @@ final class MockAuthService: AuthService {
     
     func resetPassword(email: String) async throws {
         if shouldFail {
-            throw AuthError.userNotFound
+            throw AgriVisionError.userNotFound
         }
         try await Task.sleep(nanoseconds: 500_000_000)
     }
     
-    func fetchSignInMethods(forEmail email: String) async throws -> [String] {
-        if shouldFail {
-            throw AuthError.unknown("Fetch methods failed")
-        }
-        // Return dummy methods for testing
-        if email.contains("google") {
-            return ["google.com"]
-        } else if email.contains("password") {
-            return ["password"]
-        }
-        return []
-    }
-    
     func linkGoogleAccount() async throws {
         if shouldFail {
-            throw AuthError.unknown("Link account failed")
+            throw AgriVisionError.unknown("Link account failed")
         }
         try await Task.sleep(nanoseconds: 500_000_000)
     }

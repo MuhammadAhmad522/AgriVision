@@ -1,12 +1,21 @@
 import Foundation
 
-enum AuthError: LocalizedError {
+/// Central domain error for user-facing AgriVision failures.
+///
+/// Firebase and SDK-specific errors are translated to this enum before reaching
+/// ViewModels so UI layers remain backend-agnostic.
+enum AgriVisionError: LocalizedError {
     case invalidInternalState // e.g. self is nil
     case userNotFound
     case wrongPassword
+    case invalidCredentials
     case emailAlreadyInUse
     case invalidEmail
     case weakPassword
+    case tooManyRequests
+    case networkUnavailable
+    case passwordResetRequiresPasswordSignIn
+    case operationFailed
     case unknown(String)
     
     var errorDescription: String? {
@@ -14,9 +23,14 @@ enum AuthError: LocalizedError {
         case .invalidInternalState: return "An internal error occurred."
         case .userNotFound: return "No account found with this email."
         case .wrongPassword: return "Incorrect password."
+        case .invalidCredentials: return "Your credentials are invalid. Please try signing in again."
         case .emailAlreadyInUse: return "This email is already associated with an account."
         case .invalidEmail: return "The email address is badly formatted."
         case .weakPassword: return "The password is too weak."
+        case .tooManyRequests: return "Too many attempts. Please wait a moment and try again."
+        case .networkUnavailable: return "Network error. Please check your internet connection and try again."
+        case .passwordResetRequiresPasswordSignIn: return "This account uses Google sign-in. Please continue with Google."
+        case .operationFailed: return "We couldn’t complete your request right now. Please try again."
         case .unknown(let message): return message
         }
     }
@@ -41,15 +55,11 @@ protocol AuthService {
     /// - Parameters:
     ///   - email: The user's email address.
     ///   - password: The user's password.
-    ///   - name: The user's full name to be set as display name.
-    func signUp(email: String, password: String, name: String) async throws
+    func signUp(email: String, password: String) async throws
     
     /// Signs out the current user.
     func signOut() throws
 
-    /// Fetches the sign-in methods allowed for the given email.
-    func fetchSignInMethods(forEmail email: String) async throws -> [String]
-    
     /// Links the current user account with Google.
     func linkGoogleAccount() async throws
 
