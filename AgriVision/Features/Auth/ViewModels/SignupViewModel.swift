@@ -34,11 +34,13 @@ final class SignupViewModel: ObservableObject {
     // MARK: - Dependencies
     
     private let authService: AuthService
+    private let userProfileService: UserProfileService
     
     // MARK: - Integration
 
-    init(authService: AuthService) {
+    init(authService: AuthService, userProfileService: UserProfileService) {
         self.authService = authService
+        self.userProfileService = userProfileService
     }
 
     // MARK: - Coordinator Callback
@@ -53,22 +55,22 @@ final class SignupViewModel: ObservableObject {
         case .firstName:
             firstNameError = nil
             do { try InputValidator.validate(value: value, fieldName: "First Name") }
-            catch { firstNameError = error.localizedDescription }
+            catch { firstNameError = error.userFacingMessage }
             
         case .lastName:
             lastNameError = nil
             do { try InputValidator.validate(value: value, fieldName: "Last Name") }
-            catch { lastNameError = error.localizedDescription }
+            catch { lastNameError = error.userFacingMessage }
             
         case .email:
             emailError = nil
             do { try InputValidator.validate(email: value) }
-            catch { emailError = error.localizedDescription }
+            catch { emailError = error.userFacingMessage }
             
         case .password:
             passwordError = nil
             do { try InputValidator.validate(password: value, minLength: 8) }
-            catch { passwordError = error.localizedDescription }
+            catch { passwordError = error.userFacingMessage }
             
         case .confirmPassword:
             confirmPasswordError = nil
@@ -97,8 +99,11 @@ final class SignupViewModel: ObservableObject {
         Task {
             do {
                 let fullName = "\(firstName) \(lastName)"
-                // Create User
-                try await authService.signUp(email: email, password: password, name: fullName)
+                // Create User credentials
+                try await authService.signUp(email: email, password: password)
+                
+                // Update profile separately from credential creation (SRP)
+                try await userProfileService.updateDisplayName(fullName)
                 
                 // Send Verification Email
                 try await authService.sendEmailVerification()
@@ -108,7 +113,7 @@ final class SignupViewModel: ObservableObject {
             } catch {
                 isLoading = false
                 // Map generic errors or show specific backend errors
-                errorMessage = error.localizedDescription
+                errorMessage = error.userFacingMessage
             }
         }
     }
@@ -125,7 +130,7 @@ final class SignupViewModel: ObservableObject {
                 onSignupAutoLogin?()
             } catch {
                 isLoading = false
-                errorMessage = error.localizedDescription
+                errorMessage = error.userFacingMessage
             }
         }
     }

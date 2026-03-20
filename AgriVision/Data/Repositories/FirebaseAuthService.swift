@@ -1,7 +1,7 @@
 import Foundation
-import FirebaseCore
 import FirebaseAuth
 import GoogleSignIn
+import UIKit
 
 /// Concrete implementation of `AuthService` using Firebase Authentication.
 ///
@@ -33,7 +33,10 @@ final class FirebaseAuthService: AuthService {
     private func getTopViewController() throws -> UIViewController {
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let rootViewController = windowScene.windows.first?.rootViewController else {
-            throw AuthError.unknown("Could not find root view controller.")
+            #if DEBUG
+            print("Failed to resolve top view controller for Google sign-in flow.")
+            #endif
+            throw AgriVisionError.invalidInternalState
         }
         
         var topController = rootViewController
@@ -66,7 +69,10 @@ final class FirebaseAuthService: AuthService {
             
             // Authenticate with Firebase using the Google credential.
             guard let idToken = user.idToken?.tokenString else {
-                throw AuthError.unknown("Failed to get ID Token from Google User.")
+                #if DEBUG
+                print("Google Sign-In returned nil ID token during sign-in flow.")
+                #endif
+                throw AgriVisionError.invalidInternalState
             }
             
             let accessToken = user.accessToken.tokenString
@@ -76,7 +82,7 @@ final class FirebaseAuthService: AuthService {
             
             try await Auth.auth().signIn(with: credential)
         } catch {
-            throw mapError(error)
+            throw FirebaseAuthErrorMapper.map(error)
         }
     }
 
@@ -85,26 +91,23 @@ final class FirebaseAuthService: AuthService {
         do {
             try await Auth.auth().signIn(withEmail: email, password: password)
         } catch {
-            throw mapError(error)
+            throw FirebaseAuthErrorMapper.map(error)
         }
     }
 
-    /// Signs up a new user with email and password, and sets their display name.
-    func signUp(email: String, password: String, name: String) async throws {
+    /// Signs up a new user with email and password.
+    func signUp(email: String, password: String) async throws {
         do {
-            let result = try await Auth.auth().createUser(withEmail: email, password: password)
-            let changeRequest = result.user.createProfileChangeRequest()
-            changeRequest.displayName = name
-            try await changeRequest.commitChanges()
+            _ = try await Auth.auth().createUser(withEmail: email, password: password)
         } catch {
-            throw mapError(error)
+            throw FirebaseAuthErrorMapper.map(error)
         }
     }
     
     /// Sends an email verification link to the currently signed-in user.
     func sendEmailVerification() async throws {
         guard let user = Auth.auth().currentUser else {
-            throw AuthError.userNotFound
+            throw AgriVisionError.userNotFound
         }
         try await user.sendEmailVerification()
     }
@@ -118,45 +121,27 @@ final class FirebaseAuthService: AuthService {
     /// Sends a password reset email to the given address.
     func resetPassword(email: String) async throws {
         do {
+            let signInMethods = try await Auth.auth().fetchSignInMethods(forEmail: email)
+            if signInMethods.contains("google.com") && !signInMethods.contains("password") {
+                throw AgriVisionError.passwordResetRequiresPasswordSignIn
+            }
             try await Auth.auth().sendPasswordReset(withEmail: email)
         } catch {
-            throw mapError(error)
+            throw FirebaseAuthErrorMapper.map(error)
         }
-    }
-    
-    private func mapError(_ error: Error) -> AuthError {
-        let nsError = error as NSError
-        
-        // Firebase Auth error codes
-        if nsError.domain == AuthErrorDomain {
-            if let code = AuthErrorCode(rawValue: nsError.code) {
-                switch code {
-                case .userNotFound: return .userNotFound
-                case .wrongPassword: return .wrongPassword
-                case .emailAlreadyInUse: return .emailAlreadyInUse
-                case .invalidEmail: return .invalidEmail
-                case .weakPassword: return .weakPassword
-                case .invalidCredential:
-                    return .unknown("The Google credential is invalid. Please try again.")
-                default: break
-                }
-            }
-        }
-        return .unknown(error.localizedDescription)
     }
 
     /// Signs out from both Firebase and Google.
+    ///
+    /// Google session is always cleared locally to prevent stale-account reuse on next sign-in.
+    /// If Firebase sign-out fails, a mapped domain error is still surfaced to the caller.
     func signOut() throws {
-        try Auth.auth().signOut()
-        GIDSignIn.sharedInstance.signOut()
-    }
+        defer { GIDSignIn.sharedInstance.signOut() }
 
-    /// Fetches the sign-in methods allowed for the given email.
-    func fetchSignInMethods(forEmail email: String) async throws -> [String] {
         do {
-            return try await Auth.auth().fetchSignInMethods(forEmail: email)
+            try Auth.auth().signOut()
         } catch {
-            throw mapError(error)
+            throw FirebaseAuthErrorMapper.map(error)
         }
     }
     
@@ -170,19 +155,22 @@ final class FirebaseAuthService: AuthService {
             let user = result.user
             
             guard let idToken = user.idToken?.tokenString else {
-                throw AuthError.unknown("Failed to get ID Token from Google User.")
+                #if DEBUG
+                print("Google Sign-In returned nil ID token during account-link flow.")
+                #endif
+                throw AgriVisionError.invalidInternalState
             }
             
             let accessToken = user.accessToken.tokenString
             let credential = GoogleAuthProvider.credential(withIDToken: idToken, accessToken: accessToken)
             
             guard let currentUser = Auth.auth().currentUser else {
-                throw AuthError.userNotFound
+                throw AgriVisionError.userNotFound
             }
             
             let _ = try await currentUser.link(with: credential)
         } catch {
-            throw mapError(error)
+            throw FirebaseAuthErrorMapper.map(error)
         }
     }
 }
