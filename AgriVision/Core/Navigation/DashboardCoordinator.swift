@@ -29,19 +29,24 @@ final class DashboardCoordinator: Coordinator {
     }
     
     private func showAddFieldIntro() {
-        let viewModel = AddFieldIntroViewModel(authService: authService)
-        viewModel.onAddFieldTapped = { [weak self] in
-            // For now, proceed to dashboard when tapped (simulating flow)
-            self?.showDashboard()
+        let fieldSelectionCoordinator = FieldSelectionCoordinator(navigationController: navigationController, authService: authService)
+        
+        fieldSelectionCoordinator.onFieldConfirmed = { [weak self, weak fieldSelectionCoordinator] in
+            guard let self = self, let coordinator = fieldSelectionCoordinator else { return }
+            self.childCoordinators.removeAll { $0 === coordinator }
+            self.showDashboard()
         }
         
-        let view = AddFieldIntroView(viewModel: viewModel)
-        let hostingController = UIHostingController(rootView: view)
+        fieldSelectionCoordinator.onCancel = { [weak self, weak fieldSelectionCoordinator] in
+            guard let self = self, let coordinator = fieldSelectionCoordinator else { return }
+            self.childCoordinators.removeAll { $0 === coordinator }
+            // If they cancel adding their FIRST field, we might still want to show an empty dashboard
+            // or return to where they were. For now, show dashboard.
+            self.showDashboard()
+        }
         
-        // Hide navigation bar as the design has a custom top bar
-        navigationController.setNavigationBarHidden(true, animated: true)
-        
-        navigationController.setViewControllers([hostingController], animated: true)
+        childCoordinators.append(fieldSelectionCoordinator)
+        fieldSelectionCoordinator.start()
     }
 
     private func showDashboard() {

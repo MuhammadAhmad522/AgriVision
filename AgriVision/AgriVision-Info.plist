@@ -34,5 +34,7 @@
             </array>
         </dict>
     </array>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>AgriVision needs access to your location to help you define field boundaries accurately.</string>
 </dict>
 </plist>

@@ -15,6 +15,10 @@ enum AppColors {
     static let authPlaceholder = Color(hex: "B3B3B3")
     static let authBorder = Color(hex: "D9D9D9")
     static let authInputBorder = limeGreen
+    
+    // Field Selection
+    static let warningOrange = Color(hex: "FFAD14")
+    static let darkCoal = Color(hex: "1D1B20")
 }
 
 extension Color {
