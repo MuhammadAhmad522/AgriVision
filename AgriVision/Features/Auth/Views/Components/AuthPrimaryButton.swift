@@ -8,9 +8,26 @@ struct AuthPrimaryButton: View {
     var body: some View {
         Button(action: action) {
             ZStack {
+                // Background Gradient
+                LinearGradient(
+                    colors: [AppColors.limeGreen, AppColors.mediumGreen],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                
+                // Glassy Sheen Overlay
+                LinearGradient(
+                    colors: [Color.white.opacity(0.3), Color.white.opacity(0.0)],
+                    startPoint: .top,
+                    endPoint: .center
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 25))
+                .padding(1) // Inset slightly
+                
                 Text(title)
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(.white)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(AppColors.cream)
+                    .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
                     .opacity(isLoading ? 0 : 1)
                 
                 if isLoading {
@@ -18,10 +35,13 @@ struct AuthPrimaryButton: View {
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
                 }
             }
-            .frame(width: UIConstants.Auth.formWidth, height: UIConstants.Auth.primaryButtonHeight)
-            .background(LinearGradient.authPrimaryGradient)
-            .cornerRadius(8)
-            .shadow(color: AppColors.authDarkGreen.opacity(0.3), radius: 8, x: 0, y: 4)
+            .frame(width: UIConstants.Auth.formWidth, height: 50)
+            .cornerRadius(25)
+            .shadow(color: AppColors.mediumGreen.opacity(0.4), radius: 8, x: 0, y: 4)
+            .overlay(
+                RoundedRectangle(cornerRadius: 25)
+                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+            )
         }
         .disabled(isLoading)
     }

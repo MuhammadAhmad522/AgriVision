@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// A stylized, reusable text field used across authentication screens.
-/// It features a standard icon placeholder and an optional secure-entry toggle for passwords.
 struct AuthTextField: View {
     let label: String
     let placeholder: String
@@ -15,8 +13,9 @@ struct AuthTextField: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label)
-                .font(.system(size: 16, weight: .regular))
-                .foregroundColor(.authGreen)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(AppColors.charcoalGreen)
+                .padding(.leading, 4)
             
             HStack {
                 if isSecure && !isPasswordVisible {
@@ -34,19 +33,25 @@ struct AuthTextField: View {
                         isPasswordVisible.toggle()
                     }) {
                         Image(systemName: isPasswordVisible ? "eye.slash" : "eye")
-                            .foregroundColor(.authPlaceholder)
+                            .foregroundColor(AppColors.charcoalGreen.opacity(0.6))
                             .frame(width: 20, height: 20)
                     }
                 }
             }
             .padding(.horizontal, 16)
-            .frame(height: UIConstants.Auth.textFieldHeight)
-            .background(Color.authCream)
-            .cornerRadius(8)
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.authInputBorder, lineWidth: 1)
+            .frame(height: 50) // Slightly taller for modern look
+            .background(
+                ZStack {
+                    VisualEffectBlur(blurStyle: .systemUltraThinMaterial)
+                    Color.white.opacity(0.4)
+                }
             )
+            .cornerRadius(16) // Rounder
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color.white.opacity(0.6), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
         }
         .frame(maxWidth: UIConstants.Auth.formWidth)
     }
@@ -61,8 +66,6 @@ struct AuthTextField: View {
     .background(Color.gray.opacity(0.1))
 }
 
-/// A wrapper around `AuthTextField` that automatically displays real-time validation error messages
-/// underneath the field, adjusting its layout dynamically.
 struct ValidatedAuthTextField: View {
     let label: String
     let placeholder: String

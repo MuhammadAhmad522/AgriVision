@@ -8,15 +8,15 @@ struct OrDividerView: View {
     var body: some View {
         HStack {
             Rectangle()
-                .fill(Color.authBorder)
+                .fill(AppColors.limeGreen.opacity(0.3)) // Updated Color
                 .frame(height: 1)
 
             Text("OR")
                 .font(.system(size: 12, weight: .bold))
-                .foregroundColor(.authPlaceholder)
+                .foregroundColor(AppColors.charcoalGreen.opacity(0.6)) // Updated Color
 
             Rectangle()
-                .fill(Color.authBorder)
+                .fill(AppColors.limeGreen.opacity(0.3)) // Updated Color
                 .frame(height: 1)
         }
         .frame(width: UIConstants.Auth.formWidth)

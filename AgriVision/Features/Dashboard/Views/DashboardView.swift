@@ -12,46 +12,108 @@ struct DashboardView: View {
     @StateObject var viewModel: DashboardViewModel
 
     var body: some View {
-        List {
-            // Welcome Section
-            if let userName = viewModel.userName {
-                Section {
-                    HStack {
-                        Image(systemName: "person.circle.fill")
-                            .font(.largeTitle)
-                            .foregroundColor(.accentColor)
-                        
-                        VStack(alignment: .leading) {
-                            Text("Welcome back,")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                            Text(userName)
-                                .font(.headline)
+        ZStack {
+            // Background
+            Color(AppColors.cream).ignoresSafeArea()
+            
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Welcome Card
+                    if let userName = viewModel.userName {
+                        GlassCard {
+                            HStack {
+                                ZStack {
+                                    Circle()
+                                        .fill(AppColors.limeGreen.opacity(0.2))
+                                        .frame(width: 50, height: 50)
+                                    
+                                    Image(systemName: "person.fill")
+                                        .font(.system(size: 24))
+                                        .foregroundColor(AppColors.charcoalGreen)
+                                }
+                                
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Welcome back,")
+                                        .font(.subheadline)
+                                        .foregroundColor(AppColors.charcoalGreen.opacity(0.7))
+                                    Text(userName)
+                                        .font(.title3.bold())
+                                        .foregroundColor(AppColors.charcoalGreen)
+                                }
+                                Spacer()
+                            }
                         }
                     }
-                    .padding(.vertical, 8)
-                }
-            }
-            
-            // Live Sensor Data
-            Section(header: Text("Live Sensor Data")) {
-                if viewModel.isLoading {
-                    ProgressView("Updating...")
-                } else {
-                    ForEach(viewModel.readings) { reading in
-                        SensorReadingRow(reading: reading)
+                    
+                    // Account Settings Card
+                    GlassCard(title: "Account Settings") {
+                        Button(action: {
+                            viewModel.linkGoogle()
+                        }) {
+                            HStack {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.white)
+                                        .frame(width: 36, height: 36)
+                                        .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                                    
+                                    Image(systemName: "link")
+                                        .foregroundColor(AppColors.mediumGreen)
+                                        .font(.system(size: 16))
+                                }
+                                
+                                Text("Link Google Account")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(AppColors.charcoalGreen)
+                                
+                                Spacer()
+                                
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(AppColors.limeGreen)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+
+                    // Sensor Data Card
+                    GlassCard(title: "Live Sensor Data") {
+                        if viewModel.isLoading {
+                            HStack {
+                                Spacer()
+                                ProgressView()
+                                    .tint(AppColors.mediumGreen)
+                                Spacer()
+                            }
+                            .padding()
+                        } else {
+                            VStack(spacing: 12) {
+                                ForEach(viewModel.readings) { reading in
+                                    SensorReadingRow(reading: reading)
+                                    if reading.id != viewModel.readings.last?.id {
+                                        Divider()
+                                            .background(AppColors.limeGreen.opacity(0.3))
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
+                .padding()
+            }
+            .refreshable {
+                await viewModel.refreshData()
             }
         }
         .navigationTitle(viewModel.title)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(action: {
                     viewModel.openSettings()
                 }) {
-                    Image(systemName: "gearshape")
-                        .foregroundColor(AppColors.authGreen)
+                    Image(systemName: "gearshape.fill")
+                        .foregroundColor(AppColors.mediumGreen)
                 }
             }
         }
@@ -59,9 +121,6 @@ struct DashboardView: View {
             Task {
                 await viewModel.refreshData()
             }
-        }
-        .refreshable {
-            await viewModel.refreshData()
         }
         .overlay(alignment: .top) {
             Group {
@@ -88,20 +147,22 @@ struct SensorReadingRow: View {
 
     var body: some View {
         HStack {
-            VStack(alignment: .leading) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(reading.type)
                     .font(.headline)
-
+                    .foregroundColor(AppColors.charcoalGreen)
                 Text(reading.timestamp, style: .time)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(AppColors.charcoalGreen.opacity(0.6))
             }
-
             Spacer()
-
-            Text("\(String(format: "%.1f", reading.value)) \(reading.unit)")
-                .fontWeight(.bold)
+            Text(String(format: "%.1f", reading.value))
+                .font(.system(size: 20, weight: .bold))
                 .foregroundColor(AppColors.mediumGreen)
+            Text(reading.unit)
+                .font(.caption)
+                .bold()
+                .foregroundColor(AppColors.limeGreen)
         }
         .padding(.vertical, 4)
     }

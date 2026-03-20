@@ -18,20 +18,26 @@ struct SocialAuthButton: View {
             HStack(spacing: 12) {
                 Image(systemName: systemImage ?? "g.circle.fill")
                     .resizable()
-                    .frame(width: 20, height: 20)
-                    .foregroundColor(.authGreen)
+                    .frame(width: 24, height: 24)
+                    .foregroundColor(AppColors.charcoalGreen) // Use theme color
 
                 Text(title)
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.authGreen)
+                    .foregroundColor(AppColors.charcoalGreen)
             }
-            .frame(width: UIConstants.Auth.formWidth, height: UIConstants.Auth.socialButtonHeight)
-            .background(Color.white)
-            .cornerRadius(8)
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.authBorder, lineWidth: 1)
+            .frame(width: UIConstants.Auth.formWidth, height: 50)
+            .background(
+                ZStack {
+                    VisualEffectBlur(blurStyle: .systemUltraThinMaterial)
+                    Color.white.opacity(0.6)
+                }
             )
+            .cornerRadius(25) // Match Primary Button
+            .overlay(
+                RoundedRectangle(cornerRadius: 25)
+                    .stroke(Color.white.opacity(0.8), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
         }
     }
 }

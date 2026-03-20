@@ -6,7 +6,7 @@ enum ToastType {
     
     var color: Color {
         switch self {
-        case .success: return AppColors.mediumGreen
+        case .success: return AppColors.limeGreen
         case .error: return .red
         }
     }
@@ -27,17 +27,28 @@ struct ToastView: View {
         HStack(spacing: 12) {
             Image(systemName: type.iconName)
                 .font(.title3)
+                .foregroundColor(type.color) // Icon takes the color
+            
             Text(message)
                 .font(.subheadline)
                 .fontWeight(.medium)
                 .multilineTextAlignment(.leading)
+                .foregroundColor(AppColors.charcoalGreen) // Text dark for readability on glass
         }
-        .foregroundColor(.white)
         .padding(.vertical, 12)
         .padding(.horizontal, 20)
-        .background(type.color.opacity(0.95))
-        .clipShape(Capsule())
-        .shadow(color: Color.black.opacity(0.15), radius: 8, x: 0, y: 4)
+        .background(
+            ZStack {
+                VisualEffectBlur(blurStyle: .systemUltraThinMaterial)
+                type.color.opacity(0.2) // Subtle tint
+            }
+            .clipShape(Capsule())
+        )
+        .overlay(
+            Capsule()
+                .stroke(type.color.opacity(0.5), lineWidth: 1)
+        )
+        .shadow(color: type.color.opacity(0.3), radius: 10, x: 0, y: 5)
         .padding(.horizontal, 16)
     }
 }

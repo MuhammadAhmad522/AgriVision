@@ -45,7 +45,7 @@ final class DashboardViewModel: ObservableObject {
     /// Injected by the Coordinator. Called when the user signs out.
     var onSignOut: (() -> Void)?
     
-    /// Called when the user wants to navigate to settings.
+    /// Injected by the Coordinator. Called when the user taps the settings button.
     var onSettingsTap: (() -> Void)?
 
     // MARK: - Initialization
@@ -61,9 +61,57 @@ final class DashboardViewModel: ObservableObject {
 
     // MARK: - Methods
     
-    /// Tells the coordinator to open the settings screen.
+    /// Signs out the current user and notifies the coordinator.
+    func signOut() {
+        do {
+            try authService.signOut()
+            onSignOut?()
+        } catch {
+            errorMessage = "Failed to sign out: \(error.userFacingMessage)"
+        }
+    }
+    
+    /// Helper to trigger the settings navigation flow.
     func openSettings() {
         onSettingsTap?()
+    }
+    
+    /// Links the current user's account with Google credentials.
+    /// This allows users who signed up with email/password to also sign in with Google.
+    func linkGoogle() {
+        Task {
+            // Ensure UI updates happen on main thread
+            await MainActor.run { isLoading = true }
+            
+            do {
+                try await authService.linkGoogleAccount()
+                await MainActor.run {
+                    isLoading = false
+                    successMessage = "Account successfully linked with Google!"
+                }
+                // Clear after delay
+                try? await Task.sleep(nanoseconds: 3 * 1_000_000_000)
+                await MainActor.run {
+                    // Only clear if the message hasn't changed
+                    if successMessage == "Account successfully linked with Google!" {
+                        successMessage = nil
+                    }
+                }
+            } catch {
+                let errorMsg = "Failed to link account: \(error.userFacingMessage)"
+                await MainActor.run {
+                    isLoading = false
+                    errorMessage = errorMsg
+                }
+                // Clear after delay
+                try? await Task.sleep(nanoseconds: 3 * 1_000_000_000)
+                await MainActor.run {
+                    if errorMessage == errorMsg {
+                        errorMessage = nil
+                    }
+                }
+            }
+        }
     }
 
     /// Fetches new sensor readings from the data service.

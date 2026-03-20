@@ -8,31 +8,75 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        List {
-            Section(header: Text("Account Integration")) {
-                Button(action: {
-                    viewModel.linkGoogleAccount()
-                }) {
-                    HStack {
-                        Label("Link Google Account", systemImage: "link")
-                            .foregroundStyle(AppColors.authGreen)
-                        
-                        Spacer()
-                        
-                        if viewModel.isLoading {
-                            ProgressView()
+        ZStack {
+            // Background
+            Color(AppColors.cream).ignoresSafeArea()
+            
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Account Integration Card
+                    GlassCard(title: "Account Integration") {
+                        Button(action: {
+                            viewModel.linkGoogleAccount()
+                        }) {
+                            HStack {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.white)
+                                        .frame(width: 36, height: 36)
+                                        .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                                    
+                                    Image(systemName: "link")
+                                        .foregroundColor(AppColors.mediumGreen)
+                                        .font(.system(size: 16))
+                                }
+                                
+                                Text("Link Google Account")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(AppColors.charcoalGreen)
+                                
+                                Spacer()
+                                
+                                if viewModel.isLoading {
+                                    ProgressView()
+                                } else {
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundColor(AppColors.limeGreen)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                        .disabled(viewModel.isLoading)
+                    }
+                    
+                    // Sign Out Card
+                    GlassCard {
+                        Button(role: .destructive, action: {
+                            viewModel.signOut()
+                        }) {
+                            HStack {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.red.opacity(0.1))
+                                        .frame(width: 36, height: 36)
+                                    
+                                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                                        .foregroundColor(.red)
+                                        .font(.system(size: 16))
+                                }
+                                
+                                Text("Sign Out")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(.red)
+                                
+                                Spacer()
+                            }
+                            .padding(.vertical, 4)
                         }
                     }
                 }
-                .disabled(viewModel.isLoading)
-            }
-            
-            Section {
-                Button(role: .destructive, action: {
-                    viewModel.signOut()
-                }) {
-                    Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
-                }
+                .padding()
             }
         }
         .navigationTitle(viewModel.title)

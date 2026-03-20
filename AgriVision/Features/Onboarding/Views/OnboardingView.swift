@@ -80,15 +80,28 @@ struct OnboardingView: View {
                                 viewModel.handleNextAction(onComplete: onComplete)
                             }
                         }) {
-                            Image(systemName: "chevron.right.2")
-                                .font(.system(size: 20, weight: .bold))
-                                .foregroundColor(AppColors.mediumGreen)
-                                .padding(12)
-                                .background(
-                                    Circle()
-                                        .fill(Color.white)
-                                        .shadow(color: AppColors.mediumGreen.opacity(0.3), radius: 4, x: 0, y: 4)
+                            ZStack {
+                                VisualEffectBlur(blurStyle: .systemUltraThinMaterial)
+                                    .clipShape(Circle())
+                                
+                                LinearGradient(
+                                    colors: [AppColors.limeGreen.opacity(0.8), AppColors.mediumGreen.opacity(0.8)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
                                 )
+                                .clipShape(Circle())
+                                .opacity(0.1) // Subtle tint
+                                
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 24, weight: .bold))
+                                    .foregroundColor(AppColors.charcoalGreen)
+                            }
+                            .frame(width: 60, height: 60)
+                            .shadow(color: AppColors.mediumGreen.opacity(0.3), radius: 8, x: 0, y: 4)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.white.opacity(0.5), lineWidth: 1)
+                            )
                         }
                     }
                 }
@@ -182,4 +195,3 @@ struct OnboardingPageView: View {
             .toolbar(.hidden, for: .navigationBar)
     }
 }
-
