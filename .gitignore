@@ -60,3 +60,6 @@ fastlane/test_output
 *.swp
 *~
 *.orig
+
+## Firebase
+GoogleService-Info.plist

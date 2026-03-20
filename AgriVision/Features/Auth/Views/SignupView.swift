@@ -8,17 +8,27 @@ struct SignupView: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            AuthTextField(label: "First Name", placeholder: "Muhammad", text: $viewModel.firstName, autoCapitalization: .words)
+            ValidatedAuthTextField(label: "First Name", placeholder: "Muhammad", text: $viewModel.firstName, error: viewModel.firstNameError, autoCapitalization: .words) { newValue in
+                viewModel.validateField(.firstName, value: newValue)
+            }
 
-            AuthTextField(label: "Last Name", placeholder: "Ahmad", text: $viewModel.lastName, autoCapitalization: .words)
+            ValidatedAuthTextField(label: "Last Name", placeholder: "Ahmad", text: $viewModel.lastName, error: viewModel.lastNameError, autoCapitalization: .words) { newValue in
+                viewModel.validateField(.lastName, value: newValue)
+            }
 
-            AuthTextField(label: "Email", placeholder: "ahmad@mail.com", text: $viewModel.email, keyboardType: .emailAddress, autoCapitalization: .never)
+            ValidatedAuthTextField(label: "Email", placeholder: "ahmad@mail.com", text: $viewModel.email, error: viewModel.emailError, keyboardType: .emailAddress, autoCapitalization: .never) { newValue in
+                viewModel.validateField(.email, value: newValue)
+            }
 
-            AuthTextField(label: "Password", placeholder: "*******", text: $viewModel.password, isSecure: true, autoCapitalization: .never)
+            ValidatedAuthTextField(label: "Password", placeholder: "*******", text: $viewModel.password, error: viewModel.passwordError, isSecure: true, autoCapitalization: .never) { newValue in
+                viewModel.validateField(.password, value: newValue)
+            }
 
-            AuthTextField(label: "Confirm Password", placeholder: "*******", text: $viewModel.confirmPassword, isSecure: true, autoCapitalization: .never)
+            ValidatedAuthTextField(label: "Confirm Password", placeholder: "*******", text: $viewModel.confirmPassword, error: viewModel.confirmPasswordError, isSecure: true, autoCapitalization: .never) { newValue in
+                viewModel.validateField(.confirmPassword, value: newValue)
+            }
 
-            AuthPrimaryButton(title: "Register") {
+            AuthPrimaryButton(title: "Register", isLoading: viewModel.isLoading) {
                 viewModel.register()
             }
             .padding(.top, 10)
@@ -26,7 +36,16 @@ struct SignupView: View {
             OrDividerView()
 
             SocialAuthButton(title: "Continue with Google") {
-                // TODO: Google login action
+                viewModel.continueWithGoogle()
+            }
+            .disabled(viewModel.isLoading)
+            .opacity(viewModel.isLoading ? 0.6 : 1.0)
+            
+            if let error = viewModel.errorMessage {
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(.red)
+                    .padding(.horizontal)
             }
 
             Button(action: onLoginTap) {
@@ -47,6 +66,6 @@ struct SignupView: View {
 }
 
 #Preview {
-    SignupView(viewModel: SignupViewModel(), onLoginTap: {})
+    SignupView(viewModel: SignupViewModel(authService: MockAuthService(), userProfileService: MockUserProfileService()), onLoginTap: {})
         .background(Color.authCream)
 }
