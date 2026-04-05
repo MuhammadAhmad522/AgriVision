@@ -1,0 +1,58 @@
+services:
+  # 1. The Database (Postgres + PostGIS + Timescale)
+  db:
+    image: timescale/timescaledb:latest-pg15
+    container_name: agrivision_db
+    restart: always
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=agrivision
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - agrivision_net
+
+  # 2. Redis (Caching & Speed)
+  redis:
+    image: redis:alpine
+    container_name: agrivision_redis
+    restart: always
+    networks:
+      - agrivision_net
+
+  # 3. MQTT Broker (The IoT Gateway for your future sensors)
+  mqtt:
+    image: eclipse-mosquitto:latest
+    container_name: agrivision_mqtt
+    restart: always
+    ports:
+      - "1883:1883" # Standard MQTT port
+      - "9001:9001" # WebSockets port
+    volumes:
+      - mosquitto_data:/mosquitto/data
+    networks:
+      - agrivision_net
+
+  # 4. Modern Management (pgAdmin)
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: agrivision_pgadmin
+    restart: always
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@agrivision.com
+      - PGADMIN_DEFAULT_PASSWORD=password
+    ports:
+      - "5050:80"
+    networks:
+      - agrivision_net
+
+networks:
+  agrivision_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  mosquitto_data:
