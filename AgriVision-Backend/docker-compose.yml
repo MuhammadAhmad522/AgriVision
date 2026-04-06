@@ -1,7 +1,8 @@
 services:
   # 1. The Database (Postgres + PostGIS + Timescale)
   db:
-    image: timescale/timescaledb:latest-pg15
+    # 'pg15-all' explicitly includes PostGIS control files
+    image: timescale/timescaledb-ha:pg15-all
     container_name: agrivision_db
     restart: always
     environment:
