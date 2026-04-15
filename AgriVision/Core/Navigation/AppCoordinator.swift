@@ -123,7 +123,8 @@ final class AppCoordinator: Coordinator {
         let dashboardCoordinator = DashboardCoordinator(
             navigationController: navigationController,
             dataService: dataService,
-            authService: authService
+            authService: authService,
+            preferencesService: preferencesService
         )
         dashboardCoordinator.onSignOut = { [weak self] in
             // When sign out occurs in the dashboard, we unwind to the auth flow.

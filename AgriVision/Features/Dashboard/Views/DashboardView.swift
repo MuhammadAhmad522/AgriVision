@@ -18,6 +18,54 @@ struct DashboardView: View {
             
             ScrollView {
                 VStack(spacing: 20) {
+                    // AI Advisor Recommendations Card (replaces static satellite insights)
+                    AIAdvisorCard(
+                        recommendations: viewModel.recommendations,
+                        isLoading: viewModel.isLoading && viewModel.recommendations.isEmpty
+                    )
+                    
+                    // NDVI Ring Card (kept as a compact satellite data summary)
+                    if let health = viewModel.healthSummary {
+                        GlassCard(title: "🛰 Satellite Health") {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("CROP VITALITY (NDVI)")
+                                        .font(.caption2.bold())
+                                        .foregroundColor(AppColors.charcoalGreen.opacity(0.6))
+                                    Text(health.message)
+                                        .font(.headline)
+                                        .foregroundColor(colorForStatus(health.color))
+                                    if let field = viewModel.fields.first, let sync = field.lastSatelliteSync {
+                                        Text("Last sync: \(sync, style: .relative) ago")
+                                            .font(.caption2)
+                                            .foregroundColor(AppColors.charcoalGreen.opacity(0.4))
+                                    }
+                                }
+                                Spacer()
+                                ZStack {
+                                    Circle()
+                                        .stroke(Color.gray.opacity(0.1), lineWidth: 8)
+                                        .frame(width: 60, height: 60)
+                                    Circle()
+                                        .trim(from: 0, to: CGFloat(max(0, min(health.score, 1))))
+                                        .stroke(
+                                            LinearGradient(
+                                                colors: [colorForStatus(health.color).opacity(0.5), colorForStatus(health.color)],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            ),
+                                            style: StrokeStyle(lineWidth: 8, lineCap: .round)
+                                        )
+                                        .rotationEffect(.degrees(-90))
+                                        .frame(width: 60, height: 60)
+                                    Text(String(format: "%.2f", health.score))
+                                        .font(.system(size: 13, weight: .bold))
+                                        .foregroundColor(AppColors.charcoalGreen)
+                                }
+                            }
+                        }
+                    }
+                    
                     // Welcome Card
                     if let userName = viewModel.userName {
                         GlassCard {
@@ -93,6 +141,7 @@ struct DashboardView: View {
                                     if reading.id != viewModel.readings.last?.id {
                                         Divider()
                                             .background(AppColors.limeGreen.opacity(0.3))
+                                            .padding(.vertical, 8)
                                     }
                                 }
                             }
@@ -140,31 +189,66 @@ struct DashboardView: View {
             .animation(.spring(response: 0.5, dampingFraction: 0.7), value: viewModel.successMessage)
         }
     }
+    
+    /// Helper to convert status strings to SwiftUI Colors
+    private func colorForStatus(_ status: String) -> Color {
+        switch status {
+        case "green": return Color.green
+        case "orange": return Color.orange
+        case "red": return Color.red
+        default: return AppColors.mediumGreen
+        }
+    }
 }
 
 struct SensorReadingRow: View {
     let reading: SensorReading
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(reading.type)
-                    .font(.headline)
-                    .foregroundColor(AppColors.charcoalGreen)
-                Text(reading.timestamp, style: .time)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Update at \(reading.time, style: .time)")
                     .font(.caption)
                     .foregroundColor(AppColors.charcoalGreen.opacity(0.6))
+                Spacer()
             }
-            Spacer()
-            Text(String(format: "%.1f", reading.value))
-                .font(.system(size: 20, weight: .bold))
-                .foregroundColor(AppColors.mediumGreen)
-            Text(reading.unit)
-                .font(.caption)
-                .bold()
-                .foregroundColor(AppColors.limeGreen)
+            .padding(.bottom, 4)
+            
+            HStack(spacing: 20) {
+                if let temp = reading.temperature {
+                    MetricRow(type: "Temperature", value: temp, unit: "°C")
+                }
+                if let moist = reading.moisture {
+                    MetricRow(type: "Moisture", value: moist, unit: "%")
+                }
+                if let hum = reading.humidity {
+                    MetricRow(type: "Humidity", value: hum, unit: "%")
+                }
+            }
         }
-        .padding(.vertical, 4)
+        .padding()
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
+        .padding(.vertical, 2)
+    }
+}
+
+struct MetricRow: View {
+    let type: String
+    let value: Double
+    let unit: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(type)
+                .font(.caption2)
+                .foregroundColor(AppColors.charcoalGreen.opacity(0.6))
+                .textCase(.uppercase)
+            Text(String(format: "%.1f%@", value, unit))
+                .font(.system(size: 20, weight: .bold))
+                .foregroundColor(AppColors.charcoalGreen)
+        }
     }
 }
 

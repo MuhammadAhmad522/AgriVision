@@ -7,6 +7,8 @@ final class SettingsViewModel: ObservableObject {
 
     // MARK: - Published Properties
 
+    @Published var fields: [Field] = []
+    @Published var activeFieldId: UUID?
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var successMessage: String?
@@ -15,16 +17,89 @@ final class SettingsViewModel: ObservableObject {
     // MARK: - Dependencies
 
     private let authService: AuthService
+    private let dataService: AgriDataService
+    private var preferencesService: PreferencesService
 
     // MARK: - Coordinator Callbacks
 
     /// Called when the user successfully signs out, telling the Coordinator to navigate away.
     var onSignOut: (() -> Void)?
+    
+    /// Called when a field is deleted and the list becomes empty.
+    var onFieldsEmptied: (() -> Void)?
+    
+    /// Called when the user switches the active field.
+    var onActiveFieldChanged: (() -> Void)?
 
     // MARK: - Initialization
 
-    init(authService: AuthService) {
+    init(
+        authService: AuthService, 
+        dataService: AgriDataService, 
+        preferencesService: PreferencesService
+    ) {
         self.authService = authService
+        self.dataService = dataService
+        self.preferencesService = preferencesService
+        self.activeFieldId = preferencesService.activeFieldId
+        
+        refreshFields()
+    }
+    
+    // MARK: - Field Management
+    
+    @MainActor
+    func refreshFields() {
+        Task {
+            do {
+                self.fields = try await dataService.fetchFields()
+                
+                // If there's no active field but fields exist, pick the first one
+                if activeFieldId == nil, let firstField = fields.first {
+                    selectField(firstField.id)
+                }
+            } catch {
+                errorMessage = "Failed to load fields: \(error.userFacingMessage)"
+            }
+        }
+    }
+    
+    func selectField(_ id: UUID) {
+        activeFieldId = id
+        preferencesService.activeFieldId = id
+        onActiveFieldChanged?()
+    }
+    
+    @MainActor
+    func deleteField(_ id: UUID) {
+        isLoading = true
+        Task {
+            do {
+                try await dataService.deleteField(id: id)
+                
+                // Update local list
+                fields.removeAll { $0.id == id }
+                
+                // Handle deletion of the active field
+                if activeFieldId == id {
+                    if let nextField = fields.first {
+                        selectField(nextField.id)
+                    } else {
+                        activeFieldId = nil
+                        preferencesService.activeFieldId = nil
+                        onFieldsEmptied?()
+                    }
+                } else if fields.isEmpty {
+                    onFieldsEmptied?()
+                }
+                
+                isLoading = false
+                successMessage = "Field deleted successfully."
+            } catch {
+                isLoading = false
+                errorMessage = "Failed to delete field: \(error.userFacingMessage)"
+            }
+        }
     }
 
     // MARK: - Actions

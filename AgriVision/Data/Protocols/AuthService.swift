@@ -84,4 +84,8 @@ protocol AuthService {
     /// Sends a password reset email to the given address.
     /// - Parameter email: The email address to send the password reset link to.
     func resetPassword(email: String) async throws
+    
+    /// Returns the Firebase ID token for the current user.
+    /// Used for authenticating with our custom Python backend.
+    func getIDToken() async throws -> String
 }

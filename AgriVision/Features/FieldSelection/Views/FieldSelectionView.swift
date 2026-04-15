@@ -589,7 +589,8 @@ struct ToolButton: View {
 // MARK: - Previews
 #Preview {
     let authService = MockAuthService(isLoggedIn: true)
-    let viewModel = FieldSelectionViewModel(authService: authService)
+    let dataService = MockAgriDataRepository()
+    let viewModel = FieldSelectionViewModel(authService: authService, dataService: dataService)
     
-    return FieldSelectionView(viewModel: viewModel)
+    FieldSelectionView(viewModel: viewModel)
 }

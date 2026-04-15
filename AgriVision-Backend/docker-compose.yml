@@ -50,6 +50,29 @@ services:
     networks:
       - agrivision_net
 
+  # 5. The "Brain" - FastAPI Backend
+  backend:
+    build: .
+    container_name: agrivision_backend
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://admin:password@db:5432/agrivision
+      - REDIS_URL=redis://redis:6379/0
+      - MQTT_BROKER=mqtt
+      - AGROMONITORING_API_KEY=7a9304baa8e2b0e1cf0ec9b79678ad9a
+      - GOOGLE_API_KEY=YOUR_GOOGLE_API_KEY_HERE
+    volumes:
+      - ./app:/app/app
+      - ./firebase-credentials.json:/app/firebase-credentials.json
+    depends_on:
+      - db
+      - redis
+      - mqtt
+    networks:
+      - agrivision_net
+
 networks:
   agrivision_net:
     driver: bridge

@@ -42,18 +42,20 @@ class FieldSelectionViewModel: NSObject, ObservableObject {
     // MARK: - Dependencies
     
     private let authService: AuthService
+    private let dataService: AgriDataService
     private var cancellables = Set<AnyCancellable>()
     private let locationManager = CLLocationManager()
     
     // MARK: - Actions (Coordinator Delegates)
     
-    var onConfirmField: (() -> Void)?
+    var onConfirmField: (([CLLocationCoordinate2D]) -> Void)?
     var onCancel: (() -> Void)?
     
     // MARK: - Initialization
     
-    init(authService: AuthService) {
+    init(authService: AuthService, dataService: AgriDataService) {
         self.authService = authService
+        self.dataService = dataService
         super.init()
         setupProfile()
         setupLocationManager()
@@ -220,28 +222,16 @@ class FieldSelectionViewModel: NSObject, ObservableObject {
         }
     }
     
-    // MARK: - Field Confirmation & Navigation
-    
-    /// Confirms the drawn field boundary and triggers the success flow.
-    /// - Shows a success message.
-    /// - Waits briefly, then calls the `onConfirmField` closure to proceed (e.g., navigate to another screen).
+    /// Confirms the drawn field boundary and notifies the coordinator to proceed with details.
     /// - Requires at least 3 points to form a valid polygon.
     func confirmField() {
-        // Here we would normally save the polygon data
-        // For now just proceed
         guard fieldCoordinates.count >= 3 else {
             showMessage(error: "Please define a polygon with at least 3 points.")
             return
         }
-        showMessage(success: "Field boundary confirmed!")
         
-        // Slight delay to let the user read the success message before navigating
-        Task {
-            try? await Task.sleep(nanoseconds: 1 * 1_000_000_000)
-            await MainActor.run {
-                onConfirmField?()
-            }
-        }
+        // Notify coordinator with the selected coordinates
+        self.onConfirmField?(self.fieldCoordinates)
     }
     
     /// Cancels the field selection process and triggers the cancel flow.

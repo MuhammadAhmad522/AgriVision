@@ -1,4 +1,4 @@
-import Foundation
+import CoreLocation
 
 /**
  A `protocol` in Swift is like a contract or a blueprint.
@@ -7,7 +7,38 @@ import Foundation
  as long as it has a `fetchSensorReadings` method.
  */
 protocol AgriDataService {
-    /// Fetches sensor readings. It is marked `async` because it might take time (like downloading from the internet),
-    /// and `throws` because it might fail (like if the internet is disconnected).
+    /// Fetches sensor readings. 
     func fetchSensorReadings() async throws -> [SensorReading]
+    
+    /// Persists a new field boundary for the user with detailed metadata.
+    func saveField(
+        name: String,
+        coordinates: [CLLocationCoordinate2D],
+        areaHa: Double?,
+        cropType: String?,
+        plantationDate: Date?,
+        expectedHarvestDate: Date?,
+        sensors: [SensorConfig]?
+    ) async throws -> Field
+    
+    /// Fetches all fields belonging to the current user, including satellite data.
+    func fetchFields() async throws -> [Field]
+    
+    /// Deletes a specific field by its ID.
+    func deleteField(id: UUID) async throws
+    
+    /// Fetches the latest AI recommendations for a given field.
+    func fetchRecommendations(for fieldId: UUID) async throws -> [FieldRecommendation]
+    
+    /// Provides feedback on an AI recommendation to improve future context.
+    func updateRecommendationFeedback(for fieldId: UUID, recommendationId: UUID, status: String) async throws -> FieldRecommendation
+    
+    /// Fetches the conversational history for a field from the AI backend.
+    func fetchChatHistory(for fieldId: UUID) async throws -> [ChatMessage]
+    
+    /// Submits a new user message to the AI and returns the response.
+    func sendChatMessage(for fieldId: UUID, message: String) async throws -> ChatMessage
+    
+    /// Verifies if a sensor device is active and reachable.
+    func verifySensorConnection(deviceId: String) async throws -> (isVerified: Bool, message: String)
 }

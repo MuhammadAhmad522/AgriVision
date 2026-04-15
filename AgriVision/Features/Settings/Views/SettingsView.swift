@@ -50,6 +50,60 @@ struct SettingsView: View {
                         .disabled(viewModel.isLoading)
                     }
                     
+                    // Managed Fields Card
+                    GlassCard(title: "Managed Fields") {
+                        if viewModel.fields.isEmpty {
+                            Text("No fields registered.")
+                                .font(.system(size: 14))
+                                .foregroundColor(AppColors.charcoalGreen.opacity(0.5))
+                                .padding(.vertical, 8)
+                        } else {
+                            VStack(spacing: 0) {
+                                ForEach(viewModel.fields) { field in
+                                    HStack(spacing: 12) {
+                                        // Selection Indicator
+                                        Image(systemName: viewModel.activeFieldId == field.id ? "checkmark.circle.fill" : "circle")
+                                            .foregroundColor(viewModel.activeFieldId == field.id ? AppColors.mediumGreen : AppColors.authBorder)
+                                            .font(.system(size: 20))
+                                            .onTapGesture {
+                                                viewModel.selectField(field.id)
+                                            }
+                                        
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(field.name)
+                                                .font(.system(size: 16, weight: .semibold))
+                                                .foregroundColor(AppColors.charcoalGreen)
+                                            
+                                            if let area = field.areaHa {
+                                                Text(String(format: "%.2f Hectares", area))
+                                                    .font(.system(size: 12))
+                                                    .foregroundColor(AppColors.charcoalGreen.opacity(0.6))
+                                            }
+                                        }
+                                        
+                                        Spacer()
+                                        
+                                        // Delete Button
+                                        Button(action: {
+                                            viewModel.deleteField(field.id)
+                                        }) {
+                                            Image(systemName: "trash")
+                                                .foregroundColor(.red.opacity(0.7))
+                                                .font(.system(size: 16))
+                                                .padding(8)
+                                                .background(Circle().fill(Color.red.opacity(0.05)))
+                                        }
+                                    }
+                                    .padding(.vertical, 12)
+                                    
+                                    if field.id != viewModel.fields.last?.id {
+                                        Divider().background(AppColors.charcoalGreen.opacity(0.05))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
                     // Sign Out Card
                     GlassCard {
                         Button(role: .destructive, action: {
@@ -101,6 +155,12 @@ struct SettingsView: View {
 
 #Preview {
     NavigationStack {
-        SettingsView(viewModel: SettingsViewModel(authService: MockAuthService(isLoggedIn: true)))
+        SettingsView(
+            viewModel: SettingsViewModel(
+                authService: MockAuthService(isLoggedIn: true),
+                dataService: MockAgriDataRepository(),
+                preferencesService: MockPreferencesService()
+            )
+        )
     }
 }

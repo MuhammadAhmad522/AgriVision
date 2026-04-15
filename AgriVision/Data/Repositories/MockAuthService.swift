@@ -84,4 +84,8 @@ final class MockAuthService: AuthService {
         }
         try await Task.sleep(nanoseconds: 500_000_000)
     }
+    
+    func getIDToken() async throws -> String {
+        return "mock-firebase-token"
+    }
 }

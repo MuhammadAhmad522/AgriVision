@@ -19,6 +19,12 @@ final class DashboardViewModel: ObservableObject {
     /// The list of sensor readings displayed by the View.
     @Published var readings: [SensorReading] = []
 
+    /// The list of user's fields, containing satellite data.
+    @Published var fields: [Field] = []
+    
+    /// AI-generated agronomic recommendations for the primary field.
+    @Published var recommendations: [FieldRecommendation] = []
+
     /// A boolean flag indicating an in-flight data request. Used to show a loading spinner.
     @Published var isLoading: Bool = false
 
@@ -47,6 +53,9 @@ final class DashboardViewModel: ObservableObject {
     
     /// Injected by the Coordinator. Called when the user taps the settings button.
     var onSettingsTap: (() -> Void)?
+    
+    /// Injected by the Coordinator. Called when the user taps the AI Chat button.
+    var onChatTapped: ((UUID) -> Void)?
 
     // MARK: - Initialization
 
@@ -74,6 +83,12 @@ final class DashboardViewModel: ObservableObject {
     /// Helper to trigger the settings navigation flow.
     func openSettings() {
         onSettingsTap?()
+    }
+    
+    /// Triggers the AI Chat for the primary field.
+    func openChat() {
+        guard let primaryField = fields.first else { return }
+        onChatTapped?(primaryField.id)
     }
     
     /// Links the current user's account with Google credentials.
@@ -124,11 +139,46 @@ final class DashboardViewModel: ObservableObject {
         defer { isLoading = false }
 
         do {
-            readings = try await dataService.fetchSensorReadings()
+            let fetchedReadings = try await dataService.fetchSensorReadings()
+            let fetchedFields = try await dataService.fetchFields()
+            
+            readings = fetchedReadings
+            fields = fetchedFields
+            
+            // Fetch AI recommendations for the primary field
+            if let primaryField = fetchedFields.first {
+                let fetchedRecs = try await dataService.fetchRecommendations(for: primaryField.id)
+                recommendations = fetchedRecs
+            }
         } catch {
-            // Surface the error to the View via the published `errorMessage` property
-            // rather than silently printing it. The View decides how to present it.
             errorMessage = error.userFacingMessage
         }
+    }
+
+    // MARK: - Computed Properties for UI
+    
+    /// Returns the health summary for the primary field.
+    var healthSummary: (score: Double, message: String, color: String)? {
+        guard let field = fields.first, let ndvi = field.ndviScore else { return nil }
+        
+        let message: String
+        let color: String
+        
+        switch ndvi {
+        case 0.7...1.0:
+            message = "Excellent Crop Health"
+            color = "green"
+        case 0.4..<0.7:
+            message = "Good Health - Monitor Moisture"
+            color = "orange"
+        case 0..<0.4:
+            message = "Low Vitality - Inspection Required"
+            color = "red"
+        default:
+            message = "Awaiting Analysis"
+            color = "gray"
+        }
+        
+        return (ndvi, message, color)
     }
 }

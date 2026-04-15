@@ -10,11 +10,17 @@ final class UserDefaultsPreferencesService: PreferencesService {
             UserDefaults.standard.string(forKey: StorageKeys.savedEmail)
         }
         set {
-            if let email = newValue {
-                UserDefaults.standard.set(email, forKey: StorageKeys.savedEmail)
-            } else {
-                UserDefaults.standard.removeObject(forKey: StorageKeys.savedEmail)
-            }
+            UserDefaults.standard.set(newValue, forKey: StorageKeys.savedEmail)
+        }
+    }
+    
+    var activeFieldId: UUID? {
+        get {
+            guard let stringId = UserDefaults.standard.string(forKey: StorageKeys.activeFieldId) else { return nil }
+            return UUID(uuidString: stringId)
+        }
+        set {
+            UserDefaults.standard.set(newValue?.uuidString, forKey: StorageKeys.activeFieldId)
         }
     }
 }

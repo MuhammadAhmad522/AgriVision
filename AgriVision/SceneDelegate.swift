@@ -37,8 +37,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         //    This is the only place in the runtime app where concrete service implementations
         //    are chosen; everywhere else depends on protocols (Dependency Inversion Principle).
         let onboardingStateService = UserDefaultsOnboardingStateService()
-        let dataService = MockAgriDataRepository()
         let authService = FirebaseAuthService()
+        let dataService = NetworkAgriDataRepository(authService: authService)
         let userProfileService = FirebaseUserProfileService()
         let preferencesService = UserDefaultsPreferencesService()
 

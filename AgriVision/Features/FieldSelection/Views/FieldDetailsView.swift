@@ -1,0 +1,348 @@
+import SwiftUI
+
+struct FieldDetailsView: View {
+    @StateObject var viewModel: FieldDetailsViewModel
+    @Environment(\.dismiss) var dismiss
+    
+    // State for selection sheets
+    @State private var showCropPicker = false
+    @State private var showPlantationPicker = false
+    @State private var showHarvestPicker = false
+    
+    private let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter
+    }()
+    
+    var body: some View {
+        ZStack(alignment: .top) {
+            // Background Image
+            Image("bg-image")
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .ignoresSafeArea()
+            
+            // Glassmorphic Card Overlay (Matching Auth Style)
+            VStack {
+                Spacer().frame(height: 120) // Accounting for fixed header
+                
+                ZStack {
+                    // Glass Card
+                    VisualEffectBlur(blurStyle: .systemUltraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: UIConstants.Auth.cardCornerRadius))
+                    
+                    Color.white.opacity(0.4)
+                        .clipShape(RoundedRectangle(cornerRadius: UIConstants.Auth.cardCornerRadius))
+                    
+                    ScrollView {
+                        VStack(spacing: 20) {
+                            Text("New Field Details")
+                                .font(.system(size: 24, weight: .bold))
+                                .foregroundColor(AppColors.charcoalGreen)
+                                .padding(.top, 40)
+                                .padding(.bottom, 10)
+                            
+                            // Input Forms
+                            VStack(spacing: 20) {
+                                FieldTextFieldBox(
+                                    placeholder: "Field Name",
+                                    text: $viewModel.name
+                                )
+                                
+                                FieldSelectionBox(
+                                    label: "Crop Type",
+                                    value: viewModel.selectedCrop,
+                                    placeholder: "Crop Type",
+                                    icon: "chevron.down"
+                                ) {
+                                    showCropPicker = true
+                                }
+                                
+                                FieldSelectionBox(
+                                    label: "Plantation Date",
+                                    value: viewModel.plantationDate == nil ? "" : dateFormatter.string(from: viewModel.plantationDate),
+                                    placeholder: "Plantation Date",
+                                    icon: "calendar"
+                                ) {
+                                    showPlantationPicker = true
+                                }
+                                
+                                FieldSelectionBox(
+                                    label: "Expected Harvest Date",
+                                    value: viewModel.harvestDate == nil ? "" : dateFormatter.string(from: viewModel.harvestDate),
+                                    placeholder: "Expected Harvest Date",
+                                    icon: "calendar"
+                                ) {
+                                    showHarvestPicker = true
+                                }
+                                
+                                FieldToggleBox(
+                                    label: "Monitor With IoT Sensors",
+                                    description: "You can set up sensors after saving this field",
+                                    isOn: $viewModel.monitorWithIoT
+                                )
+                            }
+                            .padding(.horizontal, 24)
+                            
+                            Spacer(minLength: 30)
+                            
+                            FieldSubmitButton(
+                                title: "Save Field",
+                                isLoading: viewModel.isLoading
+                            ) {
+                                viewModel.saveField()
+                            }
+                            .padding(.bottom, 40)
+                        }
+                    }
+                }
+                .frame(width: UIConstants.Auth.cardWidth)
+                .overlay(
+                    RoundedRectangle(cornerRadius: UIConstants.Auth.cardCornerRadius)
+                        .stroke(Color.white.opacity(0.6), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.1), radius: 20, x: 0, y: 10)
+                
+                Spacer()
+            }
+            
+            // Fixed Header Section
+            headerView
+                .padding(.horizontal, 24)
+                .padding(.top, 60)
+        }
+        .navigationBarHidden(true)
+        .overlay(alignment: .top) {
+            if let error = viewModel.errorMessage {
+                ToastView(message: error, type: .error)
+                    .padding(.top, 60)
+                    .padding(.horizontal)
+            }
+        }
+        .sheet(isPresented: $showCropPicker) {
+            CropSelectionSheet(selection: $viewModel.selectedCrop, options: viewModel.cropTypes)
+                .presentationDetents([.medium])
+        }
+        .sheet(isPresented: $showPlantationPicker) {
+            DateSelectionSheet(title: "Plantation Date", selection: $viewModel.plantationDate)
+                .presentationDetents([.height(350)])
+        }
+        .sheet(isPresented: $showHarvestPicker) {
+            DateSelectionSheet(title: "Expected Harvest Date", selection: $viewModel.harvestDate)
+                .presentationDetents([.height(350)])
+        }
+    }
+    
+    private var headerView: some View {
+        HStack {
+            Button(action: {
+                viewModel.goBack()
+                dismiss()
+            }) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundColor(AppColors.mediumGreen)
+            }
+            
+            Spacer()
+            
+            HStack(spacing: -12) {
+                Image(systemName: "person.crop.circle.fill")
+                    .resizable()
+                    .frame(width: 36, height: 36)
+                    .foregroundColor(AppColors.mediumGreen.opacity(0.8))
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                
+                Image(systemName: "person.crop.circle.fill")
+                    .resizable()
+                    .frame(width: 36, height: 36)
+                    .foregroundColor(AppColors.limeGreen.opacity(0.8))
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(Color.white, lineWidth: 2))
+            }
+        }
+    }
+}
+
+// MARK: - Field Detail Components
+
+struct FieldSelectionBox: View {
+    let label: String
+    let value: String
+    let placeholder: String
+    let icon: String
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Text(value.isEmpty ? placeholder : value)
+                    .font(.system(size: 18))
+                    .foregroundColor(AppColors.mediumGreen)
+                
+                Spacer()
+                
+                Image(systemName: icon)
+                    .foregroundColor(AppColors.mediumGreen)
+                    .font(.system(size: 20))
+            }
+            .padding(.horizontal, 16)
+            .frame(width: 366, height: 60)
+            .background(AppColors.cream)
+            .cornerRadius(15)
+            .overlay(
+                RoundedRectangle(cornerRadius: 15)
+                    .stroke(AppColors.limeGreen, lineWidth: 1)
+            )
+        }
+    }
+}
+
+struct FieldToggleBox: View {
+    let label: String
+    let description: String
+    @Binding var isOn: Bool
+    
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(label)
+                    .font(.system(size: 18))
+                    .foregroundColor(AppColors.charcoalGreen)
+                
+                Text(description)
+                    .font(.system(size: 12))
+                    .foregroundColor(AppColors.mediumGreen)
+            }
+            
+            Spacer()
+            
+            Toggle("", isOn: $isOn)
+                .toggleStyle(SwitchToggleStyle(tint: AppColors.mediumGreen))
+                .labelsHidden()
+        }
+        .padding(.horizontal, 16)
+        .frame(width: 366, height: 84)
+        .background(AppColors.cream)
+        .cornerRadius(15)
+        .overlay(
+            RoundedRectangle(cornerRadius: 15)
+                .stroke(AppColors.limeGreen, lineWidth: 1)
+        )
+    }
+}
+
+struct FieldTextFieldBox: View {
+    let placeholder: String
+    @Binding var text: String
+    
+    var body: some View {
+        TextField(placeholder, text: $text)
+            .font(.system(size: 18))
+            .foregroundColor(AppColors.mediumGreen)
+            .padding(.horizontal, 16)
+            .frame(width: 366, height: 60)
+            .background(AppColors.cream)
+            .cornerRadius(15)
+            .overlay(
+                RoundedRectangle(cornerRadius: 15)
+                    .stroke(AppColors.limeGreen, lineWidth: 1)
+            )
+    }
+}
+
+struct FieldSubmitButton: View {
+    let title: String
+    let isLoading: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                if isLoading {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: AppColors.cream))
+                } else {
+                    Text(title)
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(AppColors.cream)
+                }
+            }
+            .frame(width: 326, height: 60)
+            .background(
+                LinearGradient(gradient: Gradient(colors: [AppColors.limeGreen, AppColors.mediumGreen]), startPoint: .top, endPoint: .bottom)
+            )
+            .cornerRadius(32)
+            .shadow(color: Color.black.opacity(0.25), radius: 0, x: 0, y: 4)
+        }
+        .disabled(isLoading)
+    }
+}
+
+struct CropSelectionSheet: View {
+    @Binding var selection: String
+    let options: [String]
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Select Crop Type")
+                .font(.headline)
+                .foregroundColor(AppColors.charcoalGreen)
+                .padding(.top)
+            
+            List {
+                ForEach(options, id: \.self) { option in
+                    Button(action: {
+                        selection = option
+                        dismiss()
+                    }) {
+                        HStack {
+                            Text(option)
+                                .foregroundColor(AppColors.charcoalGreen)
+                            Spacer()
+                            if selection == option {
+                                Image(systemName: "checkmark")
+                                    .foregroundColor(AppColors.mediumGreen)
+                            }
+                        }
+                    }
+                }
+            }
+            .listStyle(.plain)
+        }
+    }
+}
+
+struct DateSelectionSheet: View {
+    let title: String
+    @Binding var selection: Date
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text(title)
+                    .font(.headline)
+                Spacer()
+                Button("Done") { dismiss() }
+                    .fontWeight(.bold)
+            }
+            .padding()
+            .foregroundColor(AppColors.charcoalGreen)
+            
+            DatePicker("", selection: $selection, displayedComponents: .date)
+                .datePickerStyle(.wheel)
+                .labelsHidden()
+            
+            Spacer()
+        }
+        .background(AppColors.cream.opacity(0.5))
+    }
+}
+
+#Preview {
+    FieldDetailsView(viewModel: FieldDetailsViewModel(dataService: MockAgriDataRepository(), coordinates: []))
+}

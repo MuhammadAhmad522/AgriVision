@@ -7,14 +7,16 @@ import UIKit
 ///
 /// This class handles the specific details of the Firebase SDK and Google Sign-In SDK.
 final class FirebaseAuthService: AuthService {
+
+    
     
     init() {}
-
+    
     /// Returns true if a user is currently signed in.
     var isUserLoggedIn: Bool {
         return Auth.auth().currentUser != nil
     }
-
+    
     /// Returns the display name of the current user, if available.
     var currentUserDisplayName: String? {
         return Auth.auth().currentUser?.displayName
@@ -24,18 +26,18 @@ final class FirebaseAuthService: AuthService {
     var currentUserPhotoURL: URL? {
         return Auth.auth().currentUser?.photoURL
     }
-
+    
     /// Returns true if the user's email is verified.
     var isEmailVerified: Bool {
         return Auth.auth().currentUser?.isEmailVerified ?? false
     }
-
+    
     private func getTopViewController() throws -> UIViewController {
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let rootViewController = windowScene.windows.first?.rootViewController else {
-            #if DEBUG
+#if DEBUG
             print("Failed to resolve top view controller for Google sign-in flow.")
-            #endif
+#endif
             throw AgriVisionError.invalidInternalState
         }
         
@@ -45,7 +47,7 @@ final class FirebaseAuthService: AuthService {
         }
         return topController
     }
-
+    
     /// Initiates the Google Sign-In flow.
     ///
     /// Uses the top-most view controller to present the Google Sign-In sheet.
@@ -53,14 +55,14 @@ final class FirebaseAuthService: AuthService {
     @MainActor
     func signInWithGoogle() async throws {
         let topController = try getTopViewController()
-
+        
         do {
             // Ensure any previous session is cleared to force a fresh token fetch
             // which helps avoid "expired credential" errors.
             if GIDSignIn.sharedInstance.currentUser != nil {
                 GIDSignIn.sharedInstance.signOut()
             }
-
+            
             // Perform the sign-in flow using the modern async API.
             // Note: Make sure GIDClientID is set in Info.plist
             let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: topController)
@@ -69,9 +71,9 @@ final class FirebaseAuthService: AuthService {
             
             // Authenticate with Firebase using the Google credential.
             guard let idToken = user.idToken?.tokenString else {
-                #if DEBUG
+#if DEBUG
                 print("Google Sign-In returned nil ID token during sign-in flow.")
-                #endif
+#endif
                 throw AgriVisionError.invalidInternalState
             }
             
@@ -85,7 +87,7 @@ final class FirebaseAuthService: AuthService {
             throw FirebaseAuthErrorMapper.map(error)
         }
     }
-
+    
     /// Signs in with email and password.
     func signIn(email: String, password: String) async throws {
         do {
@@ -94,7 +96,7 @@ final class FirebaseAuthService: AuthService {
             throw FirebaseAuthErrorMapper.map(error)
         }
     }
-
+    
     /// Signs up a new user with email and password.
     func signUp(email: String, password: String) async throws {
         do {
@@ -126,14 +128,14 @@ final class FirebaseAuthService: AuthService {
             throw FirebaseAuthErrorMapper.map(error)
         }
     }
-
+    
     /// Signs out from both Firebase and Google.
     ///
     /// Google session is always cleared locally to prevent stale-account reuse on next sign-in.
     /// If Firebase sign-out fails, a mapped domain error is still surfaced to the caller.
     func signOut() throws {
         defer { GIDSignIn.sharedInstance.signOut() }
-
+        
         do {
             try Auth.auth().signOut()
         } catch {
@@ -145,15 +147,15 @@ final class FirebaseAuthService: AuthService {
     @MainActor
     func linkGoogleAccount() async throws {
         let topController = try getTopViewController()
-
+        
         do {
             let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: topController)
             let user = result.user
             
             guard let idToken = user.idToken?.tokenString else {
-                #if DEBUG
+#if DEBUG
                 print("Google Sign-In returned nil ID token during account-link flow.")
-                #endif
+#endif
                 throw AgriVisionError.invalidInternalState
             }
             
@@ -165,6 +167,19 @@ final class FirebaseAuthService: AuthService {
             }
             
             let _ = try await currentUser.link(with: credential)
+        } catch {
+            throw FirebaseAuthErrorMapper.map(error)
+        }
+    }
+
+    /// Fetches the current Firebase ID token.
+    /// This method is intended for use in network requests to verify identity.
+    func getIDToken() async throws -> String {
+        guard let user = Auth.auth().currentUser else {
+            throw AgriVisionError.userNotFound
+        }
+        do {
+            return try await user.getIDToken()
         } catch {
             throw FirebaseAuthErrorMapper.map(error)
         }
