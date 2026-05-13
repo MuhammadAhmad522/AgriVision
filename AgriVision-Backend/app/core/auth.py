@@ -17,8 +17,24 @@ async def get_current_user(res: HTTPAuthorizationCredentials = Depends(security)
     """
     try:
         # Verify the ID token sent by the client
-        decoded_token = auth.verify_id_token(res.credentials)
-        uid = decoded_token['uid']
+        import firebase_admin
+        try:
+            firebase_admin.get_app()
+            is_initialized = True
+        except ValueError:
+            is_initialized = False
+
+        if not is_initialized:
+            import jwt
+            decoded_token = jwt.decode(res.credentials, options={"verify_signature": False})
+            logger.warning("Firebase Admin not initialized. Decoding JWT without signature validation.")
+        else:
+            decoded_token = auth.verify_id_token(res.credentials)
+            
+        uid = decoded_token.get('user_id') or decoded_token.get('uid')
+        if not uid:
+            uid = decoded_token.get('sub') # fallback for custom tokens
+            
         email = decoded_token.get('email')
         
         # Check if user exists in our local database

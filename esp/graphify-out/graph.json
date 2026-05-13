@@ -1,0 +1,118 @@
+{
+  "directed": false,
+  "multigraph": false,
+  "graph": {},
+  "nodes": [
+    {
+      "label": "main.cpp",
+      "file_type": "code",
+      "source_file": "src/main.cpp",
+      "source_location": "L1",
+      "id": "main_cpp",
+      "community": 0,
+      "norm_label": "main.cpp"
+    },
+    {
+      "label": "setup_wifi()",
+      "file_type": "code",
+      "source_file": "src/main.cpp",
+      "source_location": "L32",
+      "id": "src_main_setup_wifi",
+      "community": 0,
+      "norm_label": "setup_wifi()"
+    },
+    {
+      "label": "reconnect()",
+      "file_type": "code",
+      "source_file": "src/main.cpp",
+      "source_location": "L43",
+      "id": "src_main_reconnect",
+      "community": 1,
+      "norm_label": "reconnect()"
+    },
+    {
+      "label": "setup()",
+      "file_type": "code",
+      "source_file": "src/main.cpp",
+      "source_location": "L59",
+      "id": "src_main_setup",
+      "community": 0,
+      "norm_label": "setup()"
+    },
+    {
+      "label": "loop()",
+      "file_type": "code",
+      "source_file": "src/main.cpp",
+      "source_location": "L74",
+      "id": "src_main_loop",
+      "community": 1,
+      "norm_label": "loop()"
+    }
+  ],
+  "links": [
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "main.cpp",
+      "source_location": "L32",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "main_cpp",
+      "target": "src_main_setup_wifi"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "main.cpp",
+      "source_location": "L43",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "main_cpp",
+      "target": "src_main_reconnect"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "main.cpp",
+      "source_location": "L59",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "main_cpp",
+      "target": "src_main_setup"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "main.cpp",
+      "source_location": "L74",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "main_cpp",
+      "target": "src_main_loop"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "main.cpp",
+      "source_location": "L67",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "src_main_setup",
+      "target": "src_main_setup_wifi"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "main.cpp",
+      "source_location": "L76",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "src_main_loop",
+      "target": "src_main_reconnect"
+    }
+  ],
+  "hyperedges": [],
+  "built_at_commit": "b52ffbce15e56b4f609e0aec12596417a3890046"
+}

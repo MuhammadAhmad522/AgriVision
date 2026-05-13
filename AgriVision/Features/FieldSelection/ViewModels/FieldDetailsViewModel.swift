@@ -20,7 +20,7 @@ class FieldDetailsViewModel: ObservableObject {
     
     // MARK: - Constants
     
-    let cropTypes = ["Wheat", "Maize", "Cotton", "Sugarcane", "Rice", "Potatoes"]
+    let cropTypes = ["Wheat", "Sugarcane", "Rice"]
     
     // MARK: - Dependencies
     

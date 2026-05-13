@@ -8,6 +8,12 @@ import CoreLocation
  */
 class MockAgriDataRepository: AgriDataService {
     
+    private let mockCropType: String
+    
+    init(mockCropType: String = "Wheat") {
+        self.mockCropType = mockCropType
+    }
+    
     /// This method creates fake sensor data and returns it.
     /// Fakes a field save operation
     func saveField(
@@ -44,7 +50,7 @@ class MockAgriDataRepository: AgriDataService {
                 name: "Alpha Field (Mock)",
                 areaHa: 10.5,
                 createdAt: Date(),
-                cropType: "Wheat",
+                cropType: mockCropType,
                 plantationDate: Date().addingTimeInterval(-60*60*24*30),
                 expectedHarvestDate: Date().addingTimeInterval(60*60*24*90),
                 ndviScore: 0.82,

@@ -74,7 +74,7 @@ final class AppCoordinator: Coordinator {
         if onboardingStateService.hasSeenOnboarding {
             // Check if user is already logged in
             if authService.isUserLoggedIn {
-                showMain()
+                checkFieldsAndRoute()
             } else {
                 showAuth()
             }
@@ -112,11 +112,56 @@ final class AppCoordinator: Coordinator {
             self.childCoordinators.removeAll { $0 === coordinator }
             
             // Now transition to the main dashboard.
-            self.showMain()
+            self.checkFieldsAndRoute()
         }
         
         childCoordinators.append(authCoordinator)
         authCoordinator.start()
+    }
+    
+    private func checkFieldsAndRoute() {
+        // Assume we might want a loading spinner here ideally, but for now we just verify fields.
+        Task {
+            do {
+                let fields = try await dataService.fetchFields()
+                await MainActor.run {
+                    if fields.isEmpty {
+                        showFieldSelection()
+                    } else {
+                        showMain()
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    // On error fetching fields (e.g. no network), safest to show Main.
+                    showMain()
+                }
+            }
+        }
+    }
+    
+    private func showFieldSelection() {
+        let fieldCoordinator = FieldSelectionCoordinator(
+            navigationController: navigationController,
+            authService: authService,
+            dataService: dataService
+        )
+        
+        fieldCoordinator.onFieldConfirmed = { [weak self, weak fieldCoordinator] in
+            guard let self = self, let coordinator = fieldCoordinator else { return }
+            self.childCoordinators.removeAll { $0 === coordinator }
+            self.showMain()
+        }
+        
+        // If they cancel out of the intro screen? Maybe we just show Main or log them out. Show Main for now.
+        fieldCoordinator.onCancel = { [weak self, weak fieldCoordinator] in
+            guard let self = self, let coordinator = fieldCoordinator else { return }
+            self.childCoordinators.removeAll { $0 === coordinator }
+            self.showMain()
+        }
+        
+        childCoordinators.append(fieldCoordinator)
+        fieldCoordinator.start()
     }
     
     private func showMain() {

@@ -63,3 +63,12 @@ struct AIChatView: View {
         }
     }
 }
+
+#Preview {
+    AIChatView(
+        viewModel: AIChatViewModel(
+            dataService: MockAgriDataRepository(),
+            fieldId: UUID()
+        )
+    )
+}

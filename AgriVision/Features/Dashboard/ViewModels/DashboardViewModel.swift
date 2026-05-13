@@ -157,6 +157,11 @@ final class DashboardViewModel: ObservableObject {
 
     // MARK: - Computed Properties for UI
     
+    /// Returns the primary crop type.
+    var currentCropType: String {
+        return fields.first?.cropType ?? "Rice"
+    }
+    
     /// Returns the health summary for the primary field.
     var healthSummary: (score: Double, message: String, color: String)? {
         guard let field = fields.first, let ndvi = field.ndviScore else { return nil }

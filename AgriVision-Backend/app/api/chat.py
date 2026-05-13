@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.db_models import Field, AIChatMessage, FieldRecommendation
 from app.services.ai_advisor_service import chat_with_advisor
+from app.core.auth import get_current_user
 
 router = APIRouter(prefix="/fields/{field_id}/chat", tags=["Chat"])
 logger = logging.getLogger(__name__)
@@ -25,11 +26,11 @@ class ChatMessageResponse(BaseModel):
         from_attributes = True
 
 @router.get("", response_model=List[ChatMessageResponse])
-def get_chat_history(field_id: UUID, db: Session = Depends(get_db)):
+def get_chat_history(field_id: UUID, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
     """Fetch the chat history for a field."""
-    field = db.query(Field).filter(Field.id == field_id).first()
+    field = db.query(Field).filter(Field.id == field_id, Field.owner_id == current_user.id).first()
     if not field:
-        raise HTTPException(status_code=404, detail="Field not found")
+        raise HTTPException(status_code=404, detail="Field not found or access denied")
         
     messages = db.query(AIChatMessage).filter(
         AIChatMessage.field_id == field_id
@@ -39,11 +40,11 @@ def get_chat_history(field_id: UUID, db: Session = Depends(get_db)):
     return [{"id": m.id, "role": m.role, "content": m.content, "created_at": m.created_at.isoformat()} for m in messages]
 
 @router.post("", response_model=ChatMessageResponse)
-async def post_chat_message(field_id: UUID, req: ChatMessageRequest, db: Session = Depends(get_db)):
+async def post_chat_message(field_id: UUID, req: ChatMessageRequest, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
     """Send a message to the AI Advisor, returning its contextual response."""
-    field = db.query(Field).filter(Field.id == field_id).first()
+    field = db.query(Field).filter(Field.id == field_id, Field.owner_id == current_user.id).first()
     if not field:
-        raise HTTPException(status_code=404, detail="Field not found")
+        raise HTTPException(status_code=404, detail="Field not found or access denied")
 
     # 1. Save user message
     user_msg = AIChatMessage(field_id=field_id, role="user", content=req.message)

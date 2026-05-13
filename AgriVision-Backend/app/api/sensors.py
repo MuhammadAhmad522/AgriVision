@@ -7,12 +7,15 @@ from app.database import get_db
 from app.models.db_models import Sensor
 from app.schemas.pydantic_schemas import SensorResponse
 
+from app.core.auth import get_current_user
+
 router = APIRouter(prefix="/api/sensors", tags=["Sensors"])
 
 @router.get("/verify/{device_id}", response_model=dict)
 def verify_sensor_connection(
     device_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
 ):
     """
     Check if a sensor with the given device_id is active.

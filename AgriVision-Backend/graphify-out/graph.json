@@ -1,0 +1,2843 @@
+{
+  "directed": false,
+  "multigraph": false,
+  "graph": {},
+  "nodes": [
+    {
+      "label": "create_tables.py",
+      "file_type": "code",
+      "source_file": "create_tables.py",
+      "source_location": "L1",
+      "id": "create_tables_py",
+      "community": 11,
+      "norm_label": "create_tables.py"
+    },
+    {
+      "label": "init_db()",
+      "file_type": "code",
+      "source_file": "create_tables.py",
+      "source_location": "L6",
+      "id": "agrivision_backend_create_tables_init_db",
+      "community": 11,
+      "norm_label": "init_db()"
+    },
+    {
+      "label": "database.py",
+      "file_type": "code",
+      "source_file": "app/database.py",
+      "source_location": "L1",
+      "id": "app_database_py",
+      "community": 12,
+      "norm_label": "database.py"
+    },
+    {
+      "label": "get_db()",
+      "file_type": "code",
+      "source_file": "app/database.py",
+      "source_location": "L23",
+      "id": "app_database_get_db",
+      "community": 12,
+      "norm_label": "get_db()"
+    },
+    {
+      "label": "__init__.py",
+      "file_type": "code",
+      "source_file": "app/__init__.py",
+      "source_location": "L1",
+      "id": "app_init_py",
+      "community": 14,
+      "norm_label": "__init__.py"
+    },
+    {
+      "label": "main.py",
+      "file_type": "code",
+      "source_file": "app/main.py",
+      "source_location": "L1",
+      "id": "app_main_py",
+      "community": 2,
+      "norm_label": "main.py"
+    },
+    {
+      "label": "lifespan()",
+      "file_type": "code",
+      "source_file": "app/main.py",
+      "source_location": "L28",
+      "id": "app_main_lifespan",
+      "community": 2,
+      "norm_label": "lifespan()"
+    },
+    {
+      "label": "root()",
+      "file_type": "code",
+      "source_file": "app/main.py",
+      "source_location": "L125",
+      "id": "app_main_root",
+      "community": 2,
+      "norm_label": "root()"
+    },
+    {
+      "label": "health_check()",
+      "file_type": "code",
+      "source_file": "app/main.py",
+      "source_location": "L130",
+      "id": "app_main_health_check",
+      "community": 2,
+      "norm_label": "health_check()"
+    },
+    {
+      "label": "Handles startup and shutdown events.     - On startup: creates DB tables and sta",
+      "file_type": "rationale",
+      "source_file": "app/main.py",
+      "source_location": "L29",
+      "id": "app_main_rationale_29",
+      "community": 2,
+      "norm_label": "handles startup and shutdown events.     - on startup: creates db tables and sta"
+    },
+    {
+      "label": "auth.py",
+      "file_type": "code",
+      "source_file": "app/core/auth.py",
+      "source_location": "L1",
+      "id": "app_core_auth_py",
+      "community": 8,
+      "norm_label": "auth.py"
+    },
+    {
+      "label": "get_current_user()",
+      "file_type": "code",
+      "source_file": "app/core/auth.py",
+      "source_location": "L13",
+      "id": "core_auth_get_current_user",
+      "community": 8,
+      "norm_label": "get_current_user()"
+    },
+    {
+      "label": "Decodes the Firebase JWT from the 'Authorization: Bearer <TOKEN>' header.     If",
+      "file_type": "rationale",
+      "source_file": "app/core/auth.py",
+      "source_location": "L14",
+      "id": "core_auth_rationale_14",
+      "community": 8,
+      "norm_label": "decodes the firebase jwt from the 'authorization: bearer <token>' header.     if"
+    },
+    {
+      "label": "config.py",
+      "file_type": "code",
+      "source_file": "app/core/config.py",
+      "source_location": "L1",
+      "id": "app_core_config_py",
+      "community": 9,
+      "norm_label": "config.py"
+    },
+    {
+      "label": "Settings",
+      "file_type": "code",
+      "source_file": "app/core/config.py",
+      "source_location": "L5",
+      "id": "core_config_settings",
+      "community": 9,
+      "norm_label": "settings"
+    },
+    {
+      "label": "BaseSettings",
+      "file_type": "code",
+      "source_file": "app/core/config.py",
+      "source_location": "",
+      "id": "basesettings",
+      "community": 9,
+      "norm_label": "basesettings"
+    },
+    {
+      "label": "__init__.py",
+      "file_type": "code",
+      "source_file": "app/models/__init__.py",
+      "source_location": "L1",
+      "id": "app_models_init_py",
+      "community": 15,
+      "norm_label": "__init__.py"
+    },
+    {
+      "label": "db_models.py",
+      "file_type": "code",
+      "source_file": "app/models/db_models.py",
+      "source_location": "L1",
+      "id": "app_models_db_models_py",
+      "community": 1,
+      "norm_label": "db_models.py"
+    },
+    {
+      "label": "User",
+      "file_type": "code",
+      "source_file": "app/models/db_models.py",
+      "source_location": "L10",
+      "id": "models_db_models_user",
+      "community": 1,
+      "norm_label": "user"
+    },
+    {
+      "label": "Base",
+      "file_type": "code",
+      "source_file": "app/models/db_models.py",
+      "source_location": "",
+      "id": "base",
+      "community": 1,
+      "norm_label": "base"
+    },
+    {
+      "label": "Field",
+      "file_type": "code",
+      "source_file": "app/models/db_models.py",
+      "source_location": "L21",
+      "id": "models_db_models_field",
+      "community": 1,
+      "norm_label": "field"
+    },
+    {
+      "label": "Sensor",
+      "file_type": "code",
+      "source_file": "app/models/db_models.py",
+      "source_location": "L51",
+      "id": "models_db_models_sensor",
+      "community": 1,
+      "norm_label": "sensor"
+    },
+    {
+      "label": "SensorReading",
+      "file_type": "code",
+      "source_file": "app/models/db_models.py",
+      "source_location": "L74",
+      "id": "models_db_models_sensorreading",
+      "community": 1,
+      "norm_label": "sensorreading"
+    },
+    {
+      "label": "FieldRecommendation",
+      "file_type": "code",
+      "source_file": "app/models/db_models.py",
+      "source_location": "L100",
+      "id": "models_db_models_fieldrecommendation",
+      "community": 1,
+      "norm_label": "fieldrecommendation"
+    },
+    {
+      "label": "AIChatMessage",
+      "file_type": "code",
+      "source_file": "app/models/db_models.py",
+      "source_location": "L134",
+      "id": "models_db_models_aichatmessage",
+      "community": 1,
+      "norm_label": "aichatmessage"
+    },
+    {
+      "label": "Stores AI-generated agronomic recommendations for each field.     Populated by t",
+      "file_type": "rationale",
+      "source_file": "app/models/db_models.py",
+      "source_location": "L101",
+      "id": "models_db_models_rationale_101",
+      "community": 1,
+      "norm_label": "stores ai-generated agronomic recommendations for each field.     populated by t"
+    },
+    {
+      "label": "Stores conversational memory for the autonomous AI agent.     Roles: 'user' or '",
+      "file_type": "rationale",
+      "source_file": "app/models/db_models.py",
+      "source_location": "L135",
+      "id": "models_db_models_rationale_135",
+      "community": 1,
+      "norm_label": "stores conversational memory for the autonomous ai agent.     roles: 'user' or '"
+    },
+    {
+      "label": "__init__.py",
+      "file_type": "code",
+      "source_file": "app/schemas/__init__.py",
+      "source_location": "L1",
+      "id": "app_schemas_init_py",
+      "community": 16,
+      "norm_label": "__init__.py"
+    },
+    {
+      "label": "pydantic_schemas.py",
+      "file_type": "code",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L1",
+      "id": "app_schemas_pydantic_schemas_py",
+      "community": 3,
+      "norm_label": "pydantic_schemas.py"
+    },
+    {
+      "label": "SensorReadingBase",
+      "file_type": "code",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L8",
+      "id": "schemas_pydantic_schemas_sensorreadingbase",
+      "community": 3,
+      "norm_label": "sensorreadingbase"
+    },
+    {
+      "label": "BaseModel",
+      "file_type": "code",
+      "source_file": "app/api/chat.py",
+      "source_location": "",
+      "id": "basemodel",
+      "community": 3,
+      "norm_label": "basemodel"
+    },
+    {
+      "label": "SensorReadingDB",
+      "file_type": "code",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L25",
+      "id": "schemas_pydantic_schemas_sensorreadingdb",
+      "community": 3,
+      "norm_label": "sensorreadingdb"
+    },
+    {
+      "label": "SensorCreate",
+      "file_type": "code",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L41",
+      "id": "schemas_pydantic_schemas_sensorcreate",
+      "community": 3,
+      "norm_label": "sensorcreate"
+    },
+    {
+      "label": "SensorResponse",
+      "file_type": "code",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L46",
+      "id": "schemas_pydantic_schemas_sensorresponse",
+      "community": 3,
+      "norm_label": "sensorresponse"
+    },
+    {
+      "label": "PointCoordinates",
+      "file_type": "code",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L59",
+      "id": "schemas_pydantic_schemas_pointcoordinates",
+      "community": 3,
+      "norm_label": "pointcoordinates"
+    },
+    {
+      "label": "FieldCreate",
+      "file_type": "code",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L63",
+      "id": "schemas_pydantic_schemas_fieldcreate",
+      "community": 3,
+      "norm_label": "fieldcreate"
+    },
+    {
+      "label": "FieldWithSensorsCreate",
+      "file_type": "code",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L71",
+      "id": "schemas_pydantic_schemas_fieldwithsensorscreate",
+      "community": 3,
+      "norm_label": "fieldwithsensorscreate"
+    },
+    {
+      "label": "FieldResponse",
+      "file_type": "code",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L74",
+      "id": "schemas_pydantic_schemas_fieldresponse",
+      "community": 3,
+      "norm_label": "fieldresponse"
+    },
+    {
+      "label": "UserSchema",
+      "file_type": "code",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L95",
+      "id": "schemas_pydantic_schemas_userschema",
+      "community": 3,
+      "norm_label": "userschema"
+    },
+    {
+      "label": "RecommendationResponse",
+      "file_type": "code",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L106",
+      "id": "schemas_pydantic_schemas_recommendationresponse",
+      "community": 3,
+      "norm_label": "recommendationresponse"
+    },
+    {
+      "label": "fields.py",
+      "file_type": "code",
+      "source_file": "app/api/fields.py",
+      "source_location": "L1",
+      "id": "app_api_fields_py",
+      "community": 4,
+      "norm_label": "fields.py"
+    },
+    {
+      "label": "coordinates_to_wkt()",
+      "file_type": "code",
+      "source_file": "app/api/fields.py",
+      "source_location": "L20",
+      "id": "api_fields_coordinates_to_wkt",
+      "community": 4,
+      "norm_label": "coordinates_to_wkt()"
+    },
+    {
+      "label": "create_field()",
+      "file_type": "code",
+      "source_file": "app/api/fields.py",
+      "source_location": "L30",
+      "id": "api_fields_create_field",
+      "community": 4,
+      "norm_label": "create_field()"
+    },
+    {
+      "label": "get_fields()",
+      "file_type": "code",
+      "source_file": "app/api/fields.py",
+      "source_location": "L86",
+      "id": "api_fields_get_fields",
+      "community": 4,
+      "norm_label": "get_fields()"
+    },
+    {
+      "label": "get_field()",
+      "file_type": "code",
+      "source_file": "app/api/fields.py",
+      "source_location": "L96",
+      "id": "api_fields_get_field",
+      "community": 4,
+      "norm_label": "get_field()"
+    },
+    {
+      "label": "delete_field()",
+      "file_type": "code",
+      "source_file": "app/api/fields.py",
+      "source_location": "L109",
+      "id": "api_fields_delete_field",
+      "community": 4,
+      "norm_label": "delete_field()"
+    },
+    {
+      "label": "Convert a list of PointCoordinates to a WKT POLYGON string.",
+      "file_type": "rationale",
+      "source_file": "app/api/fields.py",
+      "source_location": "L21",
+      "id": "api_fields_rationale_21",
+      "community": 4,
+      "norm_label": "convert a list of pointcoordinates to a wkt polygon string."
+    },
+    {
+      "label": "Save a new field boundary drawn on the map, optionally associating IoT sensors.",
+      "file_type": "rationale",
+      "source_file": "app/api/fields.py",
+      "source_location": "L35",
+      "id": "api_fields_rationale_35",
+      "community": 4,
+      "norm_label": "save a new field boundary drawn on the map, optionally associating iot sensors."
+    },
+    {
+      "label": "Get all fields for the authenticated user.",
+      "file_type": "rationale",
+      "source_file": "app/api/fields.py",
+      "source_location": "L90",
+      "id": "api_fields_rationale_90",
+      "community": 4,
+      "norm_label": "get all fields for the authenticated user."
+    },
+    {
+      "label": "Get a specific field by ID.",
+      "file_type": "rationale",
+      "source_file": "app/api/fields.py",
+      "source_location": "L101",
+      "id": "api_fields_rationale_101",
+      "community": 4,
+      "norm_label": "get a specific field by id."
+    },
+    {
+      "label": "Delete a field by ID.",
+      "file_type": "rationale",
+      "source_file": "app/api/fields.py",
+      "source_location": "L114",
+      "id": "api_fields_rationale_114",
+      "community": 4,
+      "norm_label": "delete a field by id."
+    },
+    {
+      "label": "sensors.py",
+      "file_type": "code",
+      "source_file": "app/api/sensors.py",
+      "source_location": "L1",
+      "id": "app_api_sensors_py",
+      "community": 10,
+      "norm_label": "sensors.py"
+    },
+    {
+      "label": "verify_sensor_connection()",
+      "file_type": "code",
+      "source_file": "app/api/sensors.py",
+      "source_location": "L13",
+      "id": "api_sensors_verify_sensor_connection",
+      "community": 10,
+      "norm_label": "verify_sensor_connection()"
+    },
+    {
+      "label": "Check if a sensor with the given device_id is active.     Success criteria: Devi",
+      "file_type": "rationale",
+      "source_file": "app/api/sensors.py",
+      "source_location": "L17",
+      "id": "api_sensors_rationale_17",
+      "community": 10,
+      "norm_label": "check if a sensor with the given device_id is active.     success criteria: devi"
+    },
+    {
+      "label": "recommendations.py",
+      "file_type": "code",
+      "source_file": "app/api/recommendations.py",
+      "source_location": "L1",
+      "id": "app_api_recommendations_py",
+      "community": 6,
+      "norm_label": "recommendations.py"
+    },
+    {
+      "label": "get_recommendations()",
+      "file_type": "code",
+      "source_file": "app/api/recommendations.py",
+      "source_location": "L24",
+      "id": "api_recommendations_get_recommendations",
+      "community": 6,
+      "norm_label": "get_recommendations()"
+    },
+    {
+      "label": "RecommendationFeedback",
+      "file_type": "code",
+      "source_file": "app/api/recommendations.py",
+      "source_location": "L54",
+      "id": "api_recommendations_recommendationfeedback",
+      "community": 1,
+      "norm_label": "recommendationfeedback"
+    },
+    {
+      "label": "update_recommendation_feedback()",
+      "file_type": "code",
+      "source_file": "app/api/recommendations.py",
+      "source_location": "L59",
+      "id": "api_recommendations_update_recommendation_feedback",
+      "community": 6,
+      "norm_label": "update_recommendation_feedback()"
+    },
+    {
+      "label": "trigger_recommendation_refresh()",
+      "file_type": "code",
+      "source_file": "app/api/recommendations.py",
+      "source_location": "L96",
+      "id": "api_recommendations_trigger_recommendation_refresh",
+      "community": 6,
+      "norm_label": "trigger_recommendation_refresh()"
+    },
+    {
+      "label": "Recommendations API Endpoints  Serves stored AI-generated agronomic recommendati",
+      "file_type": "rationale",
+      "source_file": "app/api/recommendations.py",
+      "source_location": "L1",
+      "id": "api_recommendations_rationale_1",
+      "community": 6,
+      "norm_label": "recommendations api endpoints  serves stored ai-generated agronomic recommendati"
+    },
+    {
+      "label": "Get the latest AI-generated recommendations for a specific field.     Returns th",
+      "file_type": "rationale",
+      "source_file": "app/api/recommendations.py",
+      "source_location": "L30",
+      "id": "api_recommendations_rationale_30",
+      "community": 6,
+      "norm_label": "get the latest ai-generated recommendations for a specific field.     returns th"
+    },
+    {
+      "label": "Allow the farmer to provide feedback (e.g. 'implemented', 'ignored') on a recomm",
+      "file_type": "rationale",
+      "source_file": "app/api/recommendations.py",
+      "source_location": "L66",
+      "id": "api_recommendations_rationale_66",
+      "community": 6,
+      "norm_label": "allow the farmer to provide feedback (e.g. 'implemented', 'ignored') on a recomm"
+    },
+    {
+      "label": "Trigger an immediate AI analysis for a specific field.     This runs the full da",
+      "file_type": "rationale",
+      "source_file": "app/api/recommendations.py",
+      "source_location": "L101",
+      "id": "api_recommendations_rationale_101",
+      "community": 6,
+      "norm_label": "trigger an immediate ai analysis for a specific field.     this runs the full da"
+    },
+    {
+      "label": "__init__.py",
+      "file_type": "code",
+      "source_file": "app/api/__init__.py",
+      "source_location": "L1",
+      "id": "app_api_init_py",
+      "community": 17,
+      "norm_label": "__init__.py"
+    },
+    {
+      "label": "chat.py",
+      "file_type": "code",
+      "source_file": "app/api/chat.py",
+      "source_location": "L1",
+      "id": "app_api_chat_py",
+      "community": 1,
+      "norm_label": "chat.py"
+    },
+    {
+      "label": "ChatMessageRequest",
+      "file_type": "code",
+      "source_file": "app/api/chat.py",
+      "source_location": "L15",
+      "id": "api_chat_chatmessagerequest",
+      "community": 1,
+      "norm_label": "chatmessagerequest"
+    },
+    {
+      "label": "ChatMessageResponse",
+      "file_type": "code",
+      "source_file": "app/api/chat.py",
+      "source_location": "L18",
+      "id": "api_chat_chatmessageresponse",
+      "community": 1,
+      "norm_label": "chatmessageresponse"
+    },
+    {
+      "label": "Config",
+      "file_type": "code",
+      "source_file": "app/api/chat.py",
+      "source_location": "L24",
+      "id": "api_chat_config",
+      "community": 1,
+      "norm_label": "config"
+    },
+    {
+      "label": "get_chat_history()",
+      "file_type": "code",
+      "source_file": "app/api/chat.py",
+      "source_location": "L28",
+      "id": "api_chat_get_chat_history",
+      "community": 1,
+      "norm_label": "get_chat_history()"
+    },
+    {
+      "label": "post_chat_message()",
+      "file_type": "code",
+      "source_file": "app/api/chat.py",
+      "source_location": "L42",
+      "id": "api_chat_post_chat_message",
+      "community": 1,
+      "norm_label": "post_chat_message()"
+    },
+    {
+      "label": "Fetch the chat history for a field.",
+      "file_type": "rationale",
+      "source_file": "app/api/chat.py",
+      "source_location": "L29",
+      "id": "api_chat_rationale_29",
+      "community": 1,
+      "norm_label": "fetch the chat history for a field."
+    },
+    {
+      "label": "Send a message to the AI Advisor, returning its contextual response.",
+      "file_type": "rationale",
+      "source_file": "app/api/chat.py",
+      "source_location": "L43",
+      "id": "api_chat_rationale_43",
+      "community": 1,
+      "norm_label": "send a message to the ai advisor, returning its contextual response."
+    },
+    {
+      "label": "mqtt_service.py",
+      "file_type": "code",
+      "source_file": "app/services/mqtt_service.py",
+      "source_location": "L1",
+      "id": "app_services_mqtt_service_py",
+      "community": 7,
+      "norm_label": "mqtt_service.py"
+    },
+    {
+      "label": "on_connect()",
+      "file_type": "code",
+      "source_file": "app/services/mqtt_service.py",
+      "source_location": "L22",
+      "id": "services_mqtt_service_on_connect",
+      "community": 7,
+      "norm_label": "on_connect()"
+    },
+    {
+      "label": "on_message()",
+      "file_type": "code",
+      "source_file": "app/services/mqtt_service.py",
+      "source_location": "L30",
+      "id": "services_mqtt_service_on_message",
+      "community": 1,
+      "norm_label": "on_message()"
+    },
+    {
+      "label": "start_mqtt_bridge()",
+      "file_type": "code",
+      "source_file": "app/services/mqtt_service.py",
+      "source_location": "L84",
+      "id": "services_mqtt_service_start_mqtt_bridge",
+      "community": 7,
+      "norm_label": "start_mqtt_bridge()"
+    },
+    {
+      "label": "run_in_background()",
+      "file_type": "code",
+      "source_file": "app/services/mqtt_service.py",
+      "source_location": "L100",
+      "id": "services_mqtt_service_run_in_background",
+      "community": 7,
+      "norm_label": "run_in_background()"
+    },
+    {
+      "label": "Called when a sensor publishes a reading.     Expected payload (JSON):     {",
+      "file_type": "rationale",
+      "source_file": "app/services/mqtt_service.py",
+      "source_location": "L31",
+      "id": "services_mqtt_service_rationale_31",
+      "community": 1,
+      "norm_label": "called when a sensor publishes a reading.     expected payload (json):     {"
+    },
+    {
+      "label": "Start the MQTT client in a background thread.",
+      "file_type": "rationale",
+      "source_file": "app/services/mqtt_service.py",
+      "source_location": "L85",
+      "id": "services_mqtt_service_rationale_85",
+      "community": 7,
+      "norm_label": "start the mqtt client in a background thread."
+    },
+    {
+      "label": "Launch MQTT bridge in a daemon thread so it doesn't block FastAPI startup.",
+      "file_type": "rationale",
+      "source_file": "app/services/mqtt_service.py",
+      "source_location": "L101",
+      "id": "services_mqtt_service_rationale_101",
+      "community": 7,
+      "norm_label": "launch mqtt bridge in a daemon thread so it doesn't block fastapi startup."
+    },
+    {
+      "label": "__init__.py",
+      "file_type": "code",
+      "source_file": "app/services/__init__.py",
+      "source_location": "L1",
+      "id": "app_services_init_py",
+      "community": 18,
+      "norm_label": "__init__.py"
+    },
+    {
+      "label": "agromonitoring_service.py",
+      "file_type": "code",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L1",
+      "id": "app_services_agromonitoring_service_py",
+      "community": 0,
+      "norm_label": "agromonitoring_service.py"
+    },
+    {
+      "label": "async_ttl_cache()",
+      "file_type": "code",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L29",
+      "id": "services_agromonitoring_service_async_ttl_cache",
+      "community": 0,
+      "norm_label": "async_ttl_cache()"
+    },
+    {
+      "label": "create_polygon()",
+      "file_type": "code",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L53",
+      "id": "services_agromonitoring_service_create_polygon",
+      "community": 2,
+      "norm_label": "create_polygon()"
+    },
+    {
+      "label": "get_ndvi_for_field()",
+      "file_type": "code",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L98",
+      "id": "services_agromonitoring_service_get_ndvi_for_field",
+      "community": 0,
+      "norm_label": "get_ndvi_for_field()"
+    },
+    {
+      "label": "get_soil_data()",
+      "file_type": "code",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L135",
+      "id": "services_agromonitoring_service_get_soil_data",
+      "community": 0,
+      "norm_label": "get_soil_data()"
+    },
+    {
+      "label": "get_weather_forecast()",
+      "file_type": "code",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L164",
+      "id": "services_agromonitoring_service_get_weather_forecast",
+      "community": 0,
+      "norm_label": "get_weather_forecast()"
+    },
+    {
+      "label": "get_satellite_imagery_urls()",
+      "file_type": "code",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L234",
+      "id": "services_agromonitoring_service_get_satellite_imagery_urls",
+      "community": 0,
+      "norm_label": "get_satellite_imagery_urls()"
+    },
+    {
+      "label": "get_accumulated_temperature()",
+      "file_type": "code",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L260",
+      "id": "services_agromonitoring_service_get_accumulated_temperature",
+      "community": 0,
+      "norm_label": "get_accumulated_temperature()"
+    },
+    {
+      "label": "get_accumulated_precipitation()",
+      "file_type": "code",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L289",
+      "id": "services_agromonitoring_service_get_accumulated_precipitation",
+      "community": 0,
+      "norm_label": "get_accumulated_precipitation()"
+    },
+    {
+      "label": "get_current_uvi()",
+      "file_type": "code",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L316",
+      "id": "services_agromonitoring_service_get_current_uvi",
+      "community": 0,
+      "norm_label": "get_current_uvi()"
+    },
+    {
+      "label": "get_forecast_uvi()",
+      "file_type": "code",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L337",
+      "id": "services_agromonitoring_service_get_forecast_uvi",
+      "community": 0,
+      "norm_label": "get_forecast_uvi()"
+    },
+    {
+      "label": "get_historical_uvi()",
+      "file_type": "code",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L358",
+      "id": "services_agromonitoring_service_get_historical_uvi",
+      "community": 0,
+      "norm_label": "get_historical_uvi()"
+    },
+    {
+      "label": "get_historical_weather()",
+      "file_type": "code",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L381",
+      "id": "services_agromonitoring_service_get_historical_weather",
+      "community": 0,
+      "norm_label": "get_historical_weather()"
+    },
+    {
+      "label": "get_historical_soil()",
+      "file_type": "code",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L404",
+      "id": "services_agromonitoring_service_get_historical_soil",
+      "community": 0,
+      "norm_label": "get_historical_soil()"
+    },
+    {
+      "label": "Agromonitoring API Service - \"The Brain\" External Data Source  This service inte",
+      "file_type": "rationale",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L1",
+      "id": "services_agromonitoring_service_rationale_1",
+      "community": 0,
+      "norm_label": "agromonitoring api service - \"the brain\" external data source  this service inte"
+    },
+    {
+      "label": "Registers a new field polygon with the Agromonitoring API.     Returns the `poly",
+      "file_type": "rationale",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L54",
+      "id": "services_agromonitoring_service_rationale_54",
+      "community": 2,
+      "norm_label": "registers a new field polygon with the agromonitoring api.     returns the `poly"
+    },
+    {
+      "label": "Fetch the latest NDVI satellite image stats for a polygon.     NDVI ranges from",
+      "file_type": "rationale",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L99",
+      "id": "services_agromonitoring_service_rationale_99",
+      "community": 0,
+      "norm_label": "fetch the latest ndvi satellite image stats for a polygon.     ndvi ranges from"
+    },
+    {
+      "label": "Fetch current soil moisture and temperature from satellite data.     Returns a s",
+      "file_type": "rationale",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L136",
+      "id": "services_agromonitoring_service_rationale_136",
+      "community": 0,
+      "norm_label": "fetch current soil moisture and temperature from satellite data.     returns a s"
+    },
+    {
+      "label": "Fetch a 7-day weather forecast for specific field coordinates.     Returns a str",
+      "file_type": "rationale",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L165",
+      "id": "services_agromonitoring_service_rationale_165",
+      "community": 0,
+      "norm_label": "fetch a 7-day weather forecast for specific field coordinates.     returns a str"
+    },
+    {
+      "label": "Search for satellite imagery metadata and tile links over a specific time range.",
+      "file_type": "rationale",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L235",
+      "id": "services_agromonitoring_service_rationale_235",
+      "community": 0,
+      "norm_label": "search for satellite imagery metadata and tile links over a specific time range."
+    },
+    {
+      "label": "Get accumulated temperature (Growing Degree Days equivalent) for a location.",
+      "file_type": "rationale",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L261",
+      "id": "services_agromonitoring_service_rationale_261",
+      "community": 0,
+      "norm_label": "get accumulated temperature (growing degree days equivalent) for a location."
+    },
+    {
+      "label": "Get accumulated precipitation for a location.",
+      "file_type": "rationale",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L290",
+      "id": "services_agromonitoring_service_rationale_290",
+      "community": 0,
+      "norm_label": "get accumulated precipitation for a location."
+    },
+    {
+      "label": "Get current UV Index for a polygon.",
+      "file_type": "rationale",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L317",
+      "id": "services_agromonitoring_service_rationale_317",
+      "community": 0,
+      "norm_label": "get current uv index for a polygon."
+    },
+    {
+      "label": "Get forecast UV Index for a polygon.",
+      "file_type": "rationale",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L338",
+      "id": "services_agromonitoring_service_rationale_338",
+      "community": 0,
+      "norm_label": "get forecast uv index for a polygon."
+    },
+    {
+      "label": "Get historical UV Index for a polygon.",
+      "file_type": "rationale",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L359",
+      "id": "services_agromonitoring_service_rationale_359",
+      "community": 0,
+      "norm_label": "get historical uv index for a polygon."
+    },
+    {
+      "label": "Get historical weather. NOTE: Historically paid tier, so we catch 402/403.",
+      "file_type": "rationale",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L382",
+      "id": "services_agromonitoring_service_rationale_382",
+      "community": 0,
+      "norm_label": "get historical weather. note: historically paid tier, so we catch 402/403."
+    },
+    {
+      "label": "Get historical soil data. NOTE: Historically paid tier, so we catch 402/403.",
+      "file_type": "rationale",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L405",
+      "id": "services_agromonitoring_service_rationale_405",
+      "community": 0,
+      "norm_label": "get historical soil data. note: historically paid tier, so we catch 402/403."
+    },
+    {
+      "label": "scheduler.py",
+      "file_type": "code",
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L1",
+      "id": "app_services_scheduler_py",
+      "community": 2,
+      "norm_label": "scheduler.py"
+    },
+    {
+      "label": "sync_satellite_data()",
+      "file_type": "code",
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L17",
+      "id": "services_scheduler_sync_satellite_data",
+      "community": 2,
+      "norm_label": "sync_satellite_data()"
+    },
+    {
+      "label": "run_ai_for_field()",
+      "file_type": "code",
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L81",
+      "id": "services_scheduler_run_ai_for_field",
+      "community": 2,
+      "norm_label": "run_ai_for_field()"
+    },
+    {
+      "label": "ai_reasoning_loop()",
+      "file_type": "code",
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L180",
+      "id": "services_scheduler_ai_reasoning_loop",
+      "community": 2,
+      "norm_label": "ai_reasoning_loop()"
+    },
+    {
+      "label": "start_satellite_sync_worker()",
+      "file_type": "code",
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L214",
+      "id": "services_scheduler_start_satellite_sync_worker",
+      "community": 2,
+      "norm_label": "start_satellite_sync_worker()"
+    },
+    {
+      "label": "start_ai_reasoning_worker()",
+      "file_type": "code",
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L219",
+      "id": "services_scheduler_start_ai_reasoning_worker",
+      "community": 2,
+      "norm_label": "start_ai_reasoning_worker()"
+    },
+    {
+      "label": "Periodic background task that fetches satellite NDVI and soil data      for all",
+      "file_type": "rationale",
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L18",
+      "id": "services_scheduler_rationale_18",
+      "community": 2,
+      "norm_label": "periodic background task that fetches satellite ndvi and soil data      for all"
+    },
+    {
+      "label": "Runs the full AI analysis pipeline for a single field.     Fetches multi-modal c",
+      "file_type": "rationale",
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L82",
+      "id": "services_scheduler_rationale_82",
+      "community": 2,
+      "norm_label": "runs the full ai analysis pipeline for a single field.     fetches multi-modal c"
+    },
+    {
+      "label": "Periodic background task that runs the AI advisor for all fields.     Executes e",
+      "file_type": "rationale",
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L181",
+      "id": "services_scheduler_rationale_181",
+      "community": 2,
+      "norm_label": "periodic background task that runs the ai advisor for all fields.     executes e"
+    },
+    {
+      "label": "Starts the satellite sync loop in the background.",
+      "file_type": "rationale",
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L215",
+      "id": "services_scheduler_rationale_215",
+      "community": 2,
+      "norm_label": "starts the satellite sync loop in the background."
+    },
+    {
+      "label": "Starts the AI advisor reasoning loop in the background.",
+      "file_type": "rationale",
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L220",
+      "id": "services_scheduler_rationale_220",
+      "community": 2,
+      "norm_label": "starts the ai advisor reasoning loop in the background."
+    },
+    {
+      "label": "ai_advisor_service.py",
+      "file_type": "code",
+      "source_file": "app/services/ai_advisor_service.py",
+      "source_location": "L1",
+      "id": "app_services_ai_advisor_service_py",
+      "community": 5,
+      "norm_label": "ai_advisor_service.py"
+    },
+    {
+      "label": "_build_field_context()",
+      "file_type": "code",
+      "source_file": "app/services/ai_advisor_service.py",
+      "source_location": "L75",
+      "id": "services_ai_advisor_service_build_field_context",
+      "community": 5,
+      "norm_label": "_build_field_context()"
+    },
+    {
+      "label": "generate_field_recommendations()",
+      "file_type": "code",
+      "source_file": "app/services/ai_advisor_service.py",
+      "source_location": "L153",
+      "id": "services_ai_advisor_service_generate_field_recommendations",
+      "community": 5,
+      "norm_label": "generate_field_recommendations()"
+    },
+    {
+      "label": "chat_with_advisor()",
+      "file_type": "code",
+      "source_file": "app/services/ai_advisor_service.py",
+      "source_location": "L222",
+      "id": "services_ai_advisor_service_chat_with_advisor",
+      "community": 5,
+      "norm_label": "chat_with_advisor()"
+    },
+    {
+      "label": "_generate_rule_based_recommendations()",
+      "file_type": "code",
+      "source_file": "app/services/ai_advisor_service.py",
+      "source_location": "L273",
+      "id": "services_ai_advisor_service_generate_rule_based_recommendations",
+      "community": 5,
+      "norm_label": "_generate_rule_based_recommendations()"
+    },
+    {
+      "label": "AI Advisor Service \u2014 The \"Brain\" of AgriVision  This service aggregates multi-mo",
+      "file_type": "rationale",
+      "source_file": "app/services/ai_advisor_service.py",
+      "source_location": "L1",
+      "id": "services_ai_advisor_service_rationale_1",
+      "community": 5,
+      "norm_label": "ai advisor service \u2014 the \"brain\" of agrivision  this service aggregates multi-mo"
+    },
+    {
+      "label": "Assembles a structured text context block for the AI prompt.",
+      "file_type": "rationale",
+      "source_file": "app/services/ai_advisor_service.py",
+      "source_location": "L88",
+      "id": "services_ai_advisor_service_rationale_88",
+      "community": 5,
+      "norm_label": "assembles a structured text context block for the ai prompt."
+    },
+    {
+      "label": "Core AI reasoning function. Assembles field context and calls Gemini     to gene",
+      "file_type": "rationale",
+      "source_file": "app/services/ai_advisor_service.py",
+      "source_location": "L166",
+      "id": "services_ai_advisor_service_rationale_166",
+      "community": 5,
+      "norm_label": "core ai reasoning function. assembles field context and calls gemini     to gene"
+    },
+    {
+      "label": "Allows the user to chat directly with the AI, bringing in full field context and",
+      "file_type": "rationale",
+      "source_file": "app/services/ai_advisor_service.py",
+      "source_location": "L236",
+      "id": "services_ai_advisor_service_rationale_236",
+      "community": 5,
+      "norm_label": "allows the user to chat directly with the ai, bringing in full field context and"
+    },
+    {
+      "label": "Deterministic fallback recommendations based on threshold rules.     Used when G",
+      "file_type": "rationale",
+      "source_file": "app/services/ai_advisor_service.py",
+      "source_location": "L278",
+      "id": "services_ai_advisor_service_rationale_278",
+      "community": 5,
+      "norm_label": "deterministic fallback recommendations based on threshold rules.     used when g"
+    },
+    {
+      "label": "serial_to_mqtt_bridge.py",
+      "file_type": "code",
+      "source_file": "scripts/serial_to_mqtt_bridge.py",
+      "source_location": "L1",
+      "id": "scripts_serial_to_mqtt_bridge_py",
+      "community": 13,
+      "norm_label": "serial_to_mqtt_bridge.py"
+    },
+    {
+      "label": "start_bridge()",
+      "file_type": "code",
+      "source_file": "scripts/serial_to_mqtt_bridge.py",
+      "source_location": "L16",
+      "id": "scripts_serial_to_mqtt_bridge_start_bridge",
+      "community": 13,
+      "norm_label": "start_bridge()"
+    }
+  ],
+  "links": [
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "create_tables.py",
+      "source_location": "L6",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "create_tables_py",
+      "target": "agrivision_backend_create_tables_init_db"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/database.py",
+      "source_location": "L23",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_database_py",
+      "target": "app_database_get_db"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/main.py",
+      "source_location": "L28",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_main_py",
+      "target": "app_main_lifespan"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/main.py",
+      "source_location": "L125",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_main_py",
+      "target": "app_main_root"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/main.py",
+      "source_location": "L130",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_main_py",
+      "target": "app_main_health_check"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/main.py",
+      "source_location": "L29",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_main_rationale_29",
+      "target": "app_main_lifespan"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "app/main.py",
+      "source_location": "L85",
+      "weight": 1.0,
+      "source": "app_main_lifespan",
+      "target": "services_mqtt_service_run_in_background"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "app/main.py",
+      "source_location": "L90",
+      "weight": 1.0,
+      "source": "app_main_lifespan",
+      "target": "services_scheduler_start_satellite_sync_worker"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "app/main.py",
+      "source_location": "L94",
+      "weight": 1.0,
+      "source": "app_main_lifespan",
+      "target": "services_scheduler_start_ai_reasoning_worker"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/core/auth.py",
+      "source_location": "L13",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_core_auth_py",
+      "target": "core_auth_get_current_user"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/core/auth.py",
+      "source_location": "L14",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "core_auth_rationale_14",
+      "target": "core_auth_get_current_user"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "app/core/auth.py",
+      "source_location": "L46",
+      "weight": 1.0,
+      "source": "core_auth_get_current_user",
+      "target": "models_db_models_user"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/core/config.py",
+      "source_location": "L5",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_core_config_py",
+      "target": "core_config_settings"
+    },
+    {
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "source_file": "app/core/config.py",
+      "source_location": "L5",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "core_config_settings",
+      "target": "basesettings"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/models/db_models.py",
+      "source_location": "L10",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_models_db_models_py",
+      "target": "models_db_models_user"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/models/db_models.py",
+      "source_location": "L21",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_models_db_models_py",
+      "target": "models_db_models_field"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/models/db_models.py",
+      "source_location": "L51",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_models_db_models_py",
+      "target": "models_db_models_sensor"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/models/db_models.py",
+      "source_location": "L74",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_models_db_models_py",
+      "target": "models_db_models_sensorreading"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/models/db_models.py",
+      "source_location": "L100",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_models_db_models_py",
+      "target": "models_db_models_fieldrecommendation"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/models/db_models.py",
+      "source_location": "L134",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_models_db_models_py",
+      "target": "models_db_models_aichatmessage"
+    },
+    {
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "source_file": "app/models/db_models.py",
+      "source_location": "L10",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "models_db_models_user",
+      "target": "base"
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "app/api/recommendations.py",
+      "source_location": "L15",
+      "weight": 0.8,
+      "confidence_score": 0.5,
+      "source": "api_recommendations_recommendationfeedback",
+      "target": "models_db_models_user"
+    },
+    {
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "source_file": "app/models/db_models.py",
+      "source_location": "L21",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "models_db_models_field",
+      "target": "base"
+    },
+    {
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "source_file": "app/models/db_models.py",
+      "source_location": "L51",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "models_db_models_sensor",
+      "target": "base"
+    },
+    {
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "source_file": "app/models/db_models.py",
+      "source_location": "L74",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "models_db_models_sensorreading",
+      "target": "base"
+    },
+    {
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "source_file": "app/models/db_models.py",
+      "source_location": "L100",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "models_db_models_fieldrecommendation",
+      "target": "base"
+    },
+    {
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "source_file": "app/models/db_models.py",
+      "source_location": "L134",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "models_db_models_aichatmessage",
+      "target": "base"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "app/api/fields.py",
+      "source_location": "L47",
+      "weight": 1.0,
+      "source": "api_fields_create_field",
+      "target": "models_db_models_field"
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "app/api/recommendations.py",
+      "source_location": "L15",
+      "weight": 0.8,
+      "confidence_score": 0.5,
+      "source": "api_recommendations_recommendationfeedback",
+      "target": "models_db_models_field"
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "app/api/chat.py",
+      "source_location": "L9",
+      "weight": 0.8,
+      "confidence_score": 0.5,
+      "source": "api_chat_chatmessagerequest",
+      "target": "models_db_models_field"
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "app/api/chat.py",
+      "source_location": "L9",
+      "weight": 0.8,
+      "confidence_score": 0.5,
+      "source": "api_chat_chatmessageresponse",
+      "target": "models_db_models_field"
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "app/api/chat.py",
+      "source_location": "L9",
+      "weight": 0.8,
+      "confidence_score": 0.5,
+      "source": "api_chat_config",
+      "target": "models_db_models_field"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "app/api/fields.py",
+      "source_location": "L71",
+      "weight": 1.0,
+      "source": "api_fields_create_field",
+      "target": "models_db_models_sensor"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "app/services/mqtt_service.py",
+      "source_location": "L52",
+      "weight": 1.0,
+      "source": "services_mqtt_service_on_message",
+      "target": "models_db_models_sensor"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "app/services/mqtt_service.py",
+      "source_location": "L61",
+      "weight": 1.0,
+      "source": "services_mqtt_service_on_message",
+      "target": "models_db_models_sensorreading"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/models/db_models.py",
+      "source_location": "L101",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "models_db_models_rationale_101",
+      "target": "models_db_models_fieldrecommendation"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L162",
+      "weight": 1.0,
+      "source": "services_scheduler_run_ai_for_field",
+      "target": "models_db_models_fieldrecommendation"
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "app/api/recommendations.py",
+      "source_location": "L15",
+      "weight": 0.8,
+      "confidence_score": 0.5,
+      "source": "api_recommendations_recommendationfeedback",
+      "target": "models_db_models_fieldrecommendation"
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "app/api/chat.py",
+      "source_location": "L9",
+      "weight": 0.8,
+      "confidence_score": 0.5,
+      "source": "api_chat_chatmessagerequest",
+      "target": "models_db_models_fieldrecommendation"
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "app/api/chat.py",
+      "source_location": "L9",
+      "weight": 0.8,
+      "confidence_score": 0.5,
+      "source": "api_chat_chatmessageresponse",
+      "target": "models_db_models_fieldrecommendation"
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "app/api/chat.py",
+      "source_location": "L9",
+      "weight": 0.8,
+      "confidence_score": 0.5,
+      "source": "api_chat_config",
+      "target": "models_db_models_fieldrecommendation"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/models/db_models.py",
+      "source_location": "L135",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "models_db_models_rationale_135",
+      "target": "models_db_models_aichatmessage"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "app/api/chat.py",
+      "source_location": "L49",
+      "weight": 1.0,
+      "source": "api_chat_post_chat_message",
+      "target": "models_db_models_aichatmessage"
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "app/api/chat.py",
+      "source_location": "L9",
+      "weight": 0.8,
+      "confidence_score": 0.5,
+      "source": "api_chat_chatmessagerequest",
+      "target": "models_db_models_aichatmessage"
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "app/api/chat.py",
+      "source_location": "L9",
+      "weight": 0.8,
+      "confidence_score": 0.5,
+      "source": "api_chat_chatmessageresponse",
+      "target": "models_db_models_aichatmessage"
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "app/api/chat.py",
+      "source_location": "L9",
+      "weight": 0.8,
+      "confidence_score": 0.5,
+      "source": "api_chat_config",
+      "target": "models_db_models_aichatmessage"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L8",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_schemas_pydantic_schemas_py",
+      "target": "schemas_pydantic_schemas_sensorreadingbase"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L25",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_schemas_pydantic_schemas_py",
+      "target": "schemas_pydantic_schemas_sensorreadingdb"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L41",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_schemas_pydantic_schemas_py",
+      "target": "schemas_pydantic_schemas_sensorcreate"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L46",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_schemas_pydantic_schemas_py",
+      "target": "schemas_pydantic_schemas_sensorresponse"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L59",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_schemas_pydantic_schemas_py",
+      "target": "schemas_pydantic_schemas_pointcoordinates"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L63",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_schemas_pydantic_schemas_py",
+      "target": "schemas_pydantic_schemas_fieldcreate"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L71",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_schemas_pydantic_schemas_py",
+      "target": "schemas_pydantic_schemas_fieldwithsensorscreate"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L74",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_schemas_pydantic_schemas_py",
+      "target": "schemas_pydantic_schemas_fieldresponse"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L95",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_schemas_pydantic_schemas_py",
+      "target": "schemas_pydantic_schemas_userschema"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L106",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_schemas_pydantic_schemas_py",
+      "target": "schemas_pydantic_schemas_recommendationresponse"
+    },
+    {
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L8",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "schemas_pydantic_schemas_sensorreadingbase",
+      "target": "basemodel"
+    },
+    {
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L25",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "schemas_pydantic_schemas_sensorreadingdb",
+      "target": "basemodel"
+    },
+    {
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L41",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "schemas_pydantic_schemas_sensorcreate",
+      "target": "basemodel"
+    },
+    {
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L46",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "schemas_pydantic_schemas_sensorresponse",
+      "target": "basemodel"
+    },
+    {
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L59",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "schemas_pydantic_schemas_pointcoordinates",
+      "target": "basemodel"
+    },
+    {
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L63",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "schemas_pydantic_schemas_fieldcreate",
+      "target": "basemodel"
+    },
+    {
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L74",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "schemas_pydantic_schemas_fieldresponse",
+      "target": "basemodel"
+    },
+    {
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L95",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "schemas_pydantic_schemas_userschema",
+      "target": "basemodel"
+    },
+    {
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L106",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "schemas_pydantic_schemas_recommendationresponse",
+      "target": "basemodel"
+    },
+    {
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/recommendations.py",
+      "source_location": "L54",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "api_recommendations_recommendationfeedback",
+      "target": "basemodel"
+    },
+    {
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/chat.py",
+      "source_location": "L15",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "api_chat_chatmessagerequest",
+      "target": "basemodel"
+    },
+    {
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/chat.py",
+      "source_location": "L18",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "api_chat_chatmessageresponse",
+      "target": "basemodel"
+    },
+    {
+      "relation": "inherits",
+      "confidence": "EXTRACTED",
+      "source_file": "app/schemas/pydantic_schemas.py",
+      "source_location": "L71",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "schemas_pydantic_schemas_fieldwithsensorscreate",
+      "target": "schemas_pydantic_schemas_fieldcreate"
+    },
+    {
+      "relation": "uses",
+      "confidence": "INFERRED",
+      "source_file": "app/api/recommendations.py",
+      "source_location": "L16",
+      "weight": 0.8,
+      "confidence_score": 0.5,
+      "source": "api_recommendations_recommendationfeedback",
+      "target": "schemas_pydantic_schemas_recommendationresponse"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/fields.py",
+      "source_location": "L20",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_api_fields_py",
+      "target": "api_fields_coordinates_to_wkt"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/fields.py",
+      "source_location": "L30",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_api_fields_py",
+      "target": "api_fields_create_field"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/fields.py",
+      "source_location": "L86",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_api_fields_py",
+      "target": "api_fields_get_fields"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/fields.py",
+      "source_location": "L96",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_api_fields_py",
+      "target": "api_fields_get_field"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/fields.py",
+      "source_location": "L109",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_api_fields_py",
+      "target": "api_fields_delete_field"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/fields.py",
+      "source_location": "L45",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "api_fields_create_field",
+      "target": "api_fields_coordinates_to_wkt"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/fields.py",
+      "source_location": "L21",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "api_fields_rationale_21",
+      "target": "api_fields_coordinates_to_wkt"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/fields.py",
+      "source_location": "L35",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "api_fields_rationale_35",
+      "target": "api_fields_create_field"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/fields.py",
+      "source_location": "L90",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "api_fields_rationale_90",
+      "target": "api_fields_get_fields"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/fields.py",
+      "source_location": "L101",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "api_fields_rationale_101",
+      "target": "api_fields_get_field"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/fields.py",
+      "source_location": "L114",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "api_fields_rationale_114",
+      "target": "api_fields_delete_field"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/sensors.py",
+      "source_location": "L13",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_api_sensors_py",
+      "target": "api_sensors_verify_sensor_connection"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/sensors.py",
+      "source_location": "L17",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "api_sensors_rationale_17",
+      "target": "api_sensors_verify_sensor_connection"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/recommendations.py",
+      "source_location": "L24",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_api_recommendations_py",
+      "target": "api_recommendations_get_recommendations"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/recommendations.py",
+      "source_location": "L54",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_api_recommendations_py",
+      "target": "api_recommendations_recommendationfeedback"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/recommendations.py",
+      "source_location": "L59",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_api_recommendations_py",
+      "target": "api_recommendations_update_recommendation_feedback"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/recommendations.py",
+      "source_location": "L96",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_api_recommendations_py",
+      "target": "api_recommendations_trigger_recommendation_refresh"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/recommendations.py",
+      "source_location": "L1",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "api_recommendations_rationale_1",
+      "target": "app_api_recommendations_py"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/recommendations.py",
+      "source_location": "L30",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "api_recommendations_rationale_30",
+      "target": "api_recommendations_get_recommendations"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/recommendations.py",
+      "source_location": "L66",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "api_recommendations_rationale_66",
+      "target": "api_recommendations_update_recommendation_feedback"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/recommendations.py",
+      "source_location": "L101",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "api_recommendations_rationale_101",
+      "target": "api_recommendations_trigger_recommendation_refresh"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "app/api/recommendations.py",
+      "source_location": "L124",
+      "weight": 1.0,
+      "source": "api_recommendations_trigger_recommendation_refresh",
+      "target": "services_scheduler_run_ai_for_field"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/chat.py",
+      "source_location": "L15",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_api_chat_py",
+      "target": "api_chat_chatmessagerequest"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/chat.py",
+      "source_location": "L18",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_api_chat_py",
+      "target": "api_chat_chatmessageresponse"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/chat.py",
+      "source_location": "L24",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_api_chat_py",
+      "target": "api_chat_config"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/chat.py",
+      "source_location": "L28",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_api_chat_py",
+      "target": "api_chat_get_chat_history"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/chat.py",
+      "source_location": "L42",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_api_chat_py",
+      "target": "api_chat_post_chat_message"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/chat.py",
+      "source_location": "L29",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "api_chat_rationale_29",
+      "target": "api_chat_get_chat_history"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/api/chat.py",
+      "source_location": "L43",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "api_chat_rationale_43",
+      "target": "api_chat_post_chat_message"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "app/api/chat.py",
+      "source_location": "L71",
+      "weight": 1.0,
+      "source": "api_chat_post_chat_message",
+      "target": "services_ai_advisor_service_chat_with_advisor"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/mqtt_service.py",
+      "source_location": "L22",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_services_mqtt_service_py",
+      "target": "services_mqtt_service_on_connect"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/mqtt_service.py",
+      "source_location": "L30",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_services_mqtt_service_py",
+      "target": "services_mqtt_service_on_message"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/mqtt_service.py",
+      "source_location": "L84",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_services_mqtt_service_py",
+      "target": "services_mqtt_service_start_mqtt_bridge"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/mqtt_service.py",
+      "source_location": "L100",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_services_mqtt_service_py",
+      "target": "services_mqtt_service_run_in_background"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/mqtt_service.py",
+      "source_location": "L31",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_mqtt_service_rationale_31",
+      "target": "services_mqtt_service_on_message"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/mqtt_service.py",
+      "source_location": "L85",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_mqtt_service_rationale_85",
+      "target": "services_mqtt_service_start_mqtt_bridge"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/mqtt_service.py",
+      "source_location": "L101",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_mqtt_service_rationale_101",
+      "target": "services_mqtt_service_run_in_background"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L29",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_services_agromonitoring_service_py",
+      "target": "services_agromonitoring_service_async_ttl_cache"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L53",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_services_agromonitoring_service_py",
+      "target": "services_agromonitoring_service_create_polygon"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L98",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_services_agromonitoring_service_py",
+      "target": "services_agromonitoring_service_get_ndvi_for_field"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L135",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_services_agromonitoring_service_py",
+      "target": "services_agromonitoring_service_get_soil_data"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L164",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_services_agromonitoring_service_py",
+      "target": "services_agromonitoring_service_get_weather_forecast"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L234",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_services_agromonitoring_service_py",
+      "target": "services_agromonitoring_service_get_satellite_imagery_urls"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L260",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_services_agromonitoring_service_py",
+      "target": "services_agromonitoring_service_get_accumulated_temperature"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L289",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_services_agromonitoring_service_py",
+      "target": "services_agromonitoring_service_get_accumulated_precipitation"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L316",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_services_agromonitoring_service_py",
+      "target": "services_agromonitoring_service_get_current_uvi"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L337",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_services_agromonitoring_service_py",
+      "target": "services_agromonitoring_service_get_forecast_uvi"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L358",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_services_agromonitoring_service_py",
+      "target": "services_agromonitoring_service_get_historical_uvi"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L381",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_services_agromonitoring_service_py",
+      "target": "services_agromonitoring_service_get_historical_weather"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L404",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_services_agromonitoring_service_py",
+      "target": "services_agromonitoring_service_get_historical_soil"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L1",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_agromonitoring_service_rationale_1",
+      "target": "app_services_agromonitoring_service_py"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L54",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_agromonitoring_service_rationale_54",
+      "target": "services_agromonitoring_service_create_polygon"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L46",
+      "weight": 1.0,
+      "source": "services_scheduler_sync_satellite_data",
+      "target": "services_agromonitoring_service_create_polygon"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L99",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_agromonitoring_service_rationale_99",
+      "target": "services_agromonitoring_service_get_ndvi_for_field"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L55",
+      "weight": 1.0,
+      "source": "services_scheduler_sync_satellite_data",
+      "target": "services_agromonitoring_service_get_ndvi_for_field"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L136",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_agromonitoring_service_rationale_136",
+      "target": "services_agromonitoring_service_get_soil_data"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L106",
+      "weight": 1.0,
+      "source": "services_scheduler_run_ai_for_field",
+      "target": "services_agromonitoring_service_get_soil_data"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L165",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_agromonitoring_service_rationale_165",
+      "target": "services_agromonitoring_service_get_weather_forecast"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L118",
+      "weight": 1.0,
+      "source": "services_scheduler_run_ai_for_field",
+      "target": "services_agromonitoring_service_get_weather_forecast"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L235",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_agromonitoring_service_rationale_235",
+      "target": "services_agromonitoring_service_get_satellite_imagery_urls"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L261",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_agromonitoring_service_rationale_261",
+      "target": "services_agromonitoring_service_get_accumulated_temperature"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L290",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_agromonitoring_service_rationale_290",
+      "target": "services_agromonitoring_service_get_accumulated_precipitation"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L317",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_agromonitoring_service_rationale_317",
+      "target": "services_agromonitoring_service_get_current_uvi"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L338",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_agromonitoring_service_rationale_338",
+      "target": "services_agromonitoring_service_get_forecast_uvi"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L359",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_agromonitoring_service_rationale_359",
+      "target": "services_agromonitoring_service_get_historical_uvi"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L382",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_agromonitoring_service_rationale_382",
+      "target": "services_agromonitoring_service_get_historical_weather"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/agromonitoring_service.py",
+      "source_location": "L405",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_agromonitoring_service_rationale_405",
+      "target": "services_agromonitoring_service_get_historical_soil"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L17",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_services_scheduler_py",
+      "target": "services_scheduler_sync_satellite_data"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L81",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_services_scheduler_py",
+      "target": "services_scheduler_run_ai_for_field"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L180",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_services_scheduler_py",
+      "target": "services_scheduler_ai_reasoning_loop"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L214",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_services_scheduler_py",
+      "target": "services_scheduler_start_satellite_sync_worker"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L219",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_services_scheduler_py",
+      "target": "services_scheduler_start_ai_reasoning_worker"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L216",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_scheduler_start_satellite_sync_worker",
+      "target": "services_scheduler_sync_satellite_data"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L18",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_scheduler_rationale_18",
+      "target": "services_scheduler_sync_satellite_data"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L196",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_scheduler_ai_reasoning_loop",
+      "target": "services_scheduler_run_ai_for_field"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L82",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_scheduler_rationale_82",
+      "target": "services_scheduler_run_ai_for_field"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L147",
+      "weight": 1.0,
+      "source": "services_scheduler_run_ai_for_field",
+      "target": "services_ai_advisor_service_generate_field_recommendations"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L221",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_scheduler_start_ai_reasoning_worker",
+      "target": "services_scheduler_ai_reasoning_loop"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L181",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_scheduler_rationale_181",
+      "target": "services_scheduler_ai_reasoning_loop"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L215",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_scheduler_rationale_215",
+      "target": "services_scheduler_start_satellite_sync_worker"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/scheduler.py",
+      "source_location": "L220",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_scheduler_rationale_220",
+      "target": "services_scheduler_start_ai_reasoning_worker"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/ai_advisor_service.py",
+      "source_location": "L75",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_services_ai_advisor_service_py",
+      "target": "services_ai_advisor_service_build_field_context"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/ai_advisor_service.py",
+      "source_location": "L153",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_services_ai_advisor_service_py",
+      "target": "services_ai_advisor_service_generate_field_recommendations"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/ai_advisor_service.py",
+      "source_location": "L222",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_services_ai_advisor_service_py",
+      "target": "services_ai_advisor_service_chat_with_advisor"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/ai_advisor_service.py",
+      "source_location": "L273",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "app_services_ai_advisor_service_py",
+      "target": "services_ai_advisor_service_generate_rule_based_recommendations"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/ai_advisor_service.py",
+      "source_location": "L1",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_ai_advisor_service_rationale_1",
+      "target": "app_services_ai_advisor_service_py"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/ai_advisor_service.py",
+      "source_location": "L175",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_ai_advisor_service_generate_field_recommendations",
+      "target": "services_ai_advisor_service_build_field_context"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/ai_advisor_service.py",
+      "source_location": "L242",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_ai_advisor_service_chat_with_advisor",
+      "target": "services_ai_advisor_service_build_field_context"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/ai_advisor_service.py",
+      "source_location": "L88",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_ai_advisor_service_rationale_88",
+      "target": "services_ai_advisor_service_build_field_context"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/ai_advisor_service.py",
+      "source_location": "L166",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_ai_advisor_service_rationale_166",
+      "target": "services_ai_advisor_service_generate_field_recommendations"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/ai_advisor_service.py",
+      "source_location": "L236",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_ai_advisor_service_rationale_236",
+      "target": "services_ai_advisor_service_chat_with_advisor"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "app/services/ai_advisor_service.py",
+      "source_location": "L278",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "services_ai_advisor_service_rationale_278",
+      "target": "services_ai_advisor_service_generate_rule_based_recommendations"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/serial_to_mqtt_bridge.py",
+      "source_location": "L16",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "scripts_serial_to_mqtt_bridge_py",
+      "target": "scripts_serial_to_mqtt_bridge_start_bridge"
+    }
+  ],
+  "hyperedges": [],
+  "built_at_commit": "b52ffbce15e56b4f609e0aec12596417a3890046"
+}
