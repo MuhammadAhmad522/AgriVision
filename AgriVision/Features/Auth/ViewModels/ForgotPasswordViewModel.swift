@@ -32,9 +32,19 @@ final class ForgotPasswordViewModel: ObservableObject {
                 try await authService.resetPassword(email: email)
                 isLoading = false
                 successMessage = "Password reset link sent to \(email)."
+                ToastMessageAutoDismiss.schedule(
+                    expectedMessage: successMessage ?? "",
+                    currentMessage: { self.successMessage },
+                    clearMessage: { self.successMessage = nil }
+                )
             } catch {
                 isLoading = false
                 errorMessage = error.userFacingMessage
+                ToastMessageAutoDismiss.schedule(
+                    expectedMessage: errorMessage ?? "",
+                    currentMessage: { self.errorMessage },
+                    clearMessage: { self.errorMessage = nil }
+                )
             }
         }
     }

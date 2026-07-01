@@ -35,6 +35,12 @@ final class DashboardViewModel: ObservableObject {
 
     /// The display name of the currently signed-in user.
     @Published var userName: String?
+    
+    /// The profile image URL for the currently signed-in user.
+    @Published var profileImageURL: URL?
+    
+    /// The profile initial (last name first letter) for the currently signed-in user.
+    @Published var profileInitial: String = ""
 
     // MARK: - Private Properties
 
@@ -66,6 +72,24 @@ final class DashboardViewModel: ObservableObject {
         self.dataService = dataService
         self.authService = authService
         self.userName = authService.currentUserDisplayName
+        loadUserData()
+    }
+    
+    /// Loads the current user's profile data (photo URL and name initial)
+    private func loadUserData() {
+        self.profileImageURL = authService.currentUserPhotoURL
+        
+        if let displayName = authService.currentUserDisplayName, !displayName.isEmpty {
+            let components = displayName.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: " ")
+            
+            if components.count > 1, let last = components.last, let firstChar = last.first {
+                self.profileInitial = String(firstChar).uppercased()
+            } else if let firstComponent = components.first, let firstChar = firstComponent.first {
+                self.profileInitial = String(firstChar).uppercased()
+            }
+        } else {
+            self.profileInitial = "U"
+        }
     }
 
     // MARK: - Methods

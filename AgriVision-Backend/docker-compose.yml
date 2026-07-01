@@ -39,7 +39,8 @@ services:
 
   # 4. Modern Management (pgAdmin)
   pgadmin:
-    image: dpage/pgadmin4
+    image: dpage/pgadmin4:8.14
+    platform: linux/amd64   # Required for Apple Silicon (M1/M2/M3) — runs via Rosetta 2
     container_name: agrivision_pgadmin
     restart: always
     environment:

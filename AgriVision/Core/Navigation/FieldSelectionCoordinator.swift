@@ -61,7 +61,7 @@ final class FieldSelectionCoordinator: Coordinator {
     }
     
     private func showFieldDetails(coordinates: [CLLocationCoordinate2D]) {
-        let viewModel = FieldDetailsViewModel(dataService: dataService, coordinates: coordinates)
+        let viewModel = FieldDetailsViewModel(dataService: dataService, authService: authService, coordinates: coordinates)
         
         viewModel.onSaveTriggered = { [weak self] data, shouldPairIoT in
             if shouldPairIoT {
@@ -81,7 +81,7 @@ final class FieldSelectionCoordinator: Coordinator {
     }
     
     private func showSensorIntegration(with data: FieldSelectionData) {
-        let viewModel = SensorIntegrationViewModel(dataService: dataService, fieldData: data)
+        let viewModel = SensorIntegrationViewModel(dataService: dataService, authService: authService, fieldData: data)
         
         viewModel.onSetupSuccess = { [weak self] in
             self?.onFieldConfirmed?()

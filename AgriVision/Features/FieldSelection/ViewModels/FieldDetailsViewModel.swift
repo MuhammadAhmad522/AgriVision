@@ -11,6 +11,8 @@ class FieldDetailsViewModel: ObservableObject {
     @Published var plantationDate: Date = Date()
     @Published var harvestDate: Date = Date().addingTimeInterval(60 * 60 * 24 * 30 * 4) // 4 months default
     @Published var monitorWithIoT: Bool = false
+    @Published var profileImageURL: URL?
+    @Published var profileInitial: String = ""
     
     // Default harvest: 4 months
     private static let defaultHarvestInterval: TimeInterval = 60 * 60 * 24 * 30 * 4
@@ -25,6 +27,7 @@ class FieldDetailsViewModel: ObservableObject {
     // MARK: - Dependencies
     
     private let dataService: AgriDataService
+    private let authService: AuthService
     private let coordinates: [CLLocationCoordinate2D]
     
     // MARK: - Callbacks
@@ -35,9 +38,28 @@ class FieldDetailsViewModel: ObservableObject {
     var onSaveTriggered: ((FieldSelectionData, Bool) -> Void)?
     var onBack: (() -> Void)?
     
-    init(dataService: AgriDataService, coordinates: [CLLocationCoordinate2D]) {
+    init(dataService: AgriDataService, authService: AuthService, coordinates: [CLLocationCoordinate2D]) {
         self.dataService = dataService
+        self.authService = authService
         self.coordinates = coordinates
+        loadUserData()
+    }
+    
+    /// Loads the current user's profile data (photo URL and name initial)
+    private func loadUserData() {
+        self.profileImageURL = authService.currentUserPhotoURL
+        
+        if let displayName = authService.currentUserDisplayName, !displayName.isEmpty {
+            let components = displayName.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: " ")
+            
+            if components.count > 1, let last = components.last, let firstChar = last.first {
+                self.profileInitial = String(firstChar).uppercased()
+            } else if let firstComponent = components.first, let firstChar = firstComponent.first {
+                self.profileInitial = String(firstChar).uppercased()
+            }
+        } else {
+            self.profileInitial = "U"
+        }
     }
     
     // MARK: - Actions
@@ -45,6 +67,11 @@ class FieldDetailsViewModel: ObservableObject {
     func saveField() {
         guard !name.trimmingCharacters(in: .whitespaces).isEmpty else {
             errorMessage = "Please enter a field name."
+            ToastMessageAutoDismiss.schedule(
+                expectedMessage: errorMessage ?? "",
+                currentMessage: { self.errorMessage },
+                clearMessage: { self.errorMessage = nil }
+            )
             return
         }
         
@@ -87,6 +114,11 @@ class FieldDetailsViewModel: ObservableObject {
             } catch {
                 isLoading = false
                 errorMessage = error.localizedDescription
+                ToastMessageAutoDismiss.schedule(
+                    expectedMessage: errorMessage ?? "",
+                    currentMessage: { self.errorMessage },
+                    clearMessage: { self.errorMessage = nil }
+                )
             }
         }
     }

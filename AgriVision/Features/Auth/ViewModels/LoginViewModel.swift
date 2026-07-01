@@ -75,6 +75,11 @@ final class LoginViewModel: ObservableObject {
             } catch {
                 isLoading = false
                 errorMessage = error.userFacingMessage
+                ToastMessageAutoDismiss.schedule(
+                    expectedMessage: errorMessage ?? "",
+                    currentMessage: { self.errorMessage },
+                    clearMessage: { self.errorMessage = nil }
+                )
             }
         }
     }
@@ -91,6 +96,11 @@ final class LoginViewModel: ObservableObject {
             } catch {
                 isLoading = false
                 errorMessage = error.userFacingMessage
+                ToastMessageAutoDismiss.schedule(
+                    expectedMessage: errorMessage ?? "",
+                    currentMessage: { self.errorMessage },
+                    clearMessage: { self.errorMessage = nil }
+                )
             }
         }
     }

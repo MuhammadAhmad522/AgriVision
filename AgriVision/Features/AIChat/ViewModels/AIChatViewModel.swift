@@ -30,6 +30,11 @@ final class AIChatViewModel: ObservableObject {
             messages = try await dataService.fetchChatHistory(for: fieldId)
         } catch {
             errorMessage = error.localizedDescription
+            ToastMessageAutoDismiss.schedule(
+                expectedMessage: errorMessage ?? "",
+                currentMessage: { self.errorMessage },
+                clearMessage: { self.errorMessage = nil }
+            )
         }
         isLoading = false
     }
@@ -50,6 +55,11 @@ final class AIChatViewModel: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
             messages.removeAll { $0.id == fakeUserMsg.id } // Rollback on failure
+            ToastMessageAutoDismiss.schedule(
+                expectedMessage: errorMessage ?? "",
+                currentMessage: { self.errorMessage },
+                clearMessage: { self.errorMessage = nil }
+            )
         }
         
         isLoading = false

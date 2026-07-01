@@ -114,6 +114,11 @@ final class SignupViewModel: ObservableObject {
                 isLoading = false
                 // Map generic errors or show specific backend errors
                 errorMessage = error.userFacingMessage
+                ToastMessageAutoDismiss.schedule(
+                    expectedMessage: errorMessage ?? "",
+                    currentMessage: { self.errorMessage },
+                    clearMessage: { self.errorMessage = nil }
+                )
             }
         }
     }
@@ -131,6 +136,11 @@ final class SignupViewModel: ObservableObject {
             } catch {
                 isLoading = false
                 errorMessage = error.userFacingMessage
+                ToastMessageAutoDismiss.schedule(
+                    expectedMessage: errorMessage ?? "",
+                    currentMessage: { self.errorMessage },
+                    clearMessage: { self.errorMessage = nil }
+                )
             }
         }
     }

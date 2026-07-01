@@ -27,82 +27,70 @@ struct FieldDetailsView: View {
             VStack {
                 Spacer().frame(height: 120) // Accounting for fixed header
                 
-                ZStack {
-                    // Glass Card
-                    VisualEffectBlur(blurStyle: .systemUltraThinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: UIConstants.Auth.cardCornerRadius))
-                    
-                    Color.white.opacity(0.4)
-                        .clipShape(RoundedRectangle(cornerRadius: UIConstants.Auth.cardCornerRadius))
-                    
-                    ScrollView {
+                ScrollView {
+                    VStack(spacing: 20) {
+                        Text("New Field Details")
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundColor(AppColors.charcoalGreen)
+                            .padding(.top, 40)
+                            .padding(.bottom, 10)
+                        
+                        // Input Forms
                         VStack(spacing: 20) {
-                            Text("New Field Details")
-                                .font(.system(size: 24, weight: .bold))
-                                .foregroundColor(AppColors.charcoalGreen)
-                                .padding(.top, 40)
-                                .padding(.bottom, 10)
+                            FieldTextFieldBox(
+                                placeholder: "Field Name",
+                                text: $viewModel.name
+                            )
                             
-                            // Input Forms
-                            VStack(spacing: 20) {
-                                FieldTextFieldBox(
-                                    placeholder: "Field Name",
-                                    text: $viewModel.name
-                                )
-                                
-                                FieldSelectionBox(
-                                    label: "Crop Type",
-                                    value: viewModel.selectedCrop,
-                                    placeholder: "Crop Type",
-                                    icon: "chevron.down"
-                                ) {
-                                    showCropPicker = true
-                                }
-                                
-                                FieldSelectionBox(
-                                    label: "Plantation Date",
-                                    value: viewModel.plantationDate == nil ? "" : dateFormatter.string(from: viewModel.plantationDate),
-                                    placeholder: "Plantation Date",
-                                    icon: "calendar"
-                                ) {
-                                    showPlantationPicker = true
-                                }
-                                
-                                FieldSelectionBox(
-                                    label: "Expected Harvest Date",
-                                    value: viewModel.harvestDate == nil ? "" : dateFormatter.string(from: viewModel.harvestDate),
-                                    placeholder: "Expected Harvest Date",
-                                    icon: "calendar"
-                                ) {
-                                    showHarvestPicker = true
-                                }
-                                
-                                FieldToggleBox(
-                                    label: "Monitor With IoT Sensors",
-                                    description: "You can set up sensors after saving this field",
-                                    isOn: $viewModel.monitorWithIoT
-                                )
-                            }
-                            .padding(.horizontal, 24)
-                            
-                            Spacer(minLength: 30)
-                            
-                            FieldSubmitButton(
-                                title: "Save Field",
-                                isLoading: viewModel.isLoading
+                            FieldSelectionBox(
+                                label: "Crop Type",
+                                value: viewModel.selectedCrop,
+                                placeholder: "Crop Type",
+                                icon: "chevron.down"
                             ) {
-                                viewModel.saveField()
+                                showCropPicker = true
                             }
-                            .padding(.bottom, 40)
+                            
+                            FieldSelectionBox(
+                                label: "Plantation Date",
+                                value: dateFormatter.string(from: viewModel.plantationDate),
+                                placeholder: "Plantation Date",
+                                icon: "calendar"
+                            ) {
+                                showPlantationPicker = true
+                            }
+                            
+                            FieldSelectionBox(
+                                label: "Expected Harvest Date",
+                                value: dateFormatter.string(from: viewModel.harvestDate),
+                                placeholder: "Expected Harvest Date",
+                                icon: "calendar"
+                            ) {
+                                showHarvestPicker = true
+                            }
+                            
+                            FieldToggleBox(
+                                label: "Monitor With IoT Sensors",
+                                description: "You can set up sensors after saving this field",
+                                isOn: $viewModel.monitorWithIoT
+                            )
                         }
+                        .padding(.horizontal, 24)
+                        
+                        Spacer(minLength: 30)
+                        
+                        FieldSubmitButton(
+                            title: "Save Field",
+                            isLoading: viewModel.isLoading
+                        ) {
+                            viewModel.saveField()
+                        }
+                        .padding(.bottom, 40)
                     }
+                    .padding(.horizontal, UIConstants.Auth.cardHorizontalPadding)
+                    .frame(width: UIConstants.Auth.cardWidth)
+                    .glassmorphism(cornerRadius: UIConstants.Auth.cardCornerRadius)
                 }
-                .frame(width: UIConstants.Auth.cardWidth)
-                .overlay(
-                    RoundedRectangle(cornerRadius: UIConstants.Auth.cardCornerRadius)
-                        .stroke(Color.white.opacity(0.6), lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.1), radius: 20, x: 0, y: 10)
                 
                 Spacer()
             }
@@ -147,20 +135,40 @@ struct FieldDetailsView: View {
             
             Spacer()
             
-            HStack(spacing: -12) {
-                Image(systemName: "person.crop.circle.fill")
-                    .resizable()
-                    .frame(width: 36, height: 36)
-                    .foregroundColor(AppColors.mediumGreen.opacity(0.8))
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.white, lineWidth: 2))
+            if let url = viewModel.profileImageURL {
+                // Google User Profile Image
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .empty:
+                        ProgressView()
+                    case .success(let image):
+                        image.resizable()
+                             .aspectRatio(contentMode: .fill)
+                    case .failure:
+                        Image(systemName: "person.crop.circle.fill")
+                            .foregroundColor(.gray)
+                    @unknown default:
+                        EmptyView()
+                    }
+                }
+                .frame(width: 40, height: 40)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                .shadow(radius: 2)
                 
-                Image(systemName: "person.crop.circle.fill")
-                    .resizable()
-                    .frame(width: 36, height: 36)
-                    .foregroundColor(AppColors.limeGreen.opacity(0.8))
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.white, lineWidth: 2))
+            } else {
+                // Email User - Last Name Initial
+                ZStack {
+                    Circle()
+                        .fill(AppColors.limeGreen)
+                    
+                    Text(viewModel.profileInitial)
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                }
+                .frame(width: 40, height: 40)
+                .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                .shadow(radius: 2)
             }
         }
     }
@@ -344,5 +352,5 @@ struct DateSelectionSheet: View {
 }
 
 #Preview {
-    FieldDetailsView(viewModel: FieldDetailsViewModel(dataService: MockAgriDataRepository(), coordinates: []))
+    FieldDetailsView(viewModel: FieldDetailsViewModel(dataService: MockAgriDataRepository(), authService: MockAuthService(), coordinates: []))
 }

@@ -1,73 +1,107 @@
 import SwiftUI
+import Charts
 
 struct DashboardView: View {
-    @StateObject var viewModel: DashboardViewModel
+    @ObservedObject var viewModel: DashboardViewModel
     
     // State for the draggable bottom sheet
-    @State private var sheetHeight: CGFloat = 260
+    @State private var sheetHeight: CGFloat = 300
+    @State private var startingSheetHeight: CGFloat = 300
     
     var body: some View {
-        ZStack(alignment: .bottom) {
-            // Background
-            Image("bg-image")
-                .resizable()
-                .scaledToFill()
-                .ignoresSafeArea()
-            
-            // Fixed Background Elements
-            VStack(alignment: .leading, spacing: 12) {
-                // Top Custom Navigation Bar
-                DashboardHeaderView(userName: viewModel.userName ?? "Ahmad")
-                    .padding(.top, 10) // Reduced to tuck it further upwards
+        TabView {
+            ZStack(alignment: .bottom) {
+                // Background
+                Image("bg-image")
+                    .resizable()
+                    .scaledToFill()
+                    .ignoresSafeArea()
                 
-                // Weather & Field Health Section
-                HStack(alignment: .center, spacing: 0) {
-                    WeatherCardView()
-                        .frame(width: UIScreen.main.bounds.width * 0.55)
-                    
-                    Spacer()
-                    
-                    HealthCardView(healthScore: viewModel.healthSummary?.score ?? 0.75, cropType: viewModel.currentCropType)
-                        .padding(.trailing, 20)
-                }
-                
-                // Three Metrics Cards
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 16) {
-                        MoistureCardView(moisture: 69)
-                        PHLevelCardView(phLevel: 6.5)
-                        NDVICardView(ndvi: viewModel.healthSummary?.score ?? 0.86)
-                    }
-                    .padding(.horizontal, 20)
-                }
-                
-                Spacer()
-            }
-            
-            // Bottom Alerts Sheet (Draggable)
-            AlertsBottomSheet(viewModel: viewModel)
-                .frame(height: sheetHeight)
-                .offset(y: 20) // Push a bit down to allow tab bar space
-                .gesture(
-                    DragGesture()
-                        .onChanged { value in
-                            let newHeight = sheetHeight - value.translation.height
-                            // Keep height within bounds
-                            if newHeight > 200 && newHeight < UIScreen.main.bounds.height * 0.75 {
-                                sheetHeight = newHeight
+                GeometryReader { geo in
+                    ZStack(alignment: .bottom) {
+                        // Fixed Background Elements
+                        VStack(alignment: .leading, spacing: 12) {
+                            // Top Custom Navigation Bar
+                            DashboardHeaderView(userName: viewModel.userName ?? "Ahmad", profileImageURL: viewModel.profileImageURL, profileInitial: viewModel.profileInitial)
+                                .padding(.top, 65) // Increased padding to move elements down away from notch
+                            
+                            // Weather & Field Health Section
+                            HStack(alignment: .center, spacing: 0) {
+                                WeatherCardView()
+                                    .frame(width: geo.size.width * 0.55)
+                                
+                                Spacer()
+                                
+                                HealthCardView(healthScore: viewModel.healthSummary?.score ?? 0.75, cropType: viewModel.currentCropType)
+                                    .padding(.trailing, 20)
                             }
+                            
+                            // Three Metrics Cards
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 16) {
+                                    MoistureCardView(moisture: 69)
+                                    PHLevelCardView(phLevel: 6.5)
+                                    NDVICardView(ndvi: viewModel.healthSummary?.score ?? 0.86)
+                                }
+                                .padding(.horizontal, 20)
+                            }
+                            
+                            Spacer()
                         }
-                )
-            
-            // Custom Floating Tab Bar (At the very top of the ZStack)
-            CustomTabBar()
-                .padding(.bottom, 20)
-        }
-        .navigationBarHidden(true)
-        .onAppear {
-            Task {
-                await viewModel.refreshData()
+                        // Bottom Alerts Sheet (Draggable with snapping)
+                        AlertsBottomSheet(viewModel: viewModel)
+                            .frame(height: sheetHeight)
+                            .gesture(
+                                DragGesture()
+                                    .onChanged { value in
+                                        let newHeight = startingSheetHeight - value.translation.height
+                                        // Keep height within bounds using smooth clamping
+                                        sheetHeight = max(300, min(newHeight, geo.size.height * 0.85))
+                                    }
+                                    .onEnded { value in
+                                        let predictedEndLocation = value.predictedEndLocation.y
+                                        let translation = value.translation.height
+                                        
+                                        withAnimation(.interpolatingSpring(stiffness: 300.0, damping: 30.0, initialVelocity: 10.0)) {
+                                            // Snap logic based on drag direction and speed
+                                            if translation < -50 || predictedEndLocation < 0 {
+                                                sheetHeight = geo.size.height * 0.85 // Full open
+                                            } else if translation > 50 || predictedEndLocation > 0 {
+                                                sheetHeight = 300 // Collapsed
+                                            } else {
+                                                // Snap to nearest
+                                                if abs(sheetHeight - 300) < abs(sheetHeight - geo.size.height * 0.85) {
+                                                    sheetHeight = 300
+                                                } else {
+                                                    sheetHeight = geo.size.height * 0.85
+                                                }
+                                            }
+                                            startingSheetHeight = sheetHeight
+                                        }
+                                    }
+                            )
+                    }
+                    .frame(width: geo.size.width, height: geo.size.height)
+                }
             }
+            .tabItem {
+                Label("Home", systemImage: "house.fill")
+            }
+            
+            Text("Fields View Placeholder")
+                .tabItem {
+                    Label("Fields", systemImage: "leaf.fill")
+                }
+            
+            Text("Settings View Placeholder")
+                .tabItem {
+                    Label("Settings", systemImage: "gearshape.fill")
+                }
+        }
+        .tint(AppColors.mediumGreen)
+        .toolbar(.hidden, for: .navigationBar)
+        .task {
+            await viewModel.refreshData()
         }
     }
 }
@@ -76,40 +110,74 @@ struct DashboardView: View {
 
 struct DashboardHeaderView: View {
     var userName: String
+    var profileImageURL: URL?
+    var profileInitial: String
     
     var body: some View {
-        HStack {
-            // Location Pill
-            HStack(spacing: 8) {
-                Image(systemName: "mappin.and.ellipse")
-                    .foregroundColor(AppColors.charcoalGreen)
-                Text("Lahore, Punjab")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(AppColors.charcoalGreen)
+        VStack(spacing: 4) {
+            HStack {
+                // Location Pill
+                HStack(spacing: 8) {
+                    Image(systemName: "mappin.and.ellipse")
+                        .foregroundColor(AppColors.charcoalGreen)
+                    Text("Lahore, Punjab")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(AppColors.charcoalGreen)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(.ultraThinMaterial)
+                .clipShape(Capsule())
+                
+                Spacer()
+                
+                // Avatar
+                if let url = profileImageURL {
+                    // Google User Profile Image
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .empty:
+                            ProgressView()
+                        case .success(let image):
+                            image.resizable()
+                                 .aspectRatio(contentMode: .fill)
+                        case .failure:
+                            Image(systemName: "person.crop.circle.fill")
+                                .foregroundColor(.gray)
+                        @unknown default:
+                            EmptyView()
+                        }
+                    }
+                    .frame(width: 40, height: 40)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                    .shadow(radius: 2)
+                    
+                } else {
+                    // Email User - Last Name Initial
+                    ZStack {
+                        Circle()
+                            .fill(AppColors.limeGreen)
+                        
+                        Text(profileInitial)
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                    }
+                    .frame(width: 40, height: 40)
+                    .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                    .shadow(radius: 2)
+                }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(.ultraThinMaterial)
-            .clipShape(Capsule())
+            .padding(.horizontal, 18)
             
-            Spacer()
-            
-            // Avatar
-            Image(systemName: "person.crop.circle.fill")
-                .resizable()
-                .frame(width: 40, height: 40)
-                .foregroundColor(AppColors.charcoalGreen)
+            HStack {
+                Text("Hi, \(userName)")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundColor(AppColors.charcoalGreen)
+                Spacer()
+            }
+            .padding(.horizontal, 20)
         }
-        .padding(.horizontal, 18)
-        
-        HStack {
-            Text("Hi, \(userName)")
-                .font(.system(size: 28, weight: .bold))
-                .foregroundColor(AppColors.charcoalGreen)
-            Spacer()
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 8) // Reduced from 16
     }
 }
 
@@ -259,57 +327,10 @@ struct LiquidGlassCard<Content: View>: View {
                 .shadow(color: Color.black.opacity(0.08), radius: 20, x: 0, y: 8)
             
             content
+                .frame(width: 140, height: 164)
                 .clipShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
         }
         .frame(width: 140, height: 164)
-    }
-}
-
-struct WaveLine: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        // Closer match to Figma's specific wave outline
-        path.move(to: CGPoint(x: 0, y: rect.height * 0.4))
-        
-        // first dip
-        path.addCurve(
-            to: CGPoint(x: rect.width * 0.25, y: rect.height * 0.7),
-            control1: CGPoint(x: rect.width * 0.05, y: rect.height * 0.4),
-            control2: CGPoint(x: rect.width * 0.1, y: rect.height * 0.7)
-        )
-        
-        // big peak
-        path.addCurve(
-            to: CGPoint(x: rect.width * 0.55, y: rect.height * 0.1),
-            control1: CGPoint(x: rect.width * 0.4, y: rect.height * 0.7),
-            control2: CGPoint(x: rect.width * 0.45, y: rect.height * 0.1)
-        )
-        
-        // second dip
-        path.addCurve(
-            to: CGPoint(x: rect.width * 0.8, y: rect.height * 0.8),
-            control1: CGPoint(x: rect.width * 0.65, y: rect.height * 0.1),
-            control2: CGPoint(x: rect.width * 0.7, y: rect.height * 0.8)
-        )
-        
-        // small final peak
-        path.addCurve(
-            to: CGPoint(x: rect.width, y: rect.height * 0.5),
-            control1: CGPoint(x: rect.width * 0.9, y: rect.height * 0.8),
-            control2: CGPoint(x: rect.width * 0.95, y: rect.height * 0.5)
-        )
-        
-        return path
-    }
-}
-
-struct WaveShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = WaveLine().path(in: rect)
-        path.addLine(to: CGPoint(x: rect.width, y: rect.height))
-        path.addLine(to: CGPoint(x: 0, y: rect.height))
-        path.closeSubpath()
-        return path
     }
 }
 
@@ -340,40 +361,62 @@ struct MoistureCardView: View {
                         Circle()
                             .trim(from: 0.5, to: 1.0)
                             .stroke(Color.gray.opacity(0.2), style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                            .padding(4)
                         
                         Circle()
                             .trim(from: 0.5, to: 0.5 + (0.5 * CGFloat(moisture)/100))
                             .stroke(AppColors.mediumGreen, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                            .padding(4)
                     }
-                    .frame(width: 90, height: 60)
-                    .offset(y: 10) // Push the circle down so top half is visible inside bounds
+                    .frame(width: 80, height: 80)
+                    .frame(height: 40, alignment: .top) // Clip perfectly to the top half
+                    .clipped()
                     
                     Text("\(moisture)%")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(AppColors.charcoalGreen)
-                        .offset(y: -20)
+                        .padding(.bottom, -2)
                 }
-                .frame(width: 90, height: 60, alignment: .top) // Clip exactly to the half circle
-                .clipped()
-                .offset(y: 0)
+                .padding(.top, 10)
                 
                 Spacer(minLength: 0)
                 
                 Text("Optimal Value: 30-50")
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundColor(AppColors.mediumGreen)
                 
                 Spacer(minLength: 0)
                 
-                // Wavy chart background mapping to bottom of card
-                ZStack {
-                    WaveShape()
-                        .fill(AppColors.limeGreen.opacity(0.3))
-                    
-                    WaveLine()
-                        .stroke(AppColors.mediumGreen, lineWidth: 1.5)
+                if #available(iOS 16.0, *) {
+                    let mockData: [Double] = [40, 42, 45, 50, 48, 55, 60, Double(moisture)]
+                    Chart {
+                        ForEach(0..<mockData.count, id: \.self) { index in
+                            LineMark(
+                                x: .value("Time", index),
+                                y: .value("Moisture", mockData[index])
+                            )
+                            .interpolationMethod(.catmullRom)
+                            .foregroundStyle(AppColors.mediumGreen)
+                            
+                            AreaMark(
+                                x: .value("Time", index),
+                                y: .value("Moisture", mockData[index])
+                            )
+                            .interpolationMethod(.catmullRom)
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [AppColors.limeGreen.opacity(0.3), AppColors.limeGreen.opacity(0.0)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                        }
+                    }
+                    .chartXAxis(.hidden)
+                    .chartYAxis(.hidden)
+                    .chartYScale(domain: 30...80)
+                    .frame(height: 38)
                 }
-                .frame(height: 38)
             }
         }
     }
@@ -383,7 +426,7 @@ struct PHLevelCardView: View {
     var phLevel: Double
     var body: some View {
         LiquidGlassCard {
-            VStack {
+            VStack(spacing: 0) {
                 HStack(spacing: 4) {
                     Image(systemName: "flask.fill") // Using standard flask icon
                         .foregroundColor(AppColors.limeGreen)
@@ -397,45 +440,16 @@ struct PHLevelCardView: View {
                 
                 Spacer()
                 
-                VStack(spacing: 0) {
-                    // Bubble Label
-                    Text(String(format: "%.1f", phLevel))
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(AppColors.charcoalGreen)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(
-                            PHBubbleShape()
-                                .fill(Color.white)
-                                .shadow(color: .black.opacity(0.1), radius: 2)
-                        )
-                        .padding(.bottom, 2)
-                        .offset(x: -15) // Offset to roughly position over '6.5' mark
-                    
-                    // Gradient Bar for PH
-                    LinearGradient(
-                        colors: [.red, .orange, .yellow, .green, .blue, .indigo, .purple],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                    .frame(height: 8)
-                    .cornerRadius(4)
-                    
-                    HStack {
-                        Text("4").font(.system(size:9))
-                        Spacer()
-                        Text("5").font(.system(size:9))
-                        Spacer()
-                        Text("6").font(.system(size:9))
-                        Spacer()
-                        Text("7").font(.system(size:9))
-                        Spacer()
-                        Text("8").font(.system(size:9))
-                        Spacer()
-                        Text("9").font(.system(size:9))
+                VStack(spacing: 4) {
+                    Gauge(value: phLevel, in: 4...9) {
+                        EmptyView()
+                    } currentValueLabel: {
+                        Text(String(format: "%.1f", phLevel))
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(AppColors.charcoalGreen)
                     }
-                    .foregroundColor(AppColors.charcoalGreen)
-                    .padding(.top, 4)
+                    .gaugeStyle(.linearCapacity)
+                    .tint(Gradient(colors: [.red, .orange, .yellow, .green, .blue, .indigo, .purple]))
                 }
                 .padding(.horizontal, 16)
                 
@@ -454,7 +468,7 @@ struct NDVICardView: View {
     var ndvi: Double
     var body: some View {
         LiquidGlassCard {
-            VStack(alignment: .center, spacing: 8) {
+            VStack(spacing: 0) {
                 HStack(spacing: 4) {
                     Image(systemName: "map.fill")
                         .foregroundColor(AppColors.limeGreen)
@@ -466,113 +480,29 @@ struct NDVICardView: View {
                 .padding(.horizontal, 14)
                 .padding(.top, 16)
                 
-                Text("Vegetation Index")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(AppColors.mediumGreen)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 16)
-                    .padding(.top, -6)
-                
                 Spacer()
                 
-                Text(String(format: "%.2f", ndvi))
-                    .font(.system(size: 26, weight: .regular))
-                    .foregroundColor(AppColors.charcoalGreen)
-                
-                LinearGradient(
-                    colors: [.orange, .yellow, .green],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-                .frame(height: 12)
-                .cornerRadius(6)
-                .padding(.horizontal, 24)
-                .padding(.top, 4)
+                VStack(spacing: 8) {
+                    Text(String(format: "%.2f", ndvi))
+                        .font(.system(size: 26, weight: .bold))
+                        .foregroundColor(AppColors.charcoalGreen)
+                    
+                    Gauge(value: ndvi, in: 0...1) {
+                        EmptyView()
+                    }
+                    .gaugeStyle(.linearCapacity)
+                    .tint(Gradient(colors: [.orange, .yellow, .green]))
+                }
+                .padding(.horizontal, 16)
                 
                 Spacer()
                 
                 Text("Healthy")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundColor(AppColors.mediumGreen)
                     .padding(.bottom, 22)
             }
         }
-    }
-}
-
-// MARK: - Shapes
-struct SparklineShape: Shape {
-    var data: [Double]
-    
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        let nonNanData = data.filter { !$0.isNaN }
-        guard nonNanData.count > 1 else { return path }
-        
-        let maxValue = nonNanData.max() ?? 1
-        let minValue = nonNanData.min() ?? 0
-        let range = maxValue - minValue
-        
-        let stepX = rect.width / CGFloat(data.count - 1)
-        
-        var points = [CGPoint]()
-        for (index, value) in data.enumerated() {
-            let x = CGFloat(index) * stepX
-            let y = value.isNaN ? rect.height : rect.height - ((CGFloat(value - minValue) / CGFloat(range == 0 ? 1 : range)) * rect.height)
-            points.append(CGPoint(x: x, y: y))
-        }
-        
-        if let first = points.first {
-            path.move(to: first)
-            for point in points.dropFirst() {
-                path.addLine(to: point)
-            }
-        }
-        return path
-    }
-}
-
-struct FilledSparklineShape: Shape {
-    var data: [Double]
-    
-    func path(in rect: CGRect) -> Path {
-        var path = SparklineShape(data: data).path(in: rect)
-        guard !data.isEmpty else { return path }
-        path.addLine(to: CGPoint(x: rect.width, y: rect.height))
-        path.addLine(to: CGPoint(x: 0, y: rect.height))
-        path.closeSubpath()
-        return path
-    }
-}
-
-struct HalfCircleShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.addArc(center: CGPoint(x: rect.midX, y: rect.maxY),
-                    radius: rect.width / 2,
-                    startAngle: .degrees(180),
-                    endAngle: .degrees(0),
-                    clockwise: false)
-        return path
-    }
-}
-
-struct PHBubbleShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        let cornerRadius: CGFloat = 4
-        let pointerWidth: CGFloat = 8
-        let pointerHeight: CGFloat = 6
-        
-        let roundedRect = CGRect(x: 0, y: 0, width: rect.width, height: rect.height - pointerHeight)
-        
-        path.addRoundedRect(in: roundedRect, cornerSize: CGSize(width: cornerRadius, height: cornerRadius))
-        
-        path.move(to: CGPoint(x: rect.midX - pointerWidth/2, y: roundedRect.maxY))
-        path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.midX + pointerWidth/2, y: roundedRect.maxY))
-        
-        return path
     }
 }
 
@@ -583,35 +513,36 @@ struct AlertsBottomSheet: View {
     
     var body: some View {
         ZStack(alignment: .top) {
-            RoundedRectangle(cornerRadius: 40, style: .continuous)
+            // Glass Background covering full width
+            RoundedRectangle(cornerRadius: 34, style: .continuous)
                 .fill(.ultraThinMaterial)
                 .environment(\.colorScheme, .light)
-                .background(Color(AppColors.cream).opacity(0.8).clipShape(RoundedRectangle(cornerRadius: 40, style: .continuous)))
                 .shadow(color: .black.opacity(0.1), radius: 20, y: -5)
+                .padding(.bottom, -100) // Extend beyond the bottom frame to hide bottom corners
             
             VStack(spacing: 0) {
                 // Grabber
                 Capsule()
                     .fill(Color.gray.opacity(0.5))
-                    .frame(width: 50, height: 5)
-                    .padding(.top, 16)
-                    .padding(.bottom, 24)
+                    .frame(width: 36, height: 5)
+                    .padding(.top, 10)
+                    .padding(.bottom, 6)
                 
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 16) {
+                List {
+                    Section {
                         AlertRow(iconName: "exclamationmark.circle.fill", iconColor: .orange, text: "Water level is low in mango farm")
-                        Divider().padding(.horizontal, 20)
                         AlertRow(iconName: "checkmark.circle.fill", iconColor: .green, text: "Strawberries are ready to harvest")
-                        Divider().padding(.horizontal, 20)
                         AlertRow(iconName: "light.beacon.max.fill", iconColor: .red, text: "Locusts are expected to pay a visit tomorrow")
-                        Divider().padding(.horizontal, 20)
                         AlertRow(iconName: "checkmark.circle.fill", iconColor: .green, text: "Strawberries are ready to harvest")
-                        
-                        // Extra space at bottom to scroll past the floating tab bar
-                        Spacer().frame(height: 120)
                     }
-                    .padding(.horizontal, 24)
+                    .listRowBackground(Color.gray.opacity(0.16))
+                    
+                    // Extra space at bottom to scroll past the floating tab bar if fully expanded
+                    Spacer().frame(height: 100)
+                        .listRowBackground(Color.clear)
                 }
+                .listStyle(.insetGrouped)
+                .scrollContentBackground(.hidden)
             }
         }
     }
@@ -645,49 +576,7 @@ struct AlertRow: View {
     }
 }
 
-// MARK: - Custom Tab Bar
 
-struct CustomTabBar: View {
-    var body: some View {
-        HStack {
-            TabBarButton(icon: "house.fill", title: "Home", isSelected: true, color: AppColors.mediumGreen)
-            Spacer()
-            TabBarButton(icon: "leaf.fill", title: "Fields", isSelected: false, color: AppColors.limeGreen)
-            Spacer()
-            TabBarButton(icon: "gearshape.fill", title: "Settings", isSelected: false, color: AppColors.limeGreen)
-        }
-        .padding(.horizontal, 30)
-        .padding(.vertical, 16)
-        .background(.ultraThinMaterial)
-        .background(Color.white.opacity(0.9))
-        .clipShape(Capsule())
-        .shadow(color: .black.opacity(0.1), radius: 15, y: 5)
-        .padding(.horizontal, 40)
-    }
-}
-
-struct TabBarButton: View {
-    var icon: String
-    var title: String
-    var isSelected: Bool
-    var color: Color
-    
-    var body: some View {
-        VStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.system(size: 24))
-                .foregroundColor(color)
-            
-            Text(title)
-                .font(.system(size: 10, weight: isSelected ? .bold : .medium))
-                .foregroundColor(color)
-        }
-        .frame(width: 60)
-        .padding(.vertical, 6)
-        .background(isSelected ? Color.gray.opacity(0.1) : Color.clear)
-        .clipShape(Capsule())
-    }
-}
 
 // MARK: - Preview
 

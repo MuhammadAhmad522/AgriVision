@@ -33,7 +33,8 @@ struct ToastView: View {
                 .font(.subheadline)
                 .fontWeight(.medium)
                 .multilineTextAlignment(.leading)
-                .foregroundColor(AppColors.charcoalGreen) // Text dark for readability on glass
+                .foregroundColor(.white)
+                .shadow(color: .black.opacity(0.25), radius: 1, x: 0, y: 1)
         }
         .padding(.vertical, 12)
         .padding(.horizontal, 20)

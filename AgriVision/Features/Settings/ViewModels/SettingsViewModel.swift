@@ -60,6 +60,11 @@ final class SettingsViewModel: ObservableObject {
                 }
             } catch {
                 errorMessage = "Failed to load fields: \(error.userFacingMessage)"
+                ToastMessageAutoDismiss.schedule(
+                    expectedMessage: errorMessage ?? "",
+                    currentMessage: { self.errorMessage },
+                    clearMessage: { self.errorMessage = nil }
+                )
             }
         }
     }
@@ -98,6 +103,11 @@ final class SettingsViewModel: ObservableObject {
             } catch {
                 isLoading = false
                 errorMessage = "Failed to delete field: \(error.userFacingMessage)"
+                ToastMessageAutoDismiss.schedule(
+                    expectedMessage: errorMessage ?? "",
+                    currentMessage: { self.errorMessage },
+                    clearMessage: { self.errorMessage = nil }
+                )
             }
         }
     }
@@ -111,6 +121,11 @@ final class SettingsViewModel: ObservableObject {
             onSignOut?()
         } catch {
             errorMessage = "Failed to sign out: \(error.userFacingMessage)"
+            ToastMessageAutoDismiss.schedule(
+                expectedMessage: errorMessage ?? "",
+                currentMessage: { self.errorMessage },
+                clearMessage: { self.errorMessage = nil }
+            )
         }
     }
 
@@ -125,28 +140,24 @@ final class SettingsViewModel: ObservableObject {
                     isLoading = false
                     successMessage = "Account successfully linked with Google!"
                 }
+                ToastMessageAutoDismiss.schedule(
+                    expectedMessage: "Account successfully linked with Google!",
+                    currentMessage: { self.successMessage },
+                    clearMessage: { self.successMessage = nil }
+                )
                 
                 // Clear the success message after 3 seconds
-                try? await Task.sleep(nanoseconds: 3 * 1_000_000_000)
-                await MainActor.run {
-                    if successMessage == "Account successfully linked with Google!" {
-                        successMessage = nil
-                    }
-                }
             } catch {
                 let errorMsg = "Failed to link account: \(error.userFacingMessage)"
                 await MainActor.run {
                     isLoading = false
                     errorMessage = errorMsg
                 }
-                
-                // Clear the error message after 3 seconds
-                try? await Task.sleep(nanoseconds: 3 * 1_000_000_000)
-                await MainActor.run {
-                    if errorMessage == errorMsg {
-                        errorMessage = nil
-                    }
-                }
+                ToastMessageAutoDismiss.schedule(
+                    expectedMessage: errorMsg,
+                    currentMessage: { self.errorMessage },
+                    clearMessage: { self.errorMessage = nil }
+                )
             }
         }
     }

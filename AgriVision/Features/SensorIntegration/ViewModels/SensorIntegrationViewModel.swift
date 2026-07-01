@@ -14,6 +14,8 @@ class SensorIntegrationViewModel: ObservableObject {
     @Published var isVerified: Bool = false
     @Published var errorMessage: String?
     @Published var verificationMessage: String?
+    @Published var profileImageURL: URL?
+    @Published var profileInitial: String = ""
     
     // MARK: - Constants
     
@@ -22,6 +24,7 @@ class SensorIntegrationViewModel: ObservableObject {
     // MARK: - Dependencies
     
     private let dataService: AgriDataService
+    private let authService: AuthService
     private let fieldData: FieldSelectionData
     
     // MARK: - Callbacks
@@ -29,9 +32,28 @@ class SensorIntegrationViewModel: ObservableObject {
     var onSetupSuccess: (() -> Void)?
     var onBack: (() -> Void)?
     
-    init(dataService: AgriDataService, fieldData: FieldSelectionData) {
+    init(dataService: AgriDataService, authService: AuthService, fieldData: FieldSelectionData) {
         self.dataService = dataService
+        self.authService = authService
         self.fieldData = fieldData
+        loadUserData()
+    }
+    
+    /// Loads the current user's profile data (photo URL and name initial)
+    private func loadUserData() {
+        self.profileImageURL = authService.currentUserPhotoURL
+        
+        if let displayName = authService.currentUserDisplayName, !displayName.isEmpty {
+            let components = displayName.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: " ")
+            
+            if components.count > 1, let last = components.last, let firstChar = last.first {
+                self.profileInitial = String(firstChar).uppercased()
+            } else if let firstComponent = components.first, let firstChar = firstComponent.first {
+                self.profileInitial = String(firstChar).uppercased()
+            }
+        } else {
+            self.profileInitial = "U"
+        }
     }
     
     // MARK: - Actions
@@ -39,6 +61,11 @@ class SensorIntegrationViewModel: ObservableObject {
     func verifyHardware() {
         guard !pairingCode.trimmingCharacters(in: .whitespaces).isEmpty else {
             errorMessage = "Please enter a Pairing Code to verify."
+            ToastMessageAutoDismiss.schedule(
+                expectedMessage: errorMessage ?? "",
+                currentMessage: { self.errorMessage },
+                clearMessage: { self.errorMessage = nil }
+            )
             return
         }
         
@@ -52,12 +79,22 @@ class SensorIntegrationViewModel: ObservableObject {
                 verificationMessage = result.message
                 if !result.isVerified {
                     errorMessage = result.message
+                    ToastMessageAutoDismiss.schedule(
+                        expectedMessage: errorMessage ?? "",
+                        currentMessage: { self.errorMessage },
+                        clearMessage: { self.errorMessage = nil }
+                    )
                 }
                 isVerifying = false
             } catch {
                 isVerified = false
                 isVerifying = false
                 errorMessage = "Verification failed: \(error.localizedDescription)"
+                ToastMessageAutoDismiss.schedule(
+                    expectedMessage: errorMessage ?? "",
+                    currentMessage: { self.errorMessage },
+                    clearMessage: { self.errorMessage = nil }
+                )
             }
         }
     }
@@ -65,11 +102,21 @@ class SensorIntegrationViewModel: ObservableObject {
     func completeSetup() {
         guard isVerified else {
             errorMessage = "Please verify your hardware connection first."
+            ToastMessageAutoDismiss.schedule(
+                expectedMessage: errorMessage ?? "",
+                currentMessage: { self.errorMessage },
+                clearMessage: { self.errorMessage = nil }
+            )
             return
         }
         
         guard !sensorName.trimmingCharacters(in: .whitespaces).isEmpty else {
             errorMessage = "Please give your sensor hub a name (e.g., 'West Field ESP')."
+            ToastMessageAutoDismiss.schedule(
+                expectedMessage: errorMessage ?? "",
+                currentMessage: { self.errorMessage },
+                clearMessage: { self.errorMessage = nil }
+            )
             return
         }
         
@@ -102,6 +149,11 @@ class SensorIntegrationViewModel: ObservableObject {
             } catch {
                 isLoading = false
                 errorMessage = error.localizedDescription
+                ToastMessageAutoDismiss.schedule(
+                    expectedMessage: errorMessage ?? "",
+                    currentMessage: { self.errorMessage },
+                    clearMessage: { self.errorMessage = nil }
+                )
             }
         }
     }
