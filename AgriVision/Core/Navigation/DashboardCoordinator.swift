@@ -63,12 +63,8 @@ final class DashboardCoordinator: Coordinator {
             self.showDashboard()
         }
         
-        fieldSelectionCoordinator.onCancel = { [weak self, weak fieldSelectionCoordinator] in
-            guard let self = self, let coordinator = fieldSelectionCoordinator else { return }
-            self.childCoordinators.removeAll { $0 === coordinator }
-            // If they cancel adding their FIRST field, we might still want to show an empty dashboard
-            // or return to where they were. For now, show dashboard.
-            self.showDashboard()
+        fieldSelectionCoordinator.onCancel = {
+            // No-op: Map cancel pops back to AddFieldIntro screen within the same coordinator flow
         }
         
         childCoordinators.append(fieldSelectionCoordinator)
@@ -122,6 +118,14 @@ final class DashboardCoordinator: Coordinator {
         settingsCoordinator.onFinished = { [weak self, weak settingsCoordinator] in
             guard let self = self, let coordinator = settingsCoordinator else { return }
             self.childCoordinators.removeAll { $0 === coordinator }
+        }
+        
+        settingsCoordinator.onFieldsEmptied = { [weak self, weak settingsCoordinator] in
+            guard let self = self, let coordinator = settingsCoordinator else { return }
+            self.childCoordinators.removeAll { $0 === coordinator }
+            // Clear navigation stack and redirect to "Add Field" flow again
+            self.navigationController.setViewControllers([], animated: false)
+            self.showAddFieldIntro()
         }
         
         childCoordinators.append(settingsCoordinator)

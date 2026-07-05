@@ -13,8 +13,10 @@ from app.database import get_db
 from app.models.db_models import Field, User, Sensor
 from app.schemas.pydantic_schemas import FieldCreate, FieldResponse, FieldWithSensorsCreate
 from app.core.auth import get_current_user
-from geoalchemy2.functions import ST_Centroid, ST_X, ST_Y
-from app.services.agromonitoring_service import get_soil_data, get_weather_forecast
+from geoalchemy2.functions import ST_Centroid, ST_X, ST_Y, ST_AsGeoJSON
+from app.services.agromonitoring_service import get_soil_data, get_weather_forecast, create_polygon, get_ndvi_for_field
+import json
+from datetime import datetime
 
 router = APIRouter(prefix="/api/fields", tags=["Fields"])
 
@@ -29,7 +31,7 @@ def coordinates_to_wkt(coordinates) -> str:
 
 
 @router.post("/", response_model=FieldResponse, status_code=status.HTTP_201_CREATED)
-def create_field(
+async def create_field(
     field_data: FieldWithSensorsCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -78,6 +80,30 @@ def create_field(
                 )
                 db.add(new_sensor)
                 logger.info(f"Field API: Created new sensor record for '{sensor_data.device_id}'")
+
+    # Instant satellite polygon registration & NDVI pull
+    geojson_str = db.query(ST_AsGeoJSON(Field.boundary)).filter(Field.id == new_field.id).scalar()
+    if geojson_str:
+        try:
+            geojson_dict = json.loads(geojson_str)
+            feature_geojson = {
+                "type": "Feature",
+                "properties": {},
+                "geometry": geojson_dict
+            }
+            poly_id = await create_polygon(new_field.name, feature_geojson)
+            if poly_id:
+                new_field.agromonitory_poly_id = poly_id
+                logger.info(f"Field '{new_field.name}' registered instantly. PolyID: {poly_id}")
+                
+                # Instantly pull the first NDVI reading
+                ndvi_data = await get_ndvi_for_field(poly_id)
+                if ndvi_data:
+                    new_field.latest_ndvi = ndvi_data.get("ndvi", 0.0)
+                    new_field.last_satellite_sync = datetime.now()
+                    logger.info(f"Initial NDVI fetched instantly: {new_field.latest_ndvi}")
+        except Exception as e:
+            logger.error(f"Error registering field instantly: {e}")
 
     db.commit()
     db.refresh(new_field)

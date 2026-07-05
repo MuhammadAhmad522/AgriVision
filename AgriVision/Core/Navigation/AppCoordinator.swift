@@ -153,11 +153,8 @@ final class AppCoordinator: Coordinator {
             self.showMain()
         }
         
-        // If they cancel out of the intro screen? Maybe we just show Main or log them out. Show Main for now.
-        fieldCoordinator.onCancel = { [weak self, weak fieldCoordinator] in
-            guard let self = self, let coordinator = fieldCoordinator else { return }
-            self.childCoordinators.removeAll { $0 === coordinator }
-            self.showMain()
+        fieldCoordinator.onCancel = {
+            // No-op: Map cancel pops back to AddFieldIntro screen within the same coordinator flow
         }
         
         childCoordinators.append(fieldCoordinator)
