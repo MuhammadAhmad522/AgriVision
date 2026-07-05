@@ -8,7 +8,7 @@ import Foundation
 struct APIConstants {
     /// The base URL for our FastAPI backend.
     /// - Note: If testing on a physical device, replace 'localhost' with your Mac's local IP.
-    static let baseURL = URL(string: "http://localhost:8000")!
+    static let baseURL = URL(string: "http://34.67.93.107:8000")!
     
     /// API Endpoints
     struct Endpoints {

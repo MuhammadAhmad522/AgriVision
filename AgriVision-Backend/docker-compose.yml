@@ -34,6 +34,7 @@ services:
       - "9001:9001" # WebSockets port
     volumes:
       - mosquitto_data:/mosquitto/data
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
     networks:
       - agrivision_net
 

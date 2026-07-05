@@ -10,7 +10,7 @@ SERIAL_PORT = '/dev/cu.usbserial-A5069RR4'
 BAUD_RATE = 115200
 
 # Local MQTT Broker (running in Docker)
-MQTT_BROKER = "localhost" 
+MQTT_BROKER = "34.67.93.107" 
 MQTT_PORT = 1883
 
 def start_bridge():
