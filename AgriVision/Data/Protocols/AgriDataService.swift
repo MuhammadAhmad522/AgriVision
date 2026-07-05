@@ -41,4 +41,7 @@ protocol AgriDataService {
     
     /// Verifies if a sensor device is active and reachable.
     func verifySensorConnection(deviceId: String) async throws -> (isVerified: Bool, message: String)
+    
+    /// Fetches the satellite soil data and weather forecast for a field.
+    func fetchWeatherSoil(for fieldId: UUID) async throws -> FieldWeatherSoil
 }

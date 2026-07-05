@@ -24,6 +24,9 @@ final class DashboardViewModel: ObservableObject {
     
     /// AI-generated agronomic recommendations for the primary field.
     @Published var recommendations: [FieldRecommendation] = []
+    
+    /// Weather and soil satellite data for the primary field.
+    @Published var weatherSoil: FieldWeatherSoil? = nil
 
     /// A boolean flag indicating an in-flight data request. Used to show a loading spinner.
     @Published var isLoading: Bool = false
@@ -173,6 +176,15 @@ final class DashboardViewModel: ObservableObject {
             if let primaryField = fetchedFields.first {
                 let fetchedRecs = try await dataService.fetchRecommendations(for: primaryField.id)
                 recommendations = fetchedRecs
+                
+                // Fetch satellite soil and weather forecast
+                if let ws = try? await dataService.fetchWeatherSoil(for: primaryField.id) {
+                    weatherSoil = ws
+                } else {
+                    weatherSoil = nil
+                }
+            } else {
+                weatherSoil = nil
             }
         } catch {
             errorMessage = error.userFacingMessage

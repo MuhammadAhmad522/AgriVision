@@ -129,4 +129,32 @@ class MockAgriDataRepository: AgriDataService {
             return (false, "Hardware ID not found. Ensure your ESP32 is powered and connected via USB/MQTT.")
         }
     }
+    
+    /// Fetches mock satellite soil data and weather forecast for a field.
+    func fetchWeatherSoil(for fieldId: UUID) async throws -> FieldWeatherSoil {
+        return FieldWeatherSoil(
+            fieldId: fieldId,
+            soil: FieldWeatherSoil.SoilData(
+                moisture: 0.38,
+                surfaceTempC: 22.4,
+                depthTempC: 19.8,
+                source: "mock_satellite"
+            ),
+            weather: FieldWeatherSoil.WeatherData(
+                current: FieldWeatherSoil.CurrentWeather(
+                    tempC: 24.0,
+                    humidity: 62.0,
+                    description: "scattered clouds"
+                ),
+                forecastDays: [
+                    FieldWeatherSoil.ForecastDay(date: "Mon", tempMaxC: 26.0, tempMinC: 18.0, rainMm: 0.0, description: "Sunny"),
+                    FieldWeatherSoil.ForecastDay(date: "Tue", tempMaxC: 24.0, tempMinC: 16.0, rainMm: 2.5, description: "Light Rain"),
+                    FieldWeatherSoil.ForecastDay(date: "Wed", tempMaxC: 22.0, tempMinC: 15.0, rainMm: 12.0, description: "Heavy Rain"),
+                    FieldWeatherSoil.ForecastDay(date: "Thu", tempMaxC: 25.0, tempMinC: 17.0, rainMm: 0.0, description: "Sunny"),
+                    FieldWeatherSoil.ForecastDay(date: "Fri", tempMaxC: 27.0, tempMinC: 18.0, rainMm: 0.5, description: "Scattered Clouds")
+                ],
+                source: "mock_forecast"
+            )
+        )
+    }
 }

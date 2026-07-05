@@ -27,7 +27,7 @@ struct DashboardView: View {
                             
                             // Weather & Field Health Section
                             HStack(alignment: .center, spacing: 0) {
-                                WeatherCardView()
+                                WeatherCardView(weather: viewModel.weatherSoil?.weather)
                                     .frame(width: geo.size.width * 0.55)
                                 
                                 Spacer()
@@ -39,9 +39,10 @@ struct DashboardView: View {
                             // Three Metrics Cards
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 16) {
-                                    MoistureCardView(moisture: 69)
+                                    MoistureCardView(moisture: Int((viewModel.weatherSoil?.soil.moisture ?? 0.35) * 100))
                                     PHLevelCardView(phLevel: 6.5)
                                     NDVICardView(ndvi: viewModel.healthSummary?.score ?? 0.86)
+                                    SoilTempCardView(surfaceTemp: viewModel.weatherSoil?.soil.surfaceTempC ?? 22.0, depthTemp: viewModel.weatherSoil?.soil.depthTempC ?? 19.0)
                                 }
                                 .padding(.horizontal, 20)
                             }
@@ -208,6 +209,46 @@ struct WeatherCardShape: Shape {
 }
 
 struct WeatherCardView: View {
+    var weather: FieldWeatherSoil.WeatherData?
+    
+    var tempString: String {
+        if let temp = weather?.current.tempC {
+            return "\(Int(round(temp)))°C"
+        }
+        return "--°C"
+    }
+    
+    var rangeString: String {
+        if let firstForecast = weather?.forecastDays.first,
+           let maxTemp = firstForecast.tempMaxC,
+           let minTemp = firstForecast.tempMinC {
+            return "H:\(Int(round(maxTemp)))° L:\(Int(round(minTemp)))°"
+        }
+        return "H:--° L:--°"
+    }
+    
+    var conditionString: String {
+        return weather?.current.description?.capitalized ?? "Loading..."
+    }
+    
+    var iconName: String {
+        guard let desc = weather?.current.description?.lowercased() else {
+            return "cloud.sun.fill"
+        }
+        if desc.contains("rain") || desc.contains("drizzle") || desc.contains("shower") {
+            return "cloud.sun.rain.fill"
+        } else if desc.contains("snow") || desc.contains("ice") {
+            return "snowflake"
+        } else if desc.contains("cloud") {
+            return "cloud.fill"
+        } else if desc.contains("clear") || desc.contains("sun") {
+            return "sun.max.fill"
+        } else if desc.contains("storm") || desc.contains("thunder") {
+            return "cloud.bolt.rain.fill"
+        }
+        return "cloud.sun.fill"
+    }
+    
     var body: some View {
         ZStack(alignment: .leading) {
             WeatherCardShape()
@@ -222,19 +263,19 @@ struct WeatherCardView: View {
             
             VStack(alignment: .leading, spacing: 4) {
                 Spacer()
-                Text("24°C")
+                Text(tempString)
                     .font(.system(size: 42, weight: .bold))
                     .foregroundColor(.white)
-                Text("H:16° L:8°")
+                Text(rangeString)
                     .font(.system(size: 14))
                     .foregroundColor(.white.opacity(0.9))
                 
                 HStack {
-                    Text("Lahore, Pakistan")
-                        .font(.system(size: 14))
+                    Text("Field Centroid")
+                        .font(.system(size: 13, weight: .medium))
                     Spacer()
-                    Text("Showers")
-                        .font(.system(size: 14, weight: .bold))
+                    Text(conditionString)
+                        .font(.system(size: 13, weight: .bold))
                 }
                 .foregroundColor(.white)
                 .padding(.top, 12)
@@ -245,16 +286,72 @@ struct WeatherCardView: View {
             
             // 3D Weather Icons Layout mapping
             GeometryReader { geo in
-                Image(systemName: "cloud.sun.rain.fill") // Placeholder for 3D Icon
+                Image(systemName: iconName)
                     .renderingMode(.original)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 100, height: 100)
+                    .frame(width: 90, height: 90)
+                    .foregroundColor(.white)
                     .shadow(color: .black.opacity(0.2), radius: 10, x: 5, y: 10)
-                    .position(x: geo.size.width - 10, y: 40)
+                    .position(x: geo.size.width - 15, y: 40)
             }
         }
         .frame(height: 180)
+    }
+}
+
+struct SoilTempCardView: View {
+    var surfaceTemp: Double
+    var depthTemp: Double
+    
+    var body: some View {
+        LiquidGlassCard {
+            VStack(spacing: 0) {
+                HStack(spacing: 4) {
+                    Image(systemName: "thermometer.medium")
+                        .foregroundColor(.orange)
+                    Text("Soil Temp")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(AppColors.charcoalGreen)
+                    Spacer()
+                }
+                .padding(.horizontal, 14)
+                .padding(.top, 16)
+                
+                Spacer()
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text("Surface")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.gray)
+                            Text(String(format: "%.1f°C", surfaceTemp))
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundColor(AppColors.charcoalGreen)
+                        }
+                        Spacer()
+                        VStack(alignment: .trailing) {
+                            Text("10cm Depth")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.gray)
+                            Text(String(format: "%.1f°C", depthTemp))
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundColor(AppColors.charcoalGreen)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                }
+                
+                Spacer()
+                
+                Text("Satellite Ground Scan")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.gray)
+                    .padding(.bottom, 12)
+            }
+        }
+        .frame(width: 140, height: 164)
     }
 }
 

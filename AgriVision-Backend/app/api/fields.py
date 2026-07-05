@@ -13,6 +13,8 @@ from app.database import get_db
 from app.models.db_models import Field, User, Sensor
 from app.schemas.pydantic_schemas import FieldCreate, FieldResponse, FieldWithSensorsCreate
 from app.core.auth import get_current_user
+from geoalchemy2.functions import ST_Centroid, ST_X, ST_Y
+from app.services.agromonitoring_service import get_soil_data, get_weather_forecast
 
 router = APIRouter(prefix="/api/fields", tags=["Fields"])
 
@@ -117,3 +119,45 @@ def delete_field(
         raise HTTPException(status_code=404, detail="Field not found")
     db.delete(field)
     db.commit()
+
+
+@router.get("/{field_id}/weather-soil/", response_model=dict)
+async def get_field_weather_soil(
+    field_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Fetch satellite-based soil moisture/temperature and 7-day weather forecast 
+    for the specific field.
+    """
+    field = db.query(Field).filter(Field.id == field_id, Field.owner_id == current_user.id).first()
+    if not field:
+        raise HTTPException(status_code=404, detail="Field not found")
+
+    # Get centroid coordinates for weather
+    lon_val = db.query(ST_X(ST_Centroid(Field.boundary))).filter(Field.id == field_id).scalar()
+    lat_val = db.query(ST_Y(ST_Centroid(Field.boundary))).filter(Field.id == field_id).scalar()
+    
+    weather_data = None
+    if lat_val and lon_val:
+        weather_data = await get_weather_forecast(float(lat_val), float(lon_val))
+
+    soil_data = None
+    if field.agromonitory_poly_id:
+        soil_data = await get_soil_data(field.agromonitory_poly_id)
+
+    return {
+        "field_id": field_id,
+        "soil": soil_data or {
+            "moisture": 0.0,
+            "surface_temp_c": 0.0,
+            "depth_temp_c": 0.0,
+            "source": "empty"
+        },
+        "weather": weather_data or {
+            "current": {"temp_c": 0.0, "humidity": 0, "description": "Unknown"},
+            "forecast_days": [],
+            "source": "empty"
+        }
+    }

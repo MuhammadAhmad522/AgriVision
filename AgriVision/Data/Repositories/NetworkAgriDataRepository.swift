@@ -205,7 +205,7 @@ class NetworkAgriDataRepository: AgriDataService {
         
         if !(200...299).contains(httpResponse.statusCode) {
             #if DEBUG
-            print("HTTP Error: \(httpResponse.statusCode)")
+            print("HTTP Error: \(httpResponse.statusCode) for URL: \(httpResponse.url?.absoluteString ?? "unknown")")
             #endif
             
             if httpResponse.statusCode == 401 {
@@ -230,5 +230,17 @@ class NetworkAgriDataRepository: AgriDataService {
         
         let result = try decoder.decode(VerifyResponse.self, from: data)
         return (result.is_verified, result.message)
+    }
+    
+    /// Fetches the satellite soil data and weather forecast for a field.
+    func fetchWeatherSoil(for fieldId: UUID) async throws -> FieldWeatherSoil {
+        let path = "api/fields/\(fieldId.uuidString.lowercased())/weather-soil/"
+        let url = APIConstants.baseURL.appendingPathComponent(path)
+        let request = try await authenticatedRequest(for: url, method: "GET")
+        
+        let (data, response) = try await session.data(for: request)
+        try validate(response: response)
+        
+        return try decoder.decode(FieldWeatherSoil.self, from: data)
     }
 }
