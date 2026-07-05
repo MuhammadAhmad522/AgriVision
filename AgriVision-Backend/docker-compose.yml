@@ -75,6 +75,20 @@ services:
     networks:
       - agrivision_net
 
+  # 6. Container Management (Portainer CE)
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: agrivision_portainer
+    restart: always
+    ports:
+      - "9443:9443"
+      - "9000:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    networks:
+      - agrivision_net
+
 networks:
   agrivision_net:
     driver: bridge
@@ -82,3 +96,4 @@ networks:
 volumes:
   postgres_data:
   mosquitto_data:
+  portainer_data:
