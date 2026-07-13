@@ -12,6 +12,7 @@ class NetworkAgriDataRepository: AgriDataService {
     
     private let authService: AuthService
     private let session: URLSession
+    private let boundaryCacheKey = "agrivision.field-boundaries"
     
     /// The decoder is configured to handle snake_case from Python and ISO8601 dates.
     private let decoder: JSONDecoder = {
@@ -42,7 +43,21 @@ class NetworkAgriDataRepository: AgriDataService {
         let (data, response) = try await session.data(for: request)
         try validate(response: response)
         
-        return try decoder.decode([Field].self, from: data)
+        let fields = try decoder.decode([Field].self, from: data)
+
+        return fields.map { field in
+            if let coordinates = field.coordinates, coordinates.count >= 3 {
+                cacheBoundary(coordinates, for: field.id)
+                return field
+            }
+
+            guard let cachedCoordinates = cachedBoundary(for: field.id),
+                  cachedCoordinates.count >= 3 else {
+                return field
+            }
+
+            return field.replacingCoordinates(with: cachedCoordinates)
+        }
     }
     
     /// Fetches the latest sensor readings from the backend.
@@ -88,7 +103,11 @@ class NetworkAgriDataRepository: AgriDataService {
         let (data, response) = try await session.data(for: request)
         try validate(response: response)
         
-        return try decoder.decode(Field.self, from: data)
+        let savedField = try decoder.decode(Field.self, from: data)
+        let boundary = savedField.coordinates.flatMap { $0.count >= 3 ? $0 : nil } ?? points
+
+        cacheBoundary(boundary, for: savedField.id)
+        return savedField.replacingCoordinates(with: boundary)
     }
     
     /// Deletes a specific field by its ID.
@@ -99,6 +118,7 @@ class NetworkAgriDataRepository: AgriDataService {
         
         let (_, response) = try await session.data(for: request)
         try validate(response: response)
+        removeCachedBoundary(for: id)
     }
     
     /// Fetches the latest AI-generated recommendations for a specific field.
@@ -184,7 +204,42 @@ class NetworkAgriDataRepository: AgriDataService {
     }
     
     // MARK: - Private Helpers
-    
+
+    private func cachedBoundaries() -> [String: [PointCoordinates]] {
+        guard let data = UserDefaults.standard.data(forKey: boundaryCacheKey),
+              let boundaries = try? decoder.decode([String: [PointCoordinates]].self, from: data) else {
+            return [:]
+        }
+
+        return boundaries
+    }
+
+    private func cachedBoundary(for fieldId: UUID) -> [PointCoordinates]? {
+        cachedBoundaries()[fieldId.uuidString.lowercased()]
+    }
+
+    private func cacheBoundary(_ coordinates: [PointCoordinates], for fieldId: UUID) {
+        guard coordinates.count >= 3 else { return }
+
+        var boundaries = cachedBoundaries()
+        boundaries[fieldId.uuidString.lowercased()] = coordinates
+
+        if let data = try? encoder.encode(boundaries) {
+            UserDefaults.standard.set(data, forKey: boundaryCacheKey)
+        }
+    }
+
+    private func removeCachedBoundary(for fieldId: UUID) {
+        var boundaries = cachedBoundaries()
+        boundaries.removeValue(forKey: fieldId.uuidString.lowercased())
+
+        if boundaries.isEmpty {
+            UserDefaults.standard.removeObject(forKey: boundaryCacheKey)
+        } else if let data = try? encoder.encode(boundaries) {
+            UserDefaults.standard.set(data, forKey: boundaryCacheKey)
+        }
+    }
+
     /// Creates a base URLRequest with the necessary Firebase Authorization header.
     private func authenticatedRequest(for url: URL, method: String) async throws -> URLRequest {
         var request = URLRequest(url: url)

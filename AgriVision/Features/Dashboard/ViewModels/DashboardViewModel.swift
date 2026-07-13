@@ -166,11 +166,13 @@ final class DashboardViewModel: ObservableObject {
         defer { isLoading = false }
 
         do {
-            let fetchedReadings = try await dataService.fetchSensorReadings()
             let fetchedFields = try await dataService.fetchFields()
-            
-            readings = fetchedReadings
             fields = fetchedFields
+
+            // Field geometry drives the Fields map, so publish it before loading optional
+            // sensor data. A sensor endpoint failure must not leave the map without a field.
+            let fetchedReadings = try await dataService.fetchSensorReadings()
+            readings = fetchedReadings
             
             // Fetch AI recommendations for the primary field
             if let primaryField = fetchedFields.first {

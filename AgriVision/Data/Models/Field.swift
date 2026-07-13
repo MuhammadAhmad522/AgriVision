@@ -41,6 +41,26 @@ struct Field: Identifiable, Codable {
         case ndviScore = "latest_ndvi"
         case lastSatelliteSync = "last_satellite_sync"
     }
+
+    /// Returns the same field with a locally retained boundary.
+    ///
+    /// This is used when an older backend response omits its geometry even though the
+    /// vertices were successfully submitted during field creation.
+    func replacingCoordinates(with coordinates: [PointCoordinates]) -> Field {
+        Field(
+            id: id,
+            ownerId: ownerId,
+            name: name,
+            coordinates: coordinates,
+            areaHa: areaHa,
+            createdAt: createdAt,
+            cropType: cropType,
+            plantationDate: plantationDate,
+            expectedHarvestDate: expectedHarvestDate,
+            ndviScore: ndviScore,
+            lastSatelliteSync: lastSatelliteSync
+        )
+    }
 }
 
 /**
