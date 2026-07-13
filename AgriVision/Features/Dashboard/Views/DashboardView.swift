@@ -3,13 +3,15 @@ import Charts
 
 struct DashboardView: View {
     @ObservedObject var viewModel: DashboardViewModel
+    @ObservedObject var settingsViewModel: SettingsViewModel
+    @State private var selectedTab: DashboardTab = .home
     
     // State for the draggable bottom sheet
     @State private var sheetHeight: CGFloat = 300
     @State private var startingSheetHeight: CGFloat = 300
     
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             ZStack(alignment: .bottom) {
                 // Background
                 Image("bg-image")
@@ -88,16 +90,26 @@ struct DashboardView: View {
             .tabItem {
                 Label("Home", systemImage: "house.fill")
             }
+            .tag(DashboardTab.home)
             
-            Text("Fields View Placeholder")
+            FieldsView(
+                field: activeField,
+                profileImageURL: viewModel.profileImageURL,
+                profileInitial: viewModel.profileInitial
+            )
                 .tabItem {
                     Label("Fields", systemImage: "leaf.fill")
                 }
+                .tag(DashboardTab.fields)
             
-            Text("Settings View Placeholder")
+            SettingsView(
+                viewModel: settingsViewModel,
+                onBack: { selectedTab = .home }
+            )
                 .tabItem {
                     Label("Settings", systemImage: "gearshape.fill")
                 }
+                .tag(DashboardTab.settings)
         }
         .tint(AppColors.mediumGreen)
         .toolbar(.hidden, for: .navigationBar)
@@ -105,6 +117,20 @@ struct DashboardView: View {
             await viewModel.refreshData()
         }
     }
+
+    private var activeField: Field? {
+        guard let activeFieldId = settingsViewModel.activeFieldId else {
+            return viewModel.fields.first
+        }
+
+        return viewModel.fields.first(where: { $0.id == activeFieldId }) ?? viewModel.fields.first
+    }
+}
+
+private enum DashboardTab: Hashable {
+    case home
+    case fields
+    case settings
 }
 
 // MARK: - Components
@@ -679,18 +705,27 @@ struct AlertRow: View {
 
 #Preview("Dashboard - Wheat") {
     NavigationStack {
-        DashboardView(viewModel: DashboardViewModel(dataService: MockAgriDataRepository(mockCropType: "Wheat"), authService: MockAuthService(isLoggedIn: true)))
+        DashboardView(
+            viewModel: DashboardViewModel(dataService: MockAgriDataRepository(mockCropType: "Wheat"), authService: MockAuthService(isLoggedIn: true)),
+            settingsViewModel: SettingsViewModel(authService: MockAuthService(isLoggedIn: true), dataService: MockAgriDataRepository(mockCropType: "Wheat"), preferencesService: MockPreferencesService())
+        )
     }
 }
 
 #Preview("Dashboard - Rice") {
     NavigationStack {
-        DashboardView(viewModel: DashboardViewModel(dataService: MockAgriDataRepository(mockCropType: "Rice"), authService: MockAuthService(isLoggedIn: true)))
+        DashboardView(
+            viewModel: DashboardViewModel(dataService: MockAgriDataRepository(mockCropType: "Rice"), authService: MockAuthService(isLoggedIn: true)),
+            settingsViewModel: SettingsViewModel(authService: MockAuthService(isLoggedIn: true), dataService: MockAgriDataRepository(mockCropType: "Rice"), preferencesService: MockPreferencesService())
+        )
     }
 }
 
 #Preview("Dashboard - Sugarcane") {
     NavigationStack {
-        DashboardView(viewModel: DashboardViewModel(dataService: MockAgriDataRepository(mockCropType: "Sugarcane"), authService: MockAuthService(isLoggedIn: true)))
+        DashboardView(
+            viewModel: DashboardViewModel(dataService: MockAgriDataRepository(mockCropType: "Sugarcane"), authService: MockAuthService(isLoggedIn: true)),
+            settingsViewModel: SettingsViewModel(authService: MockAuthService(isLoggedIn: true), dataService: MockAgriDataRepository(mockCropType: "Sugarcane"), preferencesService: MockPreferencesService())
+        )
     }
 }

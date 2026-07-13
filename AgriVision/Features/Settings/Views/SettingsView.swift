@@ -1,166 +1,234 @@
 import SwiftUI
 
-/// A passive UI component that displays the user's settings options.
-/// It listens to the `SettingsViewModel` for state changes like errors or success messages.
+/// The Settings tab's view layer. Existing account and field actions are preserved while the
+/// remaining rows intentionally expose presentation-only placeholders for the next iteration.
 struct SettingsView: View {
-
     @StateObject var viewModel: SettingsViewModel
+    var onBack: (() -> Void)?
+
     @Environment(\.dismiss) private var dismiss
+    @State private var pushNotificationsEnabled = true
+
+    init(viewModel: SettingsViewModel, onBack: (() -> Void)? = nil) {
+        _viewModel = StateObject(wrappedValue: viewModel)
+        self.onBack = onBack
+    }
 
     var body: some View {
         ZStack {
-            // Background
-            Color(AppColors.cream).ignoresSafeArea()
-            
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Account Integration Card
-                    GlassCard(title: "Account Integration") {
-                        Button(action: {
-                            viewModel.linkGoogleAccount()
-                        }) {
-                            HStack {
-                                ZStack {
-                                    Circle()
-                                        .fill(Color.white)
-                                        .frame(width: 36, height: 36)
-                                        .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
-                                    
-                                    Image(systemName: "link")
-                                        .foregroundColor(AppColors.mediumGreen)
-                                        .font(.system(size: 16))
-                                }
-                                
-                                Text("Link Google Account")
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(AppColors.charcoalGreen)
-                                
-                                Spacer()
-                                
-                                if viewModel.isLoading {
-                                    ProgressView()
-                                } else {
-                                    Image(systemName: "chevron.right")
-                                        .font(.system(size: 14, weight: .bold))
-                                        .foregroundColor(AppColors.limeGreen)
-                                }
-                            }
-                            .padding(.vertical, 4)
-                        }
-                        .disabled(viewModel.isLoading)
-                    }
-                    
-                    // Managed Fields Card
-                    GlassCard(title: "Managed Fields") {
-                        if viewModel.fields.isEmpty {
-                            Text("No fields registered.")
-                                .font(.system(size: 14))
-                                .foregroundColor(AppColors.charcoalGreen.opacity(0.5))
-                                .padding(.vertical, 8)
-                        } else {
-                            VStack(spacing: 0) {
-                                ForEach(viewModel.fields) { field in
-                                    HStack(spacing: 12) {
-                                        // Selection Indicator
-                                        Image(systemName: viewModel.activeFieldId == field.id ? "checkmark.circle.fill" : "circle")
-                                            .foregroundColor(viewModel.activeFieldId == field.id ? AppColors.mediumGreen : AppColors.authBorder)
-                                            .font(.system(size: 20))
-                                            .onTapGesture {
-                                                viewModel.selectField(field.id)
-                                            }
-                                        
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(field.name)
-                                                .font(.system(size: 16, weight: .semibold))
-                                                .foregroundColor(AppColors.charcoalGreen)
-                                            
-                                            if let area = field.areaHa {
-                                                Text(String(format: "%.2f Hectares", area))
-                                                    .font(.system(size: 12))
-                                                    .foregroundColor(AppColors.charcoalGreen.opacity(0.6))
-                                            }
-                                        }
-                                        
-                                        Spacer()
-                                        
-                                        // Delete Button
-                                        Button(action: {
-                                            viewModel.deleteField(field.id)
-                                        }) {
-                                            Image(systemName: "trash")
-                                                .foregroundColor(.red.opacity(0.7))
-                                                .font(.system(size: 16))
-                                                .padding(8)
-                                                .background(Circle().fill(Color.red.opacity(0.05)))
-                                        }
-                                    }
-                                    .padding(.vertical, 12)
-                                    
-                                    if field.id != viewModel.fields.last?.id {
-                                        Divider().background(AppColors.charcoalGreen.opacity(0.05))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Sign Out Card
-                    GlassCard {
-                        Button(role: .destructive, action: {
-                            viewModel.signOut()
-                        }) {
-                            HStack {
-                                ZStack {
-                                    Circle()
-                                        .fill(Color.red.opacity(0.1))
-                                        .frame(width: 36, height: 36)
-                                    
-                                    Image(systemName: "rectangle.portrait.and.arrow.right")
-                                        .foregroundColor(.red)
-                                        .font(.system(size: 16))
-                                }
-                                
-                                Text("Sign Out")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(.red)
-                                
-                                Spacer()
-                            }
-                            .padding(.vertical, 4)
-                        }
-                    }
+            LinearGradient(
+                colors: [Color(.systemBackground), AppColors.limeGreen.opacity(0.18)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                settingsHeader
+
+                List {
+                    accountSection
+                    preferencesSection
+                    integrationsSection
+                    supportSection
+                    accountActionsSection
                 }
-                .padding()
+                .listStyle(.insetGrouped)
+                .scrollContentBackground(.hidden)
+                .contentMargins(.top, 16, for: .scrollContent)
             }
         }
-        .navigationTitle(viewModel.title)
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
         .overlay(alignment: .top) {
-            Group {
-                if let errorMessage = viewModel.errorMessage {
-                    ToastView(message: errorMessage, type: .error)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                } else if let successMessage = viewModel.successMessage {
-                    ToastView(message: successMessage, type: .success)
-                        .transition(.move(edge: .top).combined(with: .opacity))
+            toastOverlay
+                .padding(.top, 72)
+                .padding(.horizontal)
+        }
+    }
+
+    private var settingsHeader: some View {
+        HStack {
+            Button(action: navigateBack) {
+                Image(systemName: "chevron.left")
+                    .font(.title2.weight(.semibold))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Back to dashboard")
+
+            Spacer()
+
+            Text(viewModel.title)
+                .font(.title2.weight(.bold))
+
+            Spacer()
+
+            Color.clear
+                .frame(width: 44, height: 44)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 8)
+        .frame(height: 64)
+        .background(AppColors.mediumGreen)
+        .background(AppColors.mediumGreen.ignoresSafeArea(edges: .top))
+    }
+
+    private var accountSection: some View {
+        Section {
+            SettingsValueRow(
+                label: "Account",
+                value: viewModel.accountName,
+                emphasized: true,
+                action: placeholderAction
+            )
+
+            SettingsNavigationRow(label: "Edit Profile", action: placeholderAction)
+
+            SettingsValueRow(
+                label: "Current Field",
+                value: viewModel.currentFieldName,
+                action: placeholderAction
+            )
+        }
+    }
+
+    private var preferencesSection: some View {
+        Section("App Preferences") {
+            SettingsValueRow(
+                label: "Units of Measurement",
+                value: "Metric",
+                action: placeholderAction
+            )
+
+            Toggle("Push Notifications", isOn: $pushNotificationsEnabled)
+                .tint(AppColors.mediumGreen)
+        }
+    }
+
+    private var integrationsSection: some View {
+        Section("Sensors & Satellite Integrations") {
+            SettingsValueRow(
+                label: "Auto-Refresh",
+                value: "Daily",
+                action: placeholderAction
+            )
+
+            SettingsNavigationRow(label: "IoT Sensors", action: placeholderAction)
+            SettingsNavigationRow(label: "Import Soil Test Report", action: placeholderAction)
+        }
+    }
+
+    private var supportSection: some View {
+        Section("Help & Support") {
+            SettingsNavigationRow(label: "Help Center", action: placeholderAction)
+            SettingsNavigationRow(label: "FAQs", action: placeholderAction)
+            SettingsNavigationRow(label: "Privacy Policy", action: placeholderAction)
+        }
+    }
+
+    private var accountActionsSection: some View {
+        Section("Account Actions") {
+            Button {
+                viewModel.linkGoogleAccount()
+            } label: {
+                HStack {
+                    Label("Link Google Account", systemImage: "link")
+                    Spacer()
+                    if viewModel.isLoading {
+                        ProgressView()
+                    }
                 }
             }
-            .padding(.top, 10)
-            .padding(.horizontal, 16)
-            .animation(.spring(response: 0.5, dampingFraction: 0.7), value: viewModel.errorMessage)
-            .animation(.spring(response: 0.5, dampingFraction: 0.7), value: viewModel.successMessage)
+            .disabled(viewModel.isLoading)
+
+            Button(role: .destructive) {
+                viewModel.signOut()
+            } label: {
+                Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+            }
         }
+    }
+
+    @ViewBuilder
+    private var toastOverlay: some View {
+        if let errorMessage = viewModel.errorMessage {
+            ToastView(message: errorMessage, type: .error)
+                .transition(.move(edge: .top).combined(with: .opacity))
+        } else if let successMessage = viewModel.successMessage {
+            ToastView(message: successMessage, type: .success)
+                .transition(.move(edge: .top).combined(with: .opacity))
+        }
+    }
+
+    private func navigateBack() {
+        if let onBack {
+            onBack()
+        } else {
+            dismiss()
+        }
+    }
+
+    private func placeholderAction() {
+        // TODO: Connect this row to its coordinator destination.
+    }
+}
+
+private struct SettingsNavigationRow: View {
+    let label: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Text(label)
+                    .foregroundStyle(Color.primary)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.secondary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct SettingsValueRow: View {
+    let label: String
+    let value: String
+    var emphasized = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Text(label)
+                    .fontWeight(emphasized ? .semibold : .regular)
+                    .foregroundStyle(Color.primary)
+
+                Spacer()
+
+                Text(value)
+                    .foregroundStyle(Color.secondary)
+                    .lineLimit(1)
+
+                Image(systemName: "chevron.right")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.secondary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 
 #Preview {
-    NavigationStack {
-        SettingsView(
-            viewModel: SettingsViewModel(
-                authService: MockAuthService(isLoggedIn: true),
-                dataService: MockAgriDataRepository(),
-                preferencesService: MockPreferencesService()
-            )
+    SettingsView(
+        viewModel: SettingsViewModel(
+            authService: MockAuthService(isLoggedIn: true),
+            dataService: MockAgriDataRepository(mockCropType: "Rice"),
+            preferencesService: MockPreferencesService()
         )
-    }
+    )
 }

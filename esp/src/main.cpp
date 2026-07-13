@@ -50,7 +50,7 @@ void reconnect() {
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
-      Serial.println(" - proceeding to local loop.");
+      Serial.println(" - proceeding to local loop.");                  
       // No delay here; we'll try again on the next main loop iteration
     }
   }

@@ -76,11 +76,14 @@ final class DashboardCoordinator: Coordinator {
             dataService: dataService, 
             authService: authService
         )
+        let settingsViewModel = SettingsViewModel(
+            authService: authService,
+            dataService: dataService,
+            preferencesService: preferencesService
+        )
+
         viewModel.onSignOut = { [weak self] in
             self?.onSignOut?()
-        }
-        viewModel.onSettingsTap = { [weak self] in
-            self?.showSettings()
         }
         viewModel.onSettingsTap = { [weak self] in
             self?.showSettings()
@@ -88,8 +91,19 @@ final class DashboardCoordinator: Coordinator {
         viewModel.onChatTapped = { [weak self] fieldId in
             self?.showChat(for: fieldId)
         }
+
+        settingsViewModel.onSignOut = { [weak self] in
+            self?.onSignOut?()
+        }
+        settingsViewModel.onFieldsEmptied = { [weak self] in
+            self?.navigationController.setViewControllers([], animated: false)
+            self?.showAddFieldIntro()
+        }
         
-        let view = DashboardView(viewModel: viewModel)
+        let view = DashboardView(
+            viewModel: viewModel,
+            settingsViewModel: settingsViewModel
+        )
         let hostingController = UIHostingController(rootView: view)
         
         // Show the navigation bar for the dashboard

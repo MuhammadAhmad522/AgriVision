@@ -10,6 +10,8 @@ struct Field: Identifiable, Codable {
     let id: UUID
     let ownerId: UUID
     let name: String
+    /// Ordered vertices of the boundary drawn during field selection.
+    let coordinates: [PointCoordinates]?
     let areaHa: Double?
     let createdAt: Date
     
@@ -26,6 +28,7 @@ struct Field: Identifiable, Codable {
         case id
         case ownerId = "owner_id"
         case name
+        case coordinates
         case areaHa = "area_ha"
         case createdAt = "created_at"
         
@@ -47,6 +50,10 @@ struct Field: Identifiable, Codable {
 struct PointCoordinates: Codable {
     let latitude: Double
     let longitude: Double
+
+    var coordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
 }
 
 /**

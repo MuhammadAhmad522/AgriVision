@@ -30,6 +30,9 @@ class MockAgriDataRepository: AgriDataService {
             id: UUID(),
             ownerId: UUID(),
             name: name,
+            coordinates: coordinates.map {
+                PointCoordinates(latitude: $0.latitude, longitude: $0.longitude)
+            },
             areaHa: areaHa,
             createdAt: Date(),
             cropType: cropType,
@@ -48,6 +51,12 @@ class MockAgriDataRepository: AgriDataService {
                 id: UUID(),
                 ownerId: UUID(),
                 name: "Alpha Field (Mock)",
+                coordinates: [
+                    PointCoordinates(latitude: 31.5244, longitude: 74.3538),
+                    PointCoordinates(latitude: 31.5240, longitude: 74.3610),
+                    PointCoordinates(latitude: 31.5176, longitude: 74.3618),
+                    PointCoordinates(latitude: 31.5169, longitude: 74.3543)
+                ],
                 areaHa: 10.5,
                 createdAt: Date(),
                 cropType: mockCropType,

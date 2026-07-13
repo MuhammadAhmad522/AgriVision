@@ -31,6 +31,20 @@ final class SettingsViewModel: ObservableObject {
     /// Called when the user switches the active field.
     var onActiveFieldChanged: (() -> Void)?
 
+    // MARK: - Presentation Values
+
+    var accountName: String {
+        authService.currentUserDisplayName ?? "Ahmad"
+    }
+
+    var currentFieldName: String {
+        guard let activeFieldId,
+              let activeField = fields.first(where: { $0.id == activeFieldId }) else {
+            return fields.first?.name ?? "Rice Field"
+        }
+        return activeField.name
+    }
+
     // MARK: - Initialization
 
     init(

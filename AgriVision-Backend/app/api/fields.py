@@ -30,6 +30,31 @@ def coordinates_to_wkt(coordinates) -> str:
     return f"POLYGON(({', '.join(points)}))"
 
 
+def field_to_response(field: Field, db: Session) -> FieldResponse:
+    """Serialize a field together with its stored PostGIS boundary coordinates."""
+    geojson_str = db.query(ST_AsGeoJSON(Field.boundary)).filter(Field.id == field.id).scalar()
+    coordinates = []
+
+    if geojson_str:
+        geometry = json.loads(geojson_str)
+        rings = geometry.get("coordinates", [])
+        exterior_ring = rings[0] if rings else []
+
+        # PostGIS closes polygon rings by repeating the first point. The app's MapPolygon
+        # closes the shape itself, so do not send that duplicate point back to iOS.
+        if len(exterior_ring) > 1 and exterior_ring[0] == exterior_ring[-1]:
+            exterior_ring = exterior_ring[:-1]
+
+        coordinates = [
+            {"longitude": float(point[0]), "latitude": float(point[1])}
+            for point in exterior_ring
+        ]
+
+    response_data = FieldResponse.model_validate(field).model_dump()
+    response_data["coordinates"] = coordinates
+    return FieldResponse.model_validate(response_data)
+
+
 @router.post("/", response_model=FieldResponse, status_code=status.HTTP_201_CREATED)
 async def create_field(
     field_data: FieldWithSensorsCreate,
@@ -107,7 +132,7 @@ async def create_field(
 
     db.commit()
     db.refresh(new_field)
-    return new_field
+    return field_to_response(new_field, db)
 
 
 @router.get("/", response_model=List[FieldResponse])
@@ -117,7 +142,7 @@ def get_fields(
 ):
     """Get all fields for the authenticated user."""
     fields = db.query(Field).filter(Field.owner_id == current_user.id).all()
-    return fields
+    return [field_to_response(field, db) for field in fields]
 
 
 @router.get("/{field_id}", response_model=FieldResponse)
@@ -130,7 +155,7 @@ def get_field(
     field = db.query(Field).filter(Field.id == field_id, Field.owner_id == current_user.id).first()
     if not field:
         raise HTTPException(status_code=404, detail="Field not found")
-    return field
+    return field_to_response(field, db)
 
 
 @router.delete("/{field_id}", status_code=status.HTTP_204_NO_CONTENT)

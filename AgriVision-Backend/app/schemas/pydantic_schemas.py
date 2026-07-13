@@ -75,6 +75,7 @@ class FieldResponse(BaseModel):
     id: UUID
     owner_id: UUID
     name: str
+    coordinates: List[PointCoordinates] = PydanticField(default_factory=list)
     area_ha: Optional[float] = None
     created_at: datetime
     
