@@ -1,18 +1,26 @@
 import SwiftUI
 import Charts
+import UIKit
+
+private enum DashboardLayout {
+    static let collapsedAlertsSheetHeight: CGFloat = 250
+}
 
 struct DashboardView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @ObservedObject var viewModel: DashboardViewModel
     @ObservedObject var settingsViewModel: SettingsViewModel
     @State private var selectedTab: DashboardTab = .home
     
     // State for the draggable bottom sheet
-    @State private var sheetHeight: CGFloat = 300
-    @State private var startingSheetHeight: CGFloat = 300
+    @State private var sheetHeight: CGFloat = DashboardLayout.collapsedAlertsSheetHeight
+    @State private var startingSheetHeight: CGFloat = DashboardLayout.collapsedAlertsSheetHeight
     
     var body: some View {
         TabView(selection: $selectedTab) {
-            ZStack(alignment: .bottom) {
+            GeometryReader { pageGeometry in
+                ScrollView(.vertical) {
+                    ZStack(alignment: .bottom) {
                 // Background
                 Image("bg-image")
                     .resizable()
@@ -24,8 +32,20 @@ struct DashboardView: View {
                         // Fixed Background Elements
                         VStack(alignment: .leading, spacing: 12) {
                             // Top Custom Navigation Bar
-                            DashboardHeaderView(userName: viewModel.userName ?? "Ahmad", profileImageURL: viewModel.profileImageURL, profileInitial: viewModel.profileInitial)
+                            DashboardHeaderView(
+                                userName: viewModel.userName ?? "Farmer",
+                                location: viewModel.activeField?.name ?? "No active field",
+                                profileImageURL: viewModel.profileImageURL,
+                                profileInitial: viewModel.profileInitial
+                            )
                                 .padding(.top, 65) // Increased padding to move elements down away from notch
+
+                            if !viewModel.dataAvailability.isEmpty {
+                                DataAvailabilityCard(items: viewModel.dataAvailability) {
+                                    Task { await viewModel.requestDataRefresh() }
+                                }
+                                .padding(.horizontal, 18)
+                            }
                             
                             // Weather & Field Health Section
                             HStack(alignment: .center, spacing: 0) {
@@ -34,17 +54,27 @@ struct DashboardView: View {
                                 
                                 Spacer()
                                 
-                                HealthCardView(healthScore: viewModel.healthSummary?.score ?? 0.75, cropType: viewModel.currentCropType)
+                                HealthCardView(
+                                    healthScore: viewModel.healthSummary?.score,
+                                    cropType: viewModel.currentCropType
+                                )
                                     .padding(.trailing, 20)
                             }
                             
                             // Three Metrics Cards
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 16) {
-                                    MoistureCardView(moisture: Int((viewModel.weatherSoil?.soil.moisture ?? 0.35) * 100))
-                                    PHLevelCardView(phLevel: 6.5)
-                                    NDVICardView(ndvi: viewModel.healthSummary?.score ?? 0.86)
-                                    SoilTempCardView(surfaceTemp: viewModel.weatherSoil?.soil.surfaceTempC ?? 22.0, depthTemp: viewModel.weatherSoil?.soil.depthTempC ?? 19.0)
+                                    MoistureCardView(moisture: viewModel.weatherSoil?.soil.moisture.map { Int($0 * 100) })
+                                    PHLevelCardView(phLevel: viewModel.readings.first?.ph, sensorStatus: viewModel.sensorStatus)
+                                    SensorLiveCardView(reading: viewModel.readings.first, sensorStatus: viewModel.sensorStatus)
+                                    NDVICardView(ndvi: viewModel.satellite?.data?.statistics?["ndvi"]?.mean ?? viewModel.healthSummary?.score)
+                                    VegetationIndicesCardView(statistics: viewModel.satellite?.data?.statistics)
+                                    UVIndexCardView(snapshot: viewModel.uvi?.data, status: viewModel.uvi?.status)
+                                    SatelliteQualityCardView(snapshot: viewModel.satellite?.data)
+                                    ForecastCardView(days: viewModel.weatherSoil?.weather.forecastDays ?? [])
+                                    SensorChemistryCardView(reading: viewModel.readings.first, sensorStatus: viewModel.sensorStatus)
+                                    SatelliteImageCardView(imageData: viewModel.truecolorImageData)
+                                    SoilTempCardView(surfaceTemp: viewModel.weatherSoil?.soil.surfaceTempC, depthTemp: viewModel.weatherSoil?.soil.depthTempC)
                                 }
                                 .padding(.horizontal, 20)
                             }
@@ -59,7 +89,7 @@ struct DashboardView: View {
                                     .onChanged { value in
                                         let newHeight = startingSheetHeight - value.translation.height
                                         // Keep height within bounds using smooth clamping
-                                        sheetHeight = max(300, min(newHeight, geo.size.height * 0.85))
+                                        sheetHeight = max(DashboardLayout.collapsedAlertsSheetHeight, min(newHeight, geo.size.height * 0.85))
                                     }
                                     .onEnded { value in
                                         let predictedEndLocation = value.predictedEndLocation.y
@@ -70,11 +100,11 @@ struct DashboardView: View {
                                             if translation < -50 || predictedEndLocation < 0 {
                                                 sheetHeight = geo.size.height * 0.85 // Full open
                                             } else if translation > 50 || predictedEndLocation > 0 {
-                                                sheetHeight = 300 // Collapsed
+                                                sheetHeight = DashboardLayout.collapsedAlertsSheetHeight
                                             } else {
                                                 // Snap to nearest
-                                                if abs(sheetHeight - 300) < abs(sheetHeight - geo.size.height * 0.85) {
-                                                    sheetHeight = 300
+                                                if abs(sheetHeight - DashboardLayout.collapsedAlertsSheetHeight) < abs(sheetHeight - geo.size.height * 0.85) {
+                                                    sheetHeight = DashboardLayout.collapsedAlertsSheetHeight
                                                 } else {
                                                     sheetHeight = geo.size.height * 0.85
                                                 }
@@ -86,6 +116,11 @@ struct DashboardView: View {
                     }
                     .frame(width: geo.size.width, height: geo.size.height)
                 }
+                    }
+                    .frame(width: pageGeometry.size.width, height: pageGeometry.size.height)
+                }
+                .scrollIndicators(.hidden)
+                .refreshable { await viewModel.refreshData() }
             }
             .tabItem {
                 Label("Home", systemImage: "house.fill")
@@ -93,9 +128,13 @@ struct DashboardView: View {
             .tag(DashboardTab.home)
             
             FieldsView(
-                field: activeField,
+                fieldStore: viewModel.fieldSessionStore,
+                satellite: viewModel.satellite,
+                satelliteImageData: viewModel.satelliteImageData,
+                sensorCount: viewModel.sensorCount,
                 profileImageURL: viewModel.profileImageURL,
-                profileInitial: viewModel.profileInitial
+                profileInitial: viewModel.profileInitial,
+                onAddField: viewModel.addField
             )
                 .tabItem {
                     Label("Fields", systemImage: "leaf.fill")
@@ -113,17 +152,89 @@ struct DashboardView: View {
         }
         .tint(AppColors.mediumGreen)
         .toolbar(.hidden, for: .navigationBar)
-        .task {
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            await viewModel.pollUntilCancelled()
+        }
+        .task(id: viewModel.fieldSessionStore.activeFieldId) {
             await viewModel.refreshData()
+        }
+        .overlay(alignment: .top) {
+            if let error = viewModel.errorMessage {
+                ToastView(message: error, type: .error).padding(.top, 56).padding(.horizontal)
+            } else if let success = viewModel.successMessage {
+                ToastView(message: success, type: .success).padding(.top, 56).padding(.horizontal)
+            }
+        }
+    }
+}
+
+struct DataAvailabilityCard: View {
+    let items: [DataAvailabilityItem]
+    let onRetry: () -> Void
+    @State private var isExpanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "antenna.radiowaves.left.and.right")
+                        .foregroundStyle(AppColors.mediumGreen)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Data availability").font(.subheadline.bold())
+                        Text("\(items.count) source\(items.count == 1 ? "" : "s") still preparing or unavailable")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.down").rotationEffect(.degrees(isExpanded ? 180 : 0))
+                }
+                .foregroundStyle(AppColors.charcoalGreen)
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                Divider()
+                ForEach(items) { item in
+                    HStack(alignment: .top, spacing: 10) {
+                        Circle().fill(color(for: item.status)).frame(width: 8, height: 8).padding(.top, 5)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("\(item.title) · \(label(for: item.status))").font(.caption.bold())
+                            if let message = item.message { Text(message).font(.caption2).foregroundStyle(.secondary) }
+                            if let date = item.lastUpdated { Text("Updated \(date.formatted(.relative(presentation: .named)))").font(.caption2).foregroundStyle(.secondary) }
+                        }
+                    }
+                }
+                if items.contains(where: \.retryable) {
+                    Button(action: onRetry) { Label("Refresh available sources", systemImage: "arrow.clockwise") }
+                        .font(.caption.bold()).foregroundStyle(AppColors.mediumGreen)
+                }
+            }
+        }
+        .padding(14)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(AppColors.limeGreen.opacity(0.5)))
+    }
+
+    private func label(for status: DataSourceStatus) -> String {
+        switch status {
+        case .available: return "Available"
+        case .pending: return "Preparing"
+        case .stale: return "Needs refresh"
+        case .unavailable: return "Unavailable"
+        case .unsupported: return "Not supported"
+        case .notConfigured: return "Not connected"
         }
     }
 
-    private var activeField: Field? {
-        guard let activeFieldId = settingsViewModel.activeFieldId else {
-            return viewModel.fields.first
+    private func color(for status: DataSourceStatus) -> Color {
+        switch status {
+        case .pending, .notConfigured, .unsupported: return AppColors.mediumGreen
+        case .stale: return AppColors.warningOrange
+        case .unavailable: return .red
+        case .available: return AppColors.limeGreen
         }
-
-        return viewModel.fields.first(where: { $0.id == activeFieldId }) ?? viewModel.fields.first
     }
 }
 
@@ -137,6 +248,7 @@ private enum DashboardTab: Hashable {
 
 struct DashboardHeaderView: View {
     var userName: String
+    var location: String
     var profileImageURL: URL?
     var profileInitial: String
     
@@ -147,7 +259,7 @@ struct DashboardHeaderView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "mappin.and.ellipse")
                         .foregroundColor(AppColors.charcoalGreen)
-                    Text("Lahore, Punjab")
+                    Text(location)
                         .font(.system(size: 14, weight: .bold))
                         .foregroundColor(AppColors.charcoalGreen)
                 }
@@ -305,6 +417,11 @@ struct WeatherCardView: View {
                 }
                 .foregroundColor(.white)
                 .padding(.top, 12)
+                if let humidity = weather?.current.humidity {
+                    Label("\(Int(round(humidity)))% humidity", systemImage: "humidity.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.9))
+                }
             }
             .padding(.leading, 20)
             .padding(.trailing, 20)
@@ -327,8 +444,8 @@ struct WeatherCardView: View {
 }
 
 struct SoilTempCardView: View {
-    var surfaceTemp: Double
-    var depthTemp: Double
+    var surfaceTemp: Double?
+    var depthTemp: Double?
     
     var body: some View {
         LiquidGlassCard {
@@ -352,7 +469,7 @@ struct SoilTempCardView: View {
                             Text("Surface")
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundColor(.gray)
-                            Text(String(format: "%.1f°C", surfaceTemp))
+                            Text(surfaceTemp.map { String(format: "%.1f°C", $0) } ?? "--")
                                 .font(.system(size: 15, weight: .bold))
                                 .foregroundColor(AppColors.charcoalGreen)
                         }
@@ -361,7 +478,7 @@ struct SoilTempCardView: View {
                             Text("10cm Depth")
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundColor(.gray)
-                            Text(String(format: "%.1f°C", depthTemp))
+                            Text(depthTemp.map { String(format: "%.1f°C", $0) } ?? "--")
                                 .font(.system(size: 15, weight: .bold))
                                 .foregroundColor(AppColors.charcoalGreen)
                         }
@@ -382,7 +499,7 @@ struct SoilTempCardView: View {
 }
 
 struct HealthCardView: View {
-    var healthScore: Double
+    var healthScore: Double?
     var cropType: String
     
     var cropImageName: String {
@@ -418,10 +535,10 @@ struct HealthCardView: View {
                 Circle()
                     .stroke(AppColors.limeGreen.opacity(0.3), lineWidth: 10)
                 Circle()
-                    .trim(from: 0, to: CGFloat(healthScore))
+                    .trim(from: 0, to: CGFloat(healthScore ?? 0))
                     .stroke(AppColors.mediumGreen, style: StrokeStyle(lineWidth: 10, lineCap: .round))
                     .rotationEffect(.degrees(-90))
-                Text("\(Int(healthScore * 100))%")
+                Text(healthScore.map { "\(Int($0 * 100))%" } ?? "--")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(AppColors.charcoalGreen)
             }
@@ -458,7 +575,7 @@ struct LiquidGlassCard<Content: View>: View {
 }
 
 struct MoistureCardView: View {
-    var moisture: Int
+    var moisture: Int?
     var body: some View {
         LiquidGlassCard {
             VStack(spacing: 0) {
@@ -487,7 +604,7 @@ struct MoistureCardView: View {
                             .padding(4)
                         
                         Circle()
-                            .trim(from: 0.5, to: 0.5 + (0.5 * CGFloat(moisture)/100))
+                            .trim(from: 0.5, to: 0.5 + (0.5 * CGFloat(moisture ?? 0) / 100))
                             .stroke(AppColors.mediumGreen, style: StrokeStyle(lineWidth: 8, lineCap: .round))
                             .padding(4)
                     }
@@ -495,7 +612,7 @@ struct MoistureCardView: View {
                     .frame(height: 40, alignment: .top) // Clip perfectly to the top half
                     .clipped()
                     
-                    Text("\(moisture)%")
+                    Text(moisture.map { "\($0)%" } ?? "--")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(AppColors.charcoalGreen)
                         .padding(.bottom, -2)
@@ -511,19 +628,19 @@ struct MoistureCardView: View {
                 Spacer(minLength: 0)
                 
                 if #available(iOS 16.0, *) {
-                    let mockData: [Double] = [40, 42, 45, 50, 48, 55, 60, Double(moisture)]
+                    let chartData: [Double] = moisture.map { [Double($0)] } ?? []
                     Chart {
-                        ForEach(0..<mockData.count, id: \.self) { index in
+                        ForEach(0..<chartData.count, id: \.self) { index in
                             LineMark(
                                 x: .value("Time", index),
-                                y: .value("Moisture", mockData[index])
+                                y: .value("Moisture", chartData[index])
                             )
                             .interpolationMethod(.catmullRom)
                             .foregroundStyle(AppColors.mediumGreen)
                             
                             AreaMark(
                                 x: .value("Time", index),
-                                y: .value("Moisture", mockData[index])
+                                y: .value("Moisture", chartData[index])
                             )
                             .interpolationMethod(.catmullRom)
                             .foregroundStyle(
@@ -546,7 +663,8 @@ struct MoistureCardView: View {
 }
 
 struct PHLevelCardView: View {
-    var phLevel: Double
+    var phLevel: Double?
+    var sensorStatus: String
     var body: some View {
         LiquidGlassCard {
             VStack(spacing: 0) {
@@ -564,10 +682,10 @@ struct PHLevelCardView: View {
                 Spacer()
                 
                 VStack(spacing: 4) {
-                    Gauge(value: phLevel, in: 4...9) {
+                    Gauge(value: phLevel ?? 4, in: 4...9) {
                         EmptyView()
                     } currentValueLabel: {
-                        Text(String(format: "%.1f", phLevel))
+                        Text(phLevel.map { String(format: "%.1f", $0) } ?? "--")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(AppColors.charcoalGreen)
                     }
@@ -578,7 +696,7 @@ struct PHLevelCardView: View {
                 
                 Spacer()
                 
-                Text("Neutral (Ideal for rice)")
+                Text(phLevel != nil ? "Live sensor reading" : (sensorStatus == "not_configured" ? "Optional sensor not connected" : "Waiting for sensor data"))
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(AppColors.mediumGreen)
                     .padding(.bottom, 22)
@@ -588,7 +706,7 @@ struct PHLevelCardView: View {
 }
 
 struct NDVICardView: View {
-    var ndvi: Double
+    var ndvi: Double?
     var body: some View {
         LiquidGlassCard {
             VStack(spacing: 0) {
@@ -606,11 +724,11 @@ struct NDVICardView: View {
                 Spacer()
                 
                 VStack(spacing: 8) {
-                    Text(String(format: "%.2f", ndvi))
+                    Text(ndvi.map { String(format: "%.2f", $0) } ?? "--")
                         .font(.system(size: 26, weight: .bold))
                         .foregroundColor(AppColors.charcoalGreen)
                     
-                    Gauge(value: ndvi, in: 0...1) {
+                    Gauge(value: ndvi ?? 0, in: 0...1) {
                         EmptyView()
                     }
                     .gaugeStyle(.linearCapacity)
@@ -620,10 +738,247 @@ struct NDVICardView: View {
                 
                 Spacer()
                 
-                Text("Healthy")
+                Text(ndvi == nil ? "Satellite pending" : "Latest acquisition")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(AppColors.mediumGreen)
                     .padding(.bottom, 22)
+            }
+        }
+    }
+}
+
+struct SensorLiveCardView: View {
+    let reading: SensorReading?
+    let sensorStatus: String
+
+    var body: some View {
+        LiquidGlassCard {
+            VStack(alignment: .leading, spacing: 10) {
+                Label("Live Sensor", systemImage: "sensor.tag.radiowaves.forward.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AppColors.charcoalGreen)
+                Spacer()
+                metric("Temperature", reading?.temperature.map { String(format: "%.1f°C", $0) } ?? "--")
+                metric("Moisture", reading?.moisture.map { String(format: "%.0f%%", $0) } ?? "--")
+                Spacer()
+                Text(reading.map { "Updated \($0.time.formatted(.relative(presentation: .named)))" } ?? statusText)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(reading == nil ? .secondary : AppColors.mediumGreen)
+            }
+            .padding(16)
+        }
+    }
+
+    private var statusText: String {
+        sensorStatus == "not_configured" ? "No sensor paired" : "Waiting for readings"
+    }
+
+    private func metric(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(label).font(.system(size: 10)).foregroundStyle(.secondary)
+            Text(value).font(.system(size: 18, weight: .bold)).foregroundStyle(AppColors.charcoalGreen)
+        }
+    }
+}
+
+struct VegetationIndicesCardView: View {
+    let statistics: [String: VegetationStatistics]?
+
+    var body: some View {
+        LiquidGlassCard {
+            VStack(alignment: .leading, spacing: 9) {
+                Label("Vegetation", systemImage: "leaf.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AppColors.charcoalGreen)
+                Spacer()
+                indexRow("NDVI", statistics?["ndvi"]?.mean)
+                indexRow("EVI", statistics?["evi"]?.mean)
+                indexRow("EVI2", statistics?["evi2"]?.mean)
+                Spacer()
+                Text("Scene averages").font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
+            }
+            .padding(16)
+        }
+    }
+
+    private func indexRow(_ name: String, _ value: Double?) -> some View {
+        HStack {
+            Text(name).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
+            Spacer()
+            Text(value.map { String(format: "%.3f", $0) } ?? "--")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(AppColors.charcoalGreen)
+        }
+    }
+}
+
+struct UVIndexCardView: View {
+    let snapshot: UVISnapshot?
+    let status: String?
+
+    var body: some View {
+        LiquidGlassCard {
+            VStack(spacing: 10) {
+                HStack {
+                    Label("UV Index", systemImage: "sun.max.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(AppColors.charcoalGreen)
+                    Spacer()
+                }
+                Spacer()
+                Text(snapshot?.uvi.map { String(format: "%.1f", $0) } ?? "--")
+                    .font(.system(size: 30, weight: .bold))
+                    .foregroundStyle(uvColor)
+                Text(riskLabel).font(.system(size: 12, weight: .bold)).foregroundStyle(uvColor)
+                Spacer()
+                Text(snapshot == nil ? (status?.capitalized ?? "Pending") : "Live AgroMonitoring")
+                    .font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
+            }
+            .padding(16)
+        }
+    }
+
+    private var riskLabel: String {
+        guard let value = snapshot?.uvi else { return "No reading" }
+        switch value {
+        case ..<3: return "Low"
+        case ..<6: return "Moderate"
+        case ..<8: return "High"
+        case ..<11: return "Very high"
+        default: return "Extreme"
+        }
+    }
+
+    private var uvColor: Color {
+        guard let value = snapshot?.uvi else { return .secondary }
+        if value < 3 { return .green }
+        if value < 6 { return .yellow }
+        if value < 8 { return .orange }
+        return .red
+    }
+}
+
+struct SatelliteQualityCardView: View {
+    let snapshot: SatelliteSnapshot?
+
+    var body: some View {
+        LiquidGlassCard {
+            VStack(alignment: .leading, spacing: 10) {
+                Label("Scene Quality", systemImage: "cloud.sun.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AppColors.charcoalGreen)
+                Spacer()
+                qualityRow("Cloud", snapshot?.cloudPercent)
+                qualityRow("Coverage", snapshot?.coveragePercent)
+                Spacer()
+                Text(snapshot.map { "Captured \($0.acquiredAt.formatted(date: .abbreviated, time: .omitted))" } ?? "Satellite pending")
+                    .font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
+            }
+            .padding(16)
+        }
+    }
+
+    private func qualityRow(_ name: String, _ value: Double?) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack {
+                Text(name).font(.system(size: 10)).foregroundStyle(.secondary)
+                Spacer()
+                Text(value.map { String(format: "%.0f%%", $0) } ?? "--").font(.system(size: 13, weight: .bold))
+            }
+            ProgressView(value: min(max(value ?? 0, 0), 100), total: 100).tint(AppColors.mediumGreen)
+        }
+    }
+}
+
+struct ForecastCardView: View {
+    let days: [FieldWeatherSoil.ForecastDay]
+
+    var body: some View {
+        LiquidGlassCard {
+            VStack(alignment: .leading, spacing: 7) {
+                Label("Forecast", systemImage: "calendar")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AppColors.charcoalGreen)
+                Spacer()
+                ForEach(Array(days.prefix(3))) { day in
+                    HStack(spacing: 5) {
+                        Text(shortDate(day.date)).frame(width: 34, alignment: .leading)
+                        Text(day.tempMaxC.map { "\(Int(round($0)))°" } ?? "--")
+                        Spacer()
+                        Label(day.rainMm.map { String(format: "%.1f", $0) } ?? "--", systemImage: "drop.fill")
+                            .foregroundStyle(.cyan)
+                    }
+                    .font(.system(size: 10, weight: .semibold))
+                }
+                Spacer()
+                Text(days.isEmpty ? "Weather pending" : "Rain shown in mm")
+                    .font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
+            }
+            .padding(16)
+        }
+    }
+
+    private func shortDate(_ value: String) -> String {
+        value.count >= 10 ? String(value.suffix(5)) : value
+    }
+}
+
+struct SensorChemistryCardView: View {
+    let reading: SensorReading?
+    let sensorStatus: String
+
+    var body: some View {
+        LiquidGlassCard {
+            VStack(alignment: .leading, spacing: 7) {
+                Label("Soil Chemistry", systemImage: "testtube.2")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AppColors.charcoalGreen)
+                Spacer()
+                row("EC", reading?.ec, suffix: "")
+                row("N", reading?.npk_n, suffix: "")
+                row("P", reading?.npk_p, suffix: "")
+                row("K", reading?.npk_k, suffix: "")
+                Spacer()
+                Text(hasChemistry ? "Live sensor values" : (sensorStatus == "not_configured" ? "No sensor paired" : "Probe is not reporting these channels"))
+                    .font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
+            }
+            .padding(16)
+        }
+    }
+
+    private var hasChemistry: Bool {
+        [reading?.ec, reading?.npk_n, reading?.npk_p, reading?.npk_k].contains { $0 != nil }
+    }
+
+    private func row(_ label: String, _ value: Double?, suffix: String) -> some View {
+        HStack {
+            Text(label).foregroundStyle(.secondary)
+            Spacer()
+            Text(value.map { String(format: "%.1f%@", $0, suffix) } ?? "--").fontWeight(.bold)
+        }
+        .font(.system(size: 10))
+    }
+}
+
+struct SatelliteImageCardView: View {
+    let imageData: Data?
+
+    var body: some View {
+        LiquidGlassCard {
+            ZStack(alignment: .bottomLeading) {
+                if let imageData, let image = UIImage(data: imageData) {
+                    Image(uiImage: image).resizable().scaledToFill()
+                } else {
+                    Color.gray.opacity(0.12)
+                    Image(systemName: "photo").font(.largeTitle).foregroundStyle(.secondary)
+                }
+                LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .center, endPoint: .bottom)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("True color").font(.system(size: 13, weight: .bold))
+                    Text(imageData == nil ? "Image pending" : "Latest satellite scene").font(.system(size: 10))
+                }
+                .foregroundStyle(.white)
+                .padding(14)
             }
         }
     }
@@ -653,10 +1008,63 @@ struct AlertsBottomSheet: View {
                 
                 List {
                     Section {
-                        AlertRow(iconName: "exclamationmark.circle.fill", iconColor: .orange, text: "Water level is low in mango farm")
-                        AlertRow(iconName: "checkmark.circle.fill", iconColor: .green, text: "Strawberries are ready to harvest")
-                        AlertRow(iconName: "light.beacon.max.fill", iconColor: .red, text: "Locusts are expected to pay a visit tomorrow")
-                        AlertRow(iconName: "checkmark.circle.fill", iconColor: .green, text: "Strawberries are ready to harvest")
+                        HStack {
+                            Button { Task { await viewModel.refreshRecommendations() } } label: {
+                                Label("Refresh advice", systemImage: "arrow.clockwise")
+                            }
+                            .disabled(viewModel.isRefreshingAI)
+                            Spacer()
+                            Button(action: viewModel.openChat) {
+                                Label("Ask AI", systemImage: "sparkles")
+                            }
+                        }
+                        if viewModel.recommendations.isEmpty {
+                            Text(viewModel.isLoading ? "Loading recommendations…" : "No recommendations are available yet.")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(viewModel.recommendations) { recommendation in
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        Text(recommendation.icon)
+                                        Text(recommendation.category).font(.headline)
+                                        Spacer()
+                                        Text(recommendation.priority.capitalized).font(.caption).foregroundStyle(.secondary)
+                                    }
+                                    Text(recommendation.advice).font(.subheadline)
+                                    if let rationale = recommendation.rationale {
+                                        Text(rationale).font(.caption).foregroundStyle(.secondary)
+                                    }
+                                    if recommendation.requiresExpertConfirmation {
+                                        Label("Expert confirmation required", systemImage: "person.badge.shield.checkmark")
+                                            .font(.caption.bold()).foregroundStyle(.orange)
+                                    }
+                                    if recommendation.status == "pending" {
+                                        HStack {
+                                            Button("Implemented") { Task { await viewModel.updateFeedback(recommendation, status: "implemented") } }
+                                            Button("Ignore", role: .destructive) { Task { await viewModel.updateFeedback(recommendation, status: "ignored") } }
+                                        }
+                                        .font(.caption)
+                                    } else {
+                                        Text(recommendation.status.capitalized).font(.caption).foregroundStyle(.secondary)
+                                        if recommendation.status == "implemented" && recommendation.outcome == nil {
+                                            Menu {
+                                                Button("Useful") { Task { await viewModel.recordOutcome(recommendation, outcome: "useful") } }
+                                                Button("Ineffective") { Task { await viewModel.recordOutcome(recommendation, outcome: "ineffective") } }
+                                                Button("Harmful", role: .destructive) { Task { await viewModel.recordOutcome(recommendation, outcome: "harmful") } }
+                                            } label: {
+                                                Label("How did it work?", systemImage: "chart.line.text.clipboard")
+                                                    .font(.caption)
+                                            }
+                                        } else if let outcome = recommendation.outcome {
+                                            Text("Outcome: \(outcome.capitalized)")
+                                                .font(.caption)
+                                                .foregroundStyle(outcome == "harmful" ? .red : .secondary)
+                                        }
+                                    }
+                                }
+                                .padding(.vertical, 4)
+                            }
+                        }
                     }
                     .listRowBackground(Color.gray.opacity(0.16))
                     
@@ -696,36 +1104,5 @@ struct AlertRow: View {
             Spacer()
         }
         .frame(height: 60)
-    }
-}
-
-
-
-// MARK: - Preview
-
-#Preview("Dashboard - Wheat") {
-    NavigationStack {
-        DashboardView(
-            viewModel: DashboardViewModel(dataService: MockAgriDataRepository(mockCropType: "Wheat"), authService: MockAuthService(isLoggedIn: true)),
-            settingsViewModel: SettingsViewModel(authService: MockAuthService(isLoggedIn: true), dataService: MockAgriDataRepository(mockCropType: "Wheat"), preferencesService: MockPreferencesService())
-        )
-    }
-}
-
-#Preview("Dashboard - Rice") {
-    NavigationStack {
-        DashboardView(
-            viewModel: DashboardViewModel(dataService: MockAgriDataRepository(mockCropType: "Rice"), authService: MockAuthService(isLoggedIn: true)),
-            settingsViewModel: SettingsViewModel(authService: MockAuthService(isLoggedIn: true), dataService: MockAgriDataRepository(mockCropType: "Rice"), preferencesService: MockPreferencesService())
-        )
-    }
-}
-
-#Preview("Dashboard - Sugarcane") {
-    NavigationStack {
-        DashboardView(
-            viewModel: DashboardViewModel(dataService: MockAgriDataRepository(mockCropType: "Sugarcane"), authService: MockAuthService(isLoggedIn: true)),
-            settingsViewModel: SettingsViewModel(authService: MockAuthService(isLoggedIn: true), dataService: MockAgriDataRepository(mockCropType: "Sugarcane"), preferencesService: MockPreferencesService())
-        )
     }
 }

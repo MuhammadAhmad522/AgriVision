@@ -1,69 +1,55 @@
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from firebase_admin import auth
-from sqlalchemy.orm import Session
-from app.database import get_db
-from app.models.db_models import User
-from app.core.config import settings
 import logging
 
+import firebase_admin
+from fastapi import Depends
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from firebase_admin import auth
+from sqlalchemy.orm import Session
+
+from app.core.errors import APIError
+from app.core.config import settings
+from app.database import get_db
+from app.models.db_models import User
+
 logger = logging.getLogger(__name__)
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
-async def get_current_user(res: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
-    """
-    Decodes the Firebase JWT from the 'Authorization: Bearer <TOKEN>' header.
-    If valid, finds or creates the user in our PostgreSQL database based on their UID.
-    """
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    db: Session = Depends(get_db),
+) -> User:
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise APIError(401, "authentication_required", "Please sign in to continue.")
+
     try:
-        # Verify the ID token sent by the client
-        import firebase_admin
-        try:
-            firebase_admin.get_app()
-            is_initialized = True
-        except ValueError:
-            is_initialized = False
+        firebase_admin.get_app()
+    except ValueError as exc:
+        logger.error("Firebase Admin is unavailable; authentication is fail-closed")
+        raise APIError(503, "authentication_unavailable", "Authentication is temporarily unavailable.", retryable=True) from exc
 
-        if not is_initialized:
-            import jwt
-            decoded_token = jwt.decode(res.credentials, options={"verify_signature": False})
-            logger.warning("Firebase Admin not initialized. Decoding JWT without signature validation.")
-        else:
-            decoded_token = auth.verify_id_token(res.credentials)
-            
-        uid = decoded_token.get('user_id') or decoded_token.get('uid')
-        if not uid:
-            uid = decoded_token.get('sub') # fallback for custom tokens
-            
-        email = decoded_token.get('email')
-        
-        # Check if user exists in our local database
-        user = db.query(User).filter(User.firebase_uid == uid).first()
-        
-        if not user:
-            # Auto-provision user record on first login
-            logger.info(f"Creating new user record for Firebase UID: {uid}")
-            user = User(
-                firebase_uid=uid,
-                email=email
-            )
-            db.add(user)
-            db.commit()
-            db.refresh(user)
-            
-        return user
-        
-    except ValueError as e:
-        logger.error(f"Invalid Firebase Token: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
-            headers={"WWW-Authenticate": "Bearer"},
+    try:
+        decoded = auth.verify_id_token(
+            credentials.credentials,
+            check_revoked=True,
+            clock_skew_seconds=settings.FIREBASE_CLOCK_SKEW_SECONDS,
         )
-    except Exception as e:
-        logger.error(f"Firebase Auth Error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    except Exception as exc:
+        logger.info("Firebase token verification failed: %s", type(exc).__name__)
+        raise APIError(401, "invalid_token", "Your session is invalid or expired.") from exc
+
+    uid = decoded.get("uid") or decoded.get("user_id")
+    if not uid:
+        raise APIError(401, "invalid_token", "Your session is invalid or expired.")
+
+    user = db.query(User).filter(User.firebase_uid == uid).first()
+    if user is None:
+        user = User(firebase_uid=uid, email=decoded.get("email"))
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    elif decoded.get("email") and user.email != decoded.get("email"):
+        user.email = decoded.get("email")
+        db.commit()
+        db.refresh(user)
+    return user

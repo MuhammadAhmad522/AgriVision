@@ -71,7 +71,7 @@ struct FieldDetailsView: View {
                             
                             FieldToggleBox(
                                 label: "Monitor With IoT Sensors",
-                                description: "You can set up sensors after saving this field",
+                                description: "Optional. Turn on to pair a sensor before saving this field",
                                 isOn: $viewModel.monitorWithIoT
                             )
                         }
@@ -85,7 +85,14 @@ struct FieldDetailsView: View {
                         ) {
                             viewModel.saveField()
                         }
-                        .padding(.bottom, 40)
+                        .padding(.bottom, viewModel.isLoading ? 0 : 40)
+                        if viewModel.isLoading {
+                            Text("Preparing dashboard data…")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(AppColors.charcoalGreen.opacity(0.75))
+                                .multilineTextAlignment(.center)
+                                .padding(.bottom, 40)
+                        }
                     }
                     .padding(.horizontal, UIConstants.Auth.cardHorizontalPadding)
                     .frame(width: UIConstants.Auth.cardWidth)

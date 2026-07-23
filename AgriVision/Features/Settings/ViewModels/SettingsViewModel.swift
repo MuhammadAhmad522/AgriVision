@@ -1,178 +1,271 @@
-import Foundation
 import Combine
+import Foundation
 
-/// Connects the SettingsView to the backend services.
-/// It handles user session actions such as signing out or linking multiple authentication providers together.
+@MainActor
 final class SettingsViewModel: ObservableObject {
-
-    // MARK: - Published Properties
-
-    @Published var fields: [Field] = []
-    @Published var activeFieldId: UUID?
-    @Published var isLoading: Bool = false
+    @Published private(set) var fields: [Field] = []
+    @Published private(set) var activeFieldId: UUID?
+    @Published private(set) var sensors: [FieldSensor] = []
+    @Published private(set) var sensorStatus = "not_configured"
+    @Published private(set) var satelliteStatus = "pending"
+    @Published private(set) var profileName: String
+    @Published private(set) var accountEmail: String
+    @Published private(set) var isGoogleLinked: Bool
+    @Published private(set) var isLoading = false
+    @Published private(set) var isRefreshing = false
+    @Published private(set) var isPairingSensor = false
     @Published var errorMessage: String?
     @Published var successMessage: String?
-    @Published var title: String = "Settings"
+    @Published var refreshInterval: TimeInterval
 
-    // MARK: - Dependencies
+    let title = "Settings"
 
     private let authService: AuthService
     private let dataService: AgriDataService
     private var preferencesService: PreferencesService
+    private let fieldSessionStore: FieldSessionStore?
+    private var cancellables: Set<AnyCancellable> = []
 
-    // MARK: - Coordinator Callbacks
-
-    /// Called when the user successfully signs out, telling the Coordinator to navigate away.
     var onSignOut: (() -> Void)?
-    
-    /// Called when a field is deleted and the list becomes empty.
     var onFieldsEmptied: (() -> Void)?
-    
-    /// Called when the user switches the active field.
     var onActiveFieldChanged: (() -> Void)?
 
-    // MARK: - Presentation Values
-
-    var accountName: String {
-        authService.currentUserDisplayName ?? "Ahmad"
+    var accountName: String { profileName.isEmpty ? "AgriVision User" : profileName }
+    var currentFieldName: String { activeField?.name ?? "No active field" }
+    var activeField: Field? { fields.first(where: { $0.id == activeFieldId }) }
+    var canLinkGoogle: Bool { !isGoogleLinked }
+    var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
     }
-
-    var currentFieldName: String {
-        guard let activeFieldId,
-              let activeField = fields.first(where: { $0.id == activeFieldId }) else {
-            return fields.first?.name ?? "Rice Field"
+    var satelliteSummary: String {
+        guard let field = activeField else { return "No active field" }
+        if let updated = field.lastSatelliteSync {
+            return "\(satelliteStatus.capitalized) · \(updated.formatted(.relative(presentation: .named)))"
         }
-        return activeField.name
+        return satelliteStatus.capitalized
     }
-
-    // MARK: - Initialization
+    var sensorSummary: String {
+        if sensors.isEmpty { return "Optional · Not connected" }
+        return "\(sensors.count) connected · \(sensorStatus.capitalized)"
+    }
 
     init(
-        authService: AuthService, 
-        dataService: AgriDataService, 
-        preferencesService: PreferencesService
+        authService: AuthService,
+        dataService: AgriDataService,
+        preferencesService: PreferencesService,
+        fieldSessionStore: FieldSessionStore? = nil
     ) {
         self.authService = authService
         self.dataService = dataService
         self.preferencesService = preferencesService
-        self.activeFieldId = preferencesService.activeFieldId
-        
-        refreshFields()
-    }
-    
-    // MARK: - Field Management
-    
-    @MainActor
-    func refreshFields() {
-        Task {
-            do {
-                self.fields = try await dataService.fetchFields()
-                
-                // If there's no active field but fields exist, pick the first one
-                if activeFieldId == nil, let firstField = fields.first {
-                    selectField(firstField.id)
-                }
-            } catch {
-                errorMessage = "Failed to load fields: \(error.userFacingMessage)"
-                ToastMessageAutoDismiss.schedule(
-                    expectedMessage: errorMessage ?? "",
-                    currentMessage: { self.errorMessage },
-                    clearMessage: { self.errorMessage = nil }
-                )
+        self.fieldSessionStore = fieldSessionStore
+        profileName = authService.currentUserDisplayName ?? ""
+        accountEmail = authService.currentUserEmail ?? "Email unavailable"
+        isGoogleLinked = authService.isGoogleProviderLinked
+        refreshInterval = preferencesService.dashboardRefreshInterval
+        activeFieldId = fieldSessionStore?.activeFieldId ?? preferencesService.activeFieldId
+
+        fieldSessionStore?.$fields
+            .sink { [weak self] fields in self?.fields = fields }
+            .store(in: &cancellables)
+        fieldSessionStore?.$activeFieldId
+            .removeDuplicates()
+            .sink { [weak self] id in
+                guard let self else { return }
+                activeFieldId = id
+                Task { await self.refreshIntegrationStatus() }
             }
+            .store(in: &cancellables)
+
+        Task { await refreshAll() }
+    }
+
+    func refreshAll() async {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        defer { isRefreshing = false }
+        do {
+            if let fieldSessionStore {
+                try await fieldSessionStore.refresh()
+                fields = fieldSessionStore.fields
+                activeFieldId = fieldSessionStore.activeFieldId
+            } else {
+                fields = try await dataService.fetchFields()
+                if activeFieldId == nil, let first = fields.first { selectField(first.id) }
+            }
+            await refreshIntegrationStatus()
+        } catch {
+            presentError("Could not refresh settings: \(error.userFacingMessage)")
         }
     }
-    
+
     func selectField(_ id: UUID) {
+        guard fields.contains(where: { $0.id == id }) else { return }
+        if let fieldSessionStore {
+            fieldSessionStore.select(id)
+        } else {
+            preferencesService.activeFieldId = id
+        }
         activeFieldId = id
-        preferencesService.activeFieldId = id
         onActiveFieldChanged?()
+        Task { await refreshIntegrationStatus() }
     }
-    
-    @MainActor
+
+    func setRefreshInterval(_ interval: TimeInterval) {
+        let allowed: [TimeInterval] = [15, 30, 60]
+        let resolved = allowed.contains(interval) ? interval : 30
+        refreshInterval = resolved
+        preferencesService.dashboardRefreshInterval = resolved
+        presentSuccess("Dashboard refresh updated.")
+    }
+
+    func updateDisplayName(_ proposedName: String) async -> Bool {
+        let normalized = proposedName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard (2...80).contains(normalized.count), !normalized.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else {
+            presentError("Enter a name between 2 and 80 characters.")
+            return false
+        }
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            try await authService.updateDisplayName(normalized)
+            profileName = normalized
+            presentSuccess("Profile updated.")
+            return true
+        } catch {
+            presentError(error.userFacingMessage)
+            return false
+        }
+    }
+
+    func pairAndAssignSensor(deviceID: String, name: String) async -> Bool {
+        guard let fieldID = activeFieldId else {
+            presentError("Select a field before pairing a sensor.")
+            return false
+        }
+        let code = deviceID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sensorName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "._:-"))
+        guard (3...100).contains(code.count), code.unicodeScalars.allSatisfy(allowed.contains) else {
+            presentError("Enter a valid ESP32 pairing code.")
+            return false
+        }
+        guard (2...100).contains(sensorName.count) else {
+            presentError("Enter a sensor name between 2 and 100 characters.")
+            return false
+        }
+
+        isPairingSensor = true
+        defer { isPairingSensor = false }
+        do {
+            _ = try await dataService.pairSensor(deviceId: code)
+            try await dataService.assignSensor(
+                SensorConfig(deviceId: code, name: sensorName, sensorType: "esp32_multi_sensor"),
+                to: fieldID
+            )
+            await refreshIntegrationStatus()
+            presentSuccess("Sensor paired with \(currentFieldName).")
+            return true
+        } catch {
+            presentError(error.userFacingMessage)
+            return false
+        }
+    }
+
     func deleteField(_ id: UUID) {
         isLoading = true
         Task {
+            defer { isLoading = false }
             do {
                 try await dataService.deleteField(id: id)
-                
-                // Update local list
-                fields.removeAll { $0.id == id }
-                
-                // Handle deletion of the active field
-                if activeFieldId == id {
-                    if let nextField = fields.first {
-                        selectField(nextField.id)
-                    } else {
-                        activeFieldId = nil
-                        preferencesService.activeFieldId = nil
-                        onFieldsEmptied?()
+                if let fieldSessionStore {
+                    try await fieldSessionStore.refresh()
+                    fields = fieldSessionStore.fields
+                    activeFieldId = fieldSessionStore.activeFieldId
+                } else {
+                    fields.removeAll { $0.id == id }
+                    if activeFieldId == id {
+                        activeFieldId = fields.first?.id
+                        preferencesService.activeFieldId = activeFieldId
                     }
-                } else if fields.isEmpty {
-                    onFieldsEmptied?()
                 }
-                
-                isLoading = false
-                successMessage = "Field deleted successfully."
+                if fields.isEmpty { onFieldsEmptied?() }
+                await refreshIntegrationStatus()
+                presentSuccess("Field permanently deleted.")
             } catch {
-                isLoading = false
-                errorMessage = "Failed to delete field: \(error.userFacingMessage)"
-                ToastMessageAutoDismiss.schedule(
-                    expectedMessage: errorMessage ?? "",
-                    currentMessage: { self.errorMessage },
-                    clearMessage: { self.errorMessage = nil }
-                )
+                presentError("Could not delete field: \(error.userFacingMessage)")
             }
         }
     }
 
-    // MARK: - Actions
+    func linkGoogleAccount() {
+        guard canLinkGoogle else { return }
+        isLoading = true
+        Task {
+            defer { isLoading = false }
+            do {
+                try await authService.linkGoogleAccount()
+                isGoogleLinked = true
+                presentSuccess("Google account linked.")
+            } catch {
+                presentError(error.userFacingMessage)
+            }
+        }
+    }
 
-    /// Signs the user out of the app.
     func signOut() {
         do {
             try authService.signOut()
+            fieldSessionStore?.clear()
             onSignOut?()
         } catch {
-            errorMessage = "Failed to sign out: \(error.userFacingMessage)"
-            ToastMessageAutoDismiss.schedule(
-                expectedMessage: errorMessage ?? "",
-                currentMessage: { self.errorMessage },
-                clearMessage: { self.errorMessage = nil }
-            )
+            presentError(error.userFacingMessage)
         }
     }
 
-    /// Links an existing email/password account with a Google account so the user can log in with either.
-    func linkGoogleAccount() {
-        Task {
-            await MainActor.run { isLoading = true }
-
-            do {
-                try await authService.linkGoogleAccount()
-                await MainActor.run {
-                    isLoading = false
-                    successMessage = "Account successfully linked with Google!"
-                }
-                ToastMessageAutoDismiss.schedule(
-                    expectedMessage: "Account successfully linked with Google!",
-                    currentMessage: { self.successMessage },
-                    clearMessage: { self.successMessage = nil }
-                )
-                
-                // Clear the success message after 3 seconds
-            } catch {
-                let errorMsg = "Failed to link account: \(error.userFacingMessage)"
-                await MainActor.run {
-                    isLoading = false
-                    errorMessage = errorMsg
-                }
-                ToastMessageAutoDismiss.schedule(
-                    expectedMessage: errorMsg,
-                    currentMessage: { self.errorMessage },
-                    clearMessage: { self.errorMessage = nil }
-                )
-            }
+    private func refreshIntegrationStatus() async {
+        guard let fieldID = activeFieldId else {
+            sensors = []
+            sensorStatus = "not_configured"
+            satelliteStatus = "pending"
+            return
         }
+
+        do {
+            sensors = try await dataService.fetchSensors(for: fieldID)
+        } catch {
+            sensors = []
+            sensorStatus = "unavailable"
+        }
+        do {
+            let dashboard = try await dataService.fetchDashboard(for: fieldID)
+            guard fieldID == activeFieldId else { return }
+            sensorStatus = dashboard.sources.sensors.status
+            satelliteStatus = dashboard.sources.satellite.status
+            fieldSessionStore?.merge(dashboard.field)
+        } catch {
+            sensorStatus = sensors.isEmpty ? "not_configured" : "unavailable"
+            satelliteStatus = activeField?.agroStatus ?? "unavailable"
+        }
+    }
+
+    private func presentError(_ message: String) {
+        errorMessage = message
+        successMessage = nil
+        ToastMessageAutoDismiss.schedule(
+            expectedMessage: message,
+            currentMessage: { self.errorMessage },
+            clearMessage: { self.errorMessage = nil }
+        )
+    }
+
+    private func presentSuccess(_ message: String) {
+        successMessage = message
+        errorMessage = nil
+        ToastMessageAutoDismiss.schedule(
+            expectedMessage: message,
+            currentMessage: { self.successMessage },
+            clearMessage: { self.successMessage = nil }
+        )
     }
 }

@@ -1,424 +1,375 @@
-"""
-Agromonitoring API Service - "The Brain" External Data Source
-
-This service integrates with the Agromonitoring API (https://agromonitoring.com)
-to fetch satellite imagery, NDVI (plant health), soil data, and weather
-for each registered field's GPS polygon.
-
-When you have your API key, replace AGROMONITORING_API_KEY in your environment.
-"""
-
+import asyncio
+import hashlib
 import json
-import os
 import logging
-import httpx
 import time
-from datetime import datetime
-from typing import Optional, Dict, Any, Tuple
-from functools import wraps
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from uuid import UUID
+
+import httpx
+
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
-
-AGROMONITORING_API_KEY = os.getenv("AGROMONITORING_API_KEY", "")
 BASE_URL = "https://api.agromonitoring.com/agro/1.0"
 
-# --- Simple Async TTL Cache to prevent Free-Tier Rate Limits ---
-_api_cache: Dict[Tuple, Tuple[float, Any]] = {}
-CACHE_TTL_SECONDS = 3600 * 6  # 6 hours cache for non-urgent endpoints
 
-def async_ttl_cache(ttl_seconds=CACHE_TTL_SECONDS):
-    def decorator(func):
-        @wraps(func)
-        async def wrapper(*args, **kwargs):
-            # Create a unique cache key based on function name, args, and kwargs
-            # (Ignoring non-hashable kwargs for simplicity if any, but our args are str/float)
-            key = (func.__name__, args, frozenset(kwargs.items()))
-            now = time.time()
-            if key in _api_cache:
-                timestamp, result = _api_cache[key]
-                if now - timestamp < ttl_seconds:
-                    logger.debug(f"Cache hit for {func.__name__} - saving free tier limits.")
-                    return result
-            
-            result = await func(*args, **kwargs)
-            
-            # Cache the result if we didn't get an explicit None/Failure rate limit
-            # But we also cache None for a short time to avoid hammering failing endpoints
-            _api_cache[key] = (now, result)
-            return result
-        return wrapper
-    return decorator
+class AgroAPIError(Exception):
+    def __init__(self, message: str, status_code: int | None = None, retryable: bool = True) -> None:
+        self.status_code = status_code
+        self.retryable = retryable
+        super().__init__(message)
 
 
-async def create_polygon(name: str, geojson: Dict[str, Any]) -> Optional[str]:
-    """
-    Registers a new field polygon with the Agromonitoring API.
-    Returns the `polygon_id` (e.g. '60b752c9b...').
-    """
-    if not AGROMONITORING_API_KEY:
-        logger.warning("AGROMONITORING_API_KEY not set. Cannot create real polygon.")
+class AgroEntitlementError(AgroAPIError):
+    pass
+
+
+_semaphore = asyncio.Semaphore(max(1, settings.AGRO_MAX_CONCURRENCY))
+_inflight: dict[str, asyncio.Task] = {}
+_inflight_lock = asyncio.Lock()
+_circuit_open_until = 0.0
+_failure_count = 0
+
+
+def _log_request(endpoint: str, outcome: str, status_code: int | None, duration_ms: int, field_id: UUID | None = None, cache_hit: bool = False) -> None:
+    try:
+        from app.database import SessionLocal
+        from app.models.db_models import ProviderRequestLog
+
+        db = SessionLocal()
+        try:
+            db.add(ProviderRequestLog(provider="agromonitoring", endpoint=endpoint, field_id=field_id, outcome=outcome, status_code=status_code, duration_ms=duration_ms, cache_hit=cache_hit))
+            db.commit()
+        finally:
+            db.close()
+    except Exception:
+        logger.debug("Unable to persist provider request telemetry", exc_info=True)
+
+
+def _cache_get(cache_key: str) -> Any | None:
+    try:
+        from app.database import SessionLocal
+        from app.models.db_models import ProviderCache
+
+        db = SessionLocal()
+        try:
+            entry = db.query(ProviderCache).filter(ProviderCache.cache_key == cache_key, ProviderCache.expires_at > datetime.now(timezone.utc)).first()
+            return entry.response_payload if entry else None
+        finally:
+            db.close()
+    except Exception:
+        logger.debug("Unable to read provider cache", exc_info=True)
         return None
 
-    # Agromonitoring requires name and geo_json
-    payload = {
-        "name": name,
-        "geo_json": geojson
+
+def _cache_set(cache_key: str, endpoint: str, payload: Any, ttl_seconds: int, field_id: UUID | None) -> None:
+    try:
+        from app.database import SessionLocal
+        from app.models.db_models import ProviderCache
+
+        db = SessionLocal()
+        try:
+            entry = db.get(ProviderCache, cache_key)
+            if entry is None:
+                entry = ProviderCache(cache_key=cache_key, provider="agromonitoring", endpoint=endpoint, field_id=field_id, response_payload=payload, expires_at=datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds))
+                db.add(entry)
+            else:
+                entry.response_payload = payload
+                entry.field_id = field_id
+                entry.expires_at = datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds)
+            db.commit()
+        finally:
+            db.close()
+    except Exception:
+        logger.debug("Unable to persist provider cache", exc_info=True)
+
+
+def _with_api_key(url: str) -> str:
+    parts = urlsplit(url)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query["appid"] = settings.AGROMONITORING_API_KEY
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+
+async def _singleflight(key: str, factory):
+    async with _inflight_lock:
+        task = _inflight.get(key)
+        if task is None:
+            task = asyncio.create_task(factory())
+            _inflight[key] = task
+    try:
+        return await task
+    finally:
+        async with _inflight_lock:
+            if _inflight.get(key) is task:
+                _inflight.pop(key, None)
+
+
+async def _request(
+    method: str,
+    endpoint: str,
+    *,
+    params: dict[str, Any] | None = None,
+    json_body: dict[str, Any] | None = None,
+    field_id: UUID | None = None,
+    absolute_url: str | None = None,
+    binary: bool = False,
+    cache_ttl_seconds: int = 0,
+):
+    global _circuit_open_until, _failure_count
+    if not settings.AGROMONITORING_API_KEY:
+        raise AgroAPIError("AgroMonitoring is not configured", retryable=True)
+    if time.monotonic() < _circuit_open_until:
+        raise AgroAPIError("AgroMonitoring circuit is temporarily open", retryable=True)
+
+    request_params: dict[str, Any] | None = dict(params or {})
+    url = absolute_url or f"{BASE_URL}/{endpoint.lstrip('/')}"
+    if absolute_url:
+        url = _with_api_key(url)
+        # Passing an empty params mapping to httpx replaces the query string
+        # already present in provider-supplied image/statistics URLs.
+        request_params = None
+    else:
+        request_params["appid"] = settings.AGROMONITORING_API_KEY
+    key_material = json.dumps(
+        {"method": method, "endpoint": endpoint, "params": request_params, "body": json_body, "url": absolute_url},
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+    key = hashlib.sha256(key_material.encode()).hexdigest()
+    if method.upper() == "GET" and not binary and cache_ttl_seconds > 0:
+        cached = await asyncio.to_thread(_cache_get, key)
+        if cached is not None:
+            _log_request(endpoint, "cache_hit", 200, 0, field_id, cache_hit=True)
+            return cached
+
+    async def perform():
+        global _circuit_open_until, _failure_count
+        start = time.monotonic()
+        status_code = None
+        async with _semaphore:
+            for attempt in range(3):
+                try:
+                    async with httpx.AsyncClient(timeout=httpx.Timeout(20.0, connect=10.0), follow_redirects=True) as client:
+                        response = await client.request(method, url, params=request_params, json=json_body)
+                    status_code = response.status_code
+                    if status_code in (402, 403):
+                        _log_request(endpoint, "denied", status_code, int((time.monotonic() - start) * 1000), field_id)
+                        raise AgroEntitlementError("Endpoint is unavailable for this AgroMonitoring account", status_code, retryable=False)
+                    if status_code == 429 or status_code >= 500:
+                        if attempt < 2:
+                            retry_after = response.headers.get("Retry-After")
+                            delay = min(float(retry_after), 30.0) if retry_after and retry_after.replace(".", "", 1).isdigit() else 2 ** attempt
+                            await asyncio.sleep(delay)
+                            continue
+                    response.raise_for_status()
+                    _failure_count = 0
+                    _log_request(endpoint, "success", status_code, int((time.monotonic() - start) * 1000), field_id)
+                    if binary:
+                        return response.content
+                    if response.status_code == 204 or not response.content:
+                        return {}
+                    payload = response.json()
+                    if method.upper() == "GET" and cache_ttl_seconds > 0:
+                        await asyncio.to_thread(_cache_set, key, endpoint, payload, cache_ttl_seconds, field_id)
+                    return payload
+                except AgroEntitlementError:
+                    raise
+                except httpx.HTTPStatusError as exc:
+                    if status_code is not None and 400 <= status_code < 500 and status_code != 429:
+                        _log_request(endpoint, "rejected", status_code, int((time.monotonic() - start) * 1000), field_id)
+                        raise AgroAPIError("AgroMonitoring rejected the request", status_code, retryable=False) from exc
+                    if attempt == 2:
+                        _failure_count += 1
+                        if _failure_count >= 5:
+                            _circuit_open_until = time.monotonic() + 300
+                        _log_request(endpoint, "failure", status_code, int((time.monotonic() - start) * 1000), field_id)
+                        raise AgroAPIError("AgroMonitoring request failed", status_code, retryable=True) from exc
+                    await asyncio.sleep(2 ** attempt)
+                except (httpx.HTTPError, ValueError) as exc:
+                    if attempt == 2:
+                        _failure_count += 1
+                        if _failure_count >= 5:
+                            _circuit_open_until = time.monotonic() + 300
+                        _log_request(endpoint, "failure", status_code, int((time.monotonic() - start) * 1000), field_id)
+                        raise AgroAPIError("AgroMonitoring request failed", status_code, retryable=True) from exc
+                    await asyncio.sleep(2 ** attempt)
+        raise AgroAPIError("AgroMonitoring request failed", status_code, retryable=True)
+
+    return await _singleflight(key, perform)
+
+
+async def create_polygon(name: str, geojson: dict[str, Any], field_id: UUID | None = None) -> str:
+    payload = {"name": name[:100], "geo_json": geojson}
+    try:
+        data = await _request("POST", "polygons", json_body=payload, field_id=field_id)
+        return data["id"]
+    except AgroAPIError as exc:
+        if exc.status_code != 400:
+            raise
+        polygons = await _request("GET", "polygons", field_id=field_id)
+        match = next((item for item in polygons if item.get("name") == payload["name"]), None)
+        if match:
+            return match["id"]
+        raise
+
+
+async def delete_polygon(polygon_id: str, field_id: UUID | None = None) -> None:
+    await _request("DELETE", f"polygons/{polygon_id}", field_id=field_id)
+
+
+async def search_latest_scene(polygon_id: str, field_id: UUID | None = None) -> dict[str, Any] | None:
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(days=14)
+    images = await _request(
+        "GET",
+        "image/search",
+        params={
+            "polyid": polygon_id,
+            "start": int(start.timestamp()),
+            "end": int(end.timestamp()),
+            "type": "s2",
+        },
+        field_id=field_id,
+        cache_ttl_seconds=3600,
+    )
+    eligible = [
+        image
+        for image in images
+        if str(image.get("type", "")).lower() in {"s2", "sentinel 2", "sentinel-2", "sentinel2"}
+    ]
+    if not eligible:
+        return None
+    return max(eligible, key=lambda item: item.get("dt", 0))
+
+
+async def get_index_statistics(scene: dict[str, Any], index: str, field_id: UUID | None = None) -> dict[str, Any] | None:
+    url = (scene.get("stats") or {}).get(index.lower()) or (scene.get("stats") or {}).get(index.upper())
+    if not url:
+        return None
+    result = await _request("GET", f"scene-stats-{index.lower()}", absolute_url=url, field_id=field_id, cache_ttl_seconds=30 * 86400)
+    return result if isinstance(result, dict) else None
+
+
+async def cache_scene_image(scene: dict[str, Any], index: str, field_id: UUID) -> str | None:
+    images = scene.get("image") or {}
+    aliases = {"truecolor": ("truecolor", "true_color"), "ndvi": ("ndvi",)}
+    url = next((images.get(key) for key in aliases.get(index, (index,)) if images.get(key)), None)
+    if not url:
+        return None
+    content = await _request("GET", f"scene-image-{index}", absolute_url=url, field_id=field_id, binary=True)
+    root = settings.agro_media_path / str(field_id)
+    root.mkdir(parents=True, exist_ok=True)
+    acquired = str(scene.get("dt", "unknown"))
+    path = root / f"{acquired}-{index}.png"
+    path.write_bytes(content)
+    return str(path)
+
+
+async def get_soil_data(polygon_id: str, field_id: UUID | None = None) -> dict[str, Any]:
+    data = await _request(
+        "GET",
+        "soil",
+        params={"polyid": polygon_id},
+        field_id=field_id,
+        cache_ttl_seconds=settings.AGRO_SOIL_INTERVAL_HOURS * 3600,
+    )
+    return {
+        "moisture": data.get("moisture"),
+        "surface_temp_c": round(data["t0"] - 273.15, 1) if data.get("t0") is not None else None,
+        "depth_temp_c": round(data["t10"] - 273.15, 1) if data.get("t10") is not None else None,
+        "source": "agromonitoring",
+        "observed_at": data.get("dt"),
     }
 
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.post(
-                f"{BASE_URL}/polygons",
-                params={"appid": AGROMONITORING_API_KEY},
-                json=payload,
-                timeout=10.0
-            )
-            
-            if resp.status_code == 400 and "duplicated" in resp.text:
-                logger.warning(f"Polygon '{name}' already exists in Agromonitoring. Fetching existing ID...")
-                # Search for the existing polygon by name
-                list_resp = await client.get(
-                    f"{BASE_URL}/polygons",
-                    params={"appid": AGROMONITORING_API_KEY}
-                )
-                if list_resp.status_code == 200:
-                    for poly in list_resp.json():
-                        if poly.get("name") == name:
-                            return poly.get("id")
-                return None
-                
-            resp.raise_for_status()
-            data = resp.json()
-            return data.get("id")
-        except Exception as e:
-            logger.error(f"Failed to create Agromonitoring polygon: {e}")
-            return None
+
+async def get_weather_forecast(lat: float, lon: float, field_id: UUID | None = None) -> dict[str, Any]:
+    current, forecast = await asyncio.gather(
+        _request(
+            "GET",
+            "weather",
+            params={"lat": lat, "lon": lon, "units": "metric"},
+            field_id=field_id,
+            cache_ttl_seconds=settings.AGRO_WEATHER_INTERVAL_HOURS * 3600,
+        ),
+        _request(
+            "GET",
+            "weather/forecast",
+            params={"lat": lat, "lon": lon, "units": "metric"},
+            field_id=field_id,
+            cache_ttl_seconds=settings.AGRO_WEATHER_INTERVAL_HOURS * 3600,
+        ),
+    )
+    from collections import defaultdict
+
+    daily = defaultdict(lambda: {"rain_mm": 0.0, "temps": [], "description": ""})
+    forecast_entries = forecast if isinstance(forecast, list) else forecast.get("list", []) if isinstance(forecast, dict) else []
+    for entry in forecast_entries:
+        timestamp = entry.get("dt")
+        day = datetime.fromtimestamp(timestamp, timezone.utc).date().isoformat() if timestamp else str(entry.get("dt_txt", ""))[:10]
+        main = entry.get("main", {})
+        if main.get("temp") is not None:
+            daily[day]["temps"].append(main["temp"])
+        daily[day]["rain_mm"] += (entry.get("rain") or {}).get("3h", 0.0)
+        daily[day]["description"] = (entry.get("weather") or [{}])[0].get("description", "")
+    days = [{
+        "date": day,
+        "temp_max_c": max(values["temps"]) if values["temps"] else None,
+        "temp_min_c": min(values["temps"]) if values["temps"] else None,
+        "rain_mm": round(values["rain_mm"], 1),
+        "description": values["description"],
+    } for day, values in sorted(daily.items())[:5]]
+    main = current.get("main", {})
+    return {
+        "current": {
+            "temp_c": main.get("temp"),
+            "humidity": main.get("humidity"),
+            "description": (current.get("weather") or [{}])[0].get("description"),
+        },
+        "forecast_days": days,
+        "source": "agromonitoring",
+    }
 
 
-async def get_ndvi_for_field(polygon_id: str) -> Optional[dict]:
-    """
-    Fetch the latest NDVI satellite image stats for a polygon.
-    NDVI ranges from -1 to 1. Healthy crops are 0.2–0.9.
-    """
-    if not AGROMONITORING_API_KEY:
-        logger.warning("AGROMONITORING_API_KEY not set. Returning mock data.")
-        return {"ndvi": 0.65, "source": "mock", "polygon_id": polygon_id}
-
-    async with httpx.AsyncClient() as client:
-        try:
-            # We use the history endpoint to get the most recent data point
-            resp = await client.get(
-                f"{BASE_URL}/ndvi/history",
-                params={
-                    "polyid": polygon_id,
-                    "appid": AGROMONITORING_API_KEY,
-                    "start": int(datetime.now().timestamp()) - (30 * 86400), # Last 30 days
-                    "end": int(datetime.now().timestamp())
-                }
-            )
-            resp.raise_for_status()
-            history = resp.json()
-            
-            if history and len(history) > 0:
-                # Return the most recent record
-                return {
-                    "ndvi": history[-1].get("data", {}).get("mean", 0.0),
-                    "source": "satellite",
-                    "timestamp": history[-1].get("dt")
-                }
-            return None
-        except Exception as e:
-            logger.error(f"Error fetching NDVI for {polygon_id}: {e}")
-            return None
+async def get_current_uvi(polygon_id: str, field_id: UUID | None = None) -> dict[str, Any]:
+    return await _request(
+        "GET",
+        "uvi",
+        params={"polyid": polygon_id},
+        field_id=field_id,
+        cache_ttl_seconds=settings.AGRO_UVI_INTERVAL_HOURS * 3600,
+    )
 
 
-async def get_soil_data(polygon_id: str) -> Optional[dict]:
-    """
-    Fetch current soil moisture and temperature from satellite data.
-    Returns a structured dict ready to be consumed by the AI prompt builder.
-    """
-    if not AGROMONITORING_API_KEY:
-        return {"moisture": 0.35, "t0": 295.1, "t10": 293.5, "source": "mock"}
-
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.get(
-                f"{BASE_URL}/soil",
-                params={"polyid": polygon_id, "appid": AGROMONITORING_API_KEY},
-                timeout=10.0
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            # t0 = surface temp, t10 = 10cm depth temp (in Kelvin, convert to Celsius)
-            return {
-                "moisture": data.get("moisture"),
-                "surface_temp_c": round(data.get("t0", 273.15) - 273.15, 1),
-                "depth_temp_c": round(data.get("t10", 273.15) - 273.15, 1),
-                "source": "satellite"
-            }
-        except Exception as e:
-            logger.error(f"Error fetching soil data for {polygon_id}: {e}")
-            return None
+async def get_forecast_uvi(polygon_id: str, field_id: UUID | None = None) -> dict[str, Any] | list[dict[str, Any]]:
+    return await _request(
+        "GET",
+        "uvi/forecast",
+        params={"polyid": polygon_id},
+        field_id=field_id,
+        cache_ttl_seconds=settings.AGRO_UVI_INTERVAL_HOURS * 3600,
+    )
 
 
-async def get_weather_forecast(lat: float, lon: float) -> Optional[dict]:
-    """
-    Fetch a 7-day weather forecast for specific field coordinates.
-    Returns a structured dict ready to be consumed by the AI prompt builder.
-    """
-    if not AGROMONITORING_API_KEY:
-        return {
-            "current": {"temp_c": 30.0, "humidity": 60, "description": "Partly cloudy"},
-            "forecast_days": [
-                {"day": 1, "temp_max_c": 32, "rain_mm": 0, "description": "Sunny"},
-                {"day": 2, "temp_max_c": 31, "rain_mm": 2.1, "description": "Light rain"},
-                {"day": 3, "temp_max_c": 28, "rain_mm": 12.5, "description": "Heavy rain"},
-            ],
-            "source": "mock"
-        }
-
-    async with httpx.AsyncClient() as client:
-        try:
-            # Current weather
-            current_resp = await client.get(
-                f"{BASE_URL}/weather",
-                params={"lat": lat, "lon": lon, "appid": AGROMONITORING_API_KEY},
-                timeout=10.0
-            )
-            current_resp.raise_for_status()
-            current = current_resp.json()
-
-            # 7-day forecast
-            forecast_resp = await client.get(
-                f"{BASE_URL}/weather/forecast",
-                params={"lat": lat, "lon": lon, "appid": AGROMONITORING_API_KEY},
-                timeout=10.0
-            )
-            forecast_resp.raise_for_status()
-            forecast_data = forecast_resp.json()
-
-            # Aggregate daily summaries from hourly entries
-            from collections import defaultdict
-            daily = defaultdict(lambda: {"rain_mm": 0, "temps": [], "description": ""})
-            for entry in forecast_data.get("list", []):
-                day_key = entry.get("dt_txt", "")[:10]
-                daily[day_key]["temps"].append(entry.get("main", {}).get("temp", 273.15) - 273.15)
-                daily[day_key]["rain_mm"] += entry.get("rain", {}).get("3h", 0)
-                daily[day_key]["description"] = entry.get("weather", [{}])[0].get("description", "")
-
-            forecast_days = []
-            for i, (day_key, day_data) in enumerate(sorted(daily.items())[:7]):
-                forecast_days.append({
-                    "date": day_key,
-                    "temp_max_c": round(max(day_data["temps"]), 1) if day_data["temps"] else None,
-                    "temp_min_c": round(min(day_data["temps"]), 1) if day_data["temps"] else None,
-                    "rain_mm": round(day_data["rain_mm"], 1),
-                    "description": day_data["description"]
-                })
-
-            return {
-                "current": {
-                    "temp_c": round(current.get("main", {}).get("temp", 273.15) - 273.15, 1),
-                    "humidity": current.get("main", {}).get("humidity"),
-                    "description": current.get("weather", [{}])[0].get("description", "")
-                },
-                "forecast_days": forecast_days,
-                "source": "satellite"
-            }
-        except Exception as e:
-            logger.error(f"Error fetching weather for {lat},{lon}: {e}")
-            return None
+async def get_accumulated_temperature(lat: float, lon: float, start: int, end: int, field_id: UUID | None = None):
+    return await _request("GET", "weather/history/accumulated_temperature", params={"lat": lat, "lon": lon, "start": start, "end": end, "threshold": 283.15}, field_id=field_id, cache_ttl_seconds=30 * 86400)
 
 
-@async_ttl_cache(ttl_seconds=86400) # Cache for 24 hours to aggressively protect free tier
-async def get_satellite_imagery_urls(polygon_id: str, start_time: int, end_time: int) -> Optional[dict]:
-    """
-    Search for satellite imagery metadata and tile links over a specific time range.
-    """
-    if not AGROMONITORING_API_KEY:
+async def get_accumulated_precipitation(lat: float, lon: float, start: int, end: int, field_id: UUID | None = None):
+    return await _request("GET", "weather/history/accumulated_precipitation", params={"lat": lat, "lon": lon, "start": start, "end": end}, field_id=field_id, cache_ttl_seconds=30 * 86400)
+
+
+# Legacy name retained without using the paid historical NDVI endpoint.
+async def get_ndvi_for_field(polygon_id: str) -> dict[str, Any] | None:
+    scene = await search_latest_scene(polygon_id)
+    if scene is None:
         return None
-
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.get(
-                f"{BASE_URL}/image/search",
-                params={
-                    "polyid": polygon_id,
-                    "start": start_time,
-                    "end": end_time,
-                    "appid": AGROMONITORING_API_KEY
-                },
-                timeout=10.0
-            )
-            resp.raise_for_status()
-            return {"images": resp.json()}
-        except Exception as e:
-            logger.error(f"Error searching imagery for {polygon_id}: {e}")
-            return None
-
-@async_ttl_cache(ttl_seconds=86400)
-async def get_accumulated_temperature(lat: float, lon: float, start_time: int, end_time: int, threshold: float = 283.15) -> Optional[list]:
-    """
-    Get accumulated temperature (Growing Degree Days equivalent) for a location.
-    """
-    if not AGROMONITORING_API_KEY:
+    stats = await get_index_statistics(scene, "ndvi")
+    if not stats:
         return None
-        
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.get(
-                f"{BASE_URL}/weather/history/accumulated_temperature",
-                params={
-                    "lat": lat, "lon": lon,
-                    "start": start_time, "end": end_time,
-                    "threshold": threshold,
-                    "appid": AGROMONITORING_API_KEY
-                },
-                timeout=10.0
-            )
-            # Free tier might reject this (402/403)
-            if resp.status_code in [402, 403]:
-                return None
-            resp.raise_for_status()
-            return resp.json()
-        except Exception as e:
-            logger.debug(f"Accumulated temp not available or error for {lat},{lon}: {e}")
-            return None
-
-@async_ttl_cache(ttl_seconds=86400)
-async def get_accumulated_precipitation(lat: float, lon: float, start_time: int, end_time: int) -> Optional[list]:
-    """
-    Get accumulated precipitation for a location.
-    """
-    if not AGROMONITORING_API_KEY:
-        return None
-        
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.get(
-                f"{BASE_URL}/weather/history/accumulated_precipitation",
-                params={
-                    "lat": lat, "lon": lon,
-                    "start": start_time, "end": end_time,
-                    "appid": AGROMONITORING_API_KEY
-                },
-                timeout=10.0
-            )
-            if resp.status_code in [402, 403]:
-                return None
-            resp.raise_for_status()
-            return resp.json()
-        except Exception as e:
-            logger.debug(f"Accumulated precip not available or error: {e}")
-            return None
-
-@async_ttl_cache(ttl_seconds=3600)
-async def get_current_uvi(polygon_id: str) -> Optional[dict]:
-    """
-    Get current UV Index for a polygon.
-    """
-    if not AGROMONITORING_API_KEY:
-        return {"uvi": 4.5}
-        
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.get(
-                f"{BASE_URL}/uvi",
-                params={"polyid": polygon_id, "appid": AGROMONITORING_API_KEY},
-                timeout=10.0
-            )
-            resp.raise_for_status()
-            return resp.json()
-        except Exception as e:
-            logger.debug(f"Current UV not available for {polygon_id}: {e}")
-            return None
-
-@async_ttl_cache(ttl_seconds=3600*6)
-async def get_forecast_uvi(polygon_id: str) -> Optional[list]:
-    """
-    Get forecast UV Index for a polygon.
-    """
-    if not AGROMONITORING_API_KEY:
-        return None
-        
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.get(
-                f"{BASE_URL}/uvi/forecast",
-                params={"polyid": polygon_id, "appid": AGROMONITORING_API_KEY},
-                timeout=10.0
-            )
-            resp.raise_for_status()
-            return resp.json()
-        except Exception as e:
-            logger.debug(f"Forecast UV not available for {polygon_id}: {e}")
-            return None
-
-@async_ttl_cache(ttl_seconds=86400)
-async def get_historical_uvi(polygon_id: str, start_time: int, end_time: int) -> Optional[list]:
-    """
-    Get historical UV Index for a polygon.
-    """
-    if not AGROMONITORING_API_KEY:
-        return None
-        
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.get(
-                f"{BASE_URL}/uvi/history",
-                params={"polyid": polygon_id, "start": start_time, "end": end_time, "appid": AGROMONITORING_API_KEY},
-                timeout=10.0
-            )
-            if resp.status_code in [402, 403]:
-                return None
-            resp.raise_for_status()
-            return resp.json()
-        except Exception as e:
-            logger.debug(f"Historical UV not available: {e}")
-            return None
-
-@async_ttl_cache(ttl_seconds=86400)
-async def get_historical_weather(lat: float, lon: float, start_time: int, end_time: int) -> Optional[list]:
-    """
-    Get historical weather. NOTE: Historically paid tier, so we catch 402/403.
-    """
-    if not AGROMONITORING_API_KEY:
-        return None
-        
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.get(
-                f"{BASE_URL}/weather/history",
-                params={"lat": lat, "lon": lon, "start": start_time, "end": end_time, "appid": AGROMONITORING_API_KEY},
-                timeout=10.0
-            )
-            if resp.status_code in [402, 403]:
-                return None
-            resp.raise_for_status()
-            return resp.json()
-        except Exception as e:
-            logger.debug(f"Historical weather not available: {e}")
-            return None
-
-@async_ttl_cache(ttl_seconds=86400)
-async def get_historical_soil(polygon_id: str, start_time: int, end_time: int) -> Optional[dict]:
-    """
-    Get historical soil data. NOTE: Historically paid tier, so we catch 402/403.
-    """
-    if not AGROMONITORING_API_KEY:
-        return None
-        
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.get(
-                f"{BASE_URL}/soil/history",
-                params={"polyid": polygon_id, "start": start_time, "end": end_time, "appid": AGROMONITORING_API_KEY},
-                timeout=10.0
-            )
-            if resp.status_code in [402, 403]:
-                return None
-            resp.raise_for_status()
-            return resp.json()
-        except Exception as e:
-            logger.debug(f"Historical soil not available: {e}")
-            return None
+    return {"ndvi": stats.get("mean"), "source": "agromonitoring", "timestamp": scene.get("dt")}

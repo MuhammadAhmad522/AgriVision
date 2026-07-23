@@ -223,15 +223,53 @@ class FieldSelectionViewModel: NSObject, ObservableObject {
     }
     
     /// Confirms the drawn field boundary and notifies the coordinator to proceed with details.
-    /// - Requires at least 3 points to form a valid polygon.
+    /// - Requires at least 3 points and an area between 1 and 3000 hectares.
     func confirmField() {
         guard fieldCoordinates.count >= 3 else {
             showMessage(error: "Please define a polygon with at least 3 points.")
             return
         }
+
+        let areaHa = calculatedAreaHa(for: fieldCoordinates)
+        guard (1.0...3000.0).contains(areaHa) else {
+            showMessage(
+                error: areaHa < 1
+                    ? "Field area must be at least 1 hectare. Draw a larger boundary."
+                    : "Field area cannot exceed 3000 hectares. Draw a smaller boundary."
+            )
+            return
+        }
         
         // Notify coordinator with the selected coordinates
         self.onConfirmField?(self.fieldCoordinates)
+    }
+
+    private func calculatedAreaHa(for coordinates: [CLLocationCoordinate2D]) -> Double {
+        guard coordinates.count >= 3 else { return 0 }
+
+        let earthRadiusMeters = 6_378_137.0
+        let radians = Double.pi / 180
+        var area = 0.0
+
+        for index in coordinates.indices {
+            let current = coordinates[index]
+            let next = coordinates[(index + 1) % coordinates.count]
+            var longitudeDelta = (next.longitude - current.longitude) * radians
+
+            if longitudeDelta > Double.pi {
+                longitudeDelta -= 2 * Double.pi
+            } else if longitudeDelta < -Double.pi {
+                longitudeDelta += 2 * Double.pi
+            }
+
+            area += longitudeDelta * (
+                2
+                + sin(current.latitude * radians)
+                + sin(next.latitude * radians)
+            )
+        }
+
+        return abs(area * earthRadiusMeters * earthRadiusMeters / 2) / 10_000
     }
     
     /// Cancels the field selection process and triggers the cancel flow.

@@ -3,9 +3,11 @@ import Foundation
 /// A mock implementation of `AuthService` for use in SwiftUI Previews and Unit Tests.
 /// This allows us to test the UI and logic without depending on a live Firebase backend.
 final class MockAuthService: AuthService {
+    var currentUserID: String? { isLoggedInStub ? "mock-user" : nil }
     
     var shouldFail: Bool = false
     var isLoggedInStub: Bool = false
+    private var displayName = "Mock User"
     
     init(isLoggedIn: Bool = false, shouldFail: Bool = false) {
         self.isLoggedInStub = isLoggedIn
@@ -17,11 +19,19 @@ final class MockAuthService: AuthService {
     }
     
     var currentUserDisplayName: String? {
-        return isLoggedInStub ? "Mock User" : nil
+        return isLoggedInStub ? displayName : nil
     }
+
+    var currentUserEmail: String? { isLoggedInStub ? "mock@agrivision.test" : nil }
+    var isGoogleProviderLinked: Bool { isLoggedInStub }
     
     var currentUserPhotoURL: URL? {
         return nil // Mock with no photo by default, or could enable for testing
+    }
+
+    func updateDisplayName(_ name: String) async throws {
+        if shouldFail { throw AgriVisionError.operationFailed }
+        displayName = name
     }
     
     func signInWithGoogle() async throws {
@@ -85,7 +95,7 @@ final class MockAuthService: AuthService {
         try await Task.sleep(nanoseconds: 500_000_000)
     }
     
-    func getIDToken() async throws -> String {
+    func getIDToken(forceRefresh: Bool = false) async throws -> String {
         return "mock-firebase-token"
     }
 }

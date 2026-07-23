@@ -1,78 +1,50 @@
-import Foundation
 import CoreLocation
+import Foundation
 
-/**
- `NetworkAgriDataRepository` is the production implementation of `AgriDataService`.
- It uses `URLSession` with `async/await` to talk to our FastAPI backend.
- 
- - Follows **Dependency Inversion**: It only knows about the `AuthService` protocol to fetch tokens.
- - Follows **Single Responsibility**: Its only job is to translate domain requests into HTTP calls.
- */
-class NetworkAgriDataRepository: AgriDataService {
-    
+final class NetworkAgriDataRepository: AgriDataService {
+    private let apiClient: APIClient
     private let authService: AuthService
-    private let session: URLSession
-    private let boundaryCacheKey = "agrivision.field-boundaries"
-    
-    /// The decoder is configured to handle snake_case from Python and ISO8601 dates.
-    private let decoder: JSONDecoder = {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return decoder
-    }()
-    
-    /// The encoder is configured to handle the backend's snake_case requirements.
-    private let encoder: JSONEncoder = {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        return encoder
-    }()
-    
+    private let decoder: JSONDecoder
+    private let encoder: JSONEncoder
+
     init(authService: AuthService, session: URLSession = .shared) {
         self.authService = authService
-        self.session = session
+        apiClient = APIClient(authService: authService, session: session)
+        decoder = JSONDecoder()
+        encoder = JSONEncoder()
     }
-    
-    // MARK: - AgriDataService Implementation
-    
-    /// Fetches all fields belonging to the current user.
-    func fetchFields() async throws -> [Field] {
-        let url = APIConstants.baseURL.appendingPathComponent(APIConstants.Endpoints.fields)
-        let request = try await authenticatedRequest(for: url, method: "GET")
-        
-        let (data, response) = try await session.data(for: request)
-        try validate(response: response)
-        
-        let fields = try decoder.decode([Field].self, from: data)
 
-        return fields.map { field in
-            if let coordinates = field.coordinates, coordinates.count >= 3 {
-                cacheBoundary(coordinates, for: field.id)
-                return field
-            }
-
-            guard let cachedCoordinates = cachedBoundary(for: field.id),
-                  cachedCoordinates.count >= 3 else {
-                return field
-            }
-
-            return field.replacingCoordinates(with: cachedCoordinates)
-        }
+    func bootstrapSession() async throws -> SessionBootstrap {
+        let bootstrap: SessionBootstrap = try await apiClient.send(APIConstants.Endpoints.bootstrap, method: "POST")
+        bootstrap.fields.forEach(cacheBoundaryIfPresent)
+        return bootstrap
     }
-    
-    /// Fetches the latest sensor readings from the backend.
-    func fetchSensorReadings() async throws -> [SensorReading] {
-        let url = APIConstants.baseURL.appendingPathComponent(APIConstants.Endpoints.readings)
-        let request = try await authenticatedRequest(for: url, method: "GET")
-        
-        let (data, response) = try await session.data(for: request)
-        try validate(response: response)
-        
-        // Note: The backend returns a list of telemetry rows mapped to SensorReadingDB schema
-        return try decoder.decode([SensorReading].self, from: data)
+
+    func fetchFields(includeArchived: Bool = false) async throws -> [Field] {
+        let fields: [Field] = try await apiClient.send(
+            APIConstants.Endpoints.fields,
+            query: includeArchived ? [URLQueryItem(name: "include_archived", value: "true")] : []
+        )
+        return fields.map(fieldWithCachedBoundary)
     }
-    
-    /// Persists a new field boundary coordinates and metadata to the backend.
+
+    func fetchDashboard(for fieldId: UUID) async throws -> DashboardSnapshot {
+        try await apiClient.send(APIConstants.Endpoints.dashboard(fieldId))
+    }
+
+    func fetchSatelliteImage(for fieldId: UUID, kind: String) async throws -> Data {
+        let safeKind = kind == "truecolor" ? "truecolor" : "ndvi"
+        return try await apiClient.sendData("\(APIConstants.Endpoints.field(fieldId))/satellite/latest/\(safeKind)")
+    }
+
+    func fetchSensorReadings(for fieldId: UUID) async throws -> [SensorReading] {
+        try await apiClient.send(APIConstants.Endpoints.readings(fieldId))
+    }
+
+    func fetchSensors(for fieldId: UUID) async throws -> [FieldSensor] {
+        try await apiClient.send(APIConstants.Endpoints.assignSensor(to: fieldId))
+    }
+
     func saveField(
         name: String,
         coordinates: [CLLocationCoordinate2D],
@@ -82,220 +54,151 @@ class NetworkAgriDataRepository: AgriDataService {
         expectedHarvestDate: Date?,
         sensors: [SensorConfig]?
     ) async throws -> Field {
-        let url = APIConstants.baseURL.appendingPathComponent(APIConstants.Endpoints.fields)
-        var request = try await authenticatedRequest(for: url, method: "POST")
-        
-        // Map to our backend's FieldCreate schema
         let points = coordinates.map { PointCoordinates(latitude: $0.latitude, longitude: $0.longitude) }
-        let body = FieldCreateRequest(
-            name: name,
-            coordinates: points,
-            areaHa: areaHa,
-            cropType: cropType,
-            plantationDate: plantationDate,
-            expectedHarvestDate: expectedHarvestDate,
-            sensors: sensors
-        )
-        
-        request.httpBody = try encoder.encode(body)
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        let (data, response) = try await session.data(for: request)
-        try validate(response: response)
-        
-        let savedField = try decoder.decode(Field.self, from: data)
-        let boundary = savedField.coordinates.flatMap { $0.count >= 3 ? $0 : nil } ?? points
-
-        cacheBoundary(boundary, for: savedField.id)
-        return savedField.replacingCoordinates(with: boundary)
+        let request = FieldCreateRequest(name: name, coordinates: points, areaHa: areaHa, cropType: cropType, plantationDate: plantationDate, expectedHarvestDate: expectedHarvestDate, sensors: sensors ?? [])
+        let field: Field = try await apiClient.send(APIConstants.Endpoints.fields, method: "POST", body: request)
+        let resolved = (field.coordinates?.count ?? 0) >= 3 ? field : field.replacingCoordinates(with: points)
+        cacheBoundaryIfPresent(resolved)
+        return resolved
     }
-    
-    /// Deletes a specific field by its ID.
+
     func deleteField(id: UUID) async throws {
-        let path = APIConstants.Endpoints.fields + id.uuidString.lowercased()
-        let url = APIConstants.baseURL.appendingPathComponent(path)
-        let request = try await authenticatedRequest(for: url, method: "DELETE")
-        
-        let (_, response) = try await session.data(for: request)
-        try validate(response: response)
+        try await apiClient.sendWithoutResponse(APIConstants.Endpoints.field(id), method: "DELETE")
         removeCachedBoundary(for: id)
     }
-    
-    /// Fetches the latest AI-generated recommendations for a specific field.
+
+    func refreshFieldData(for fieldId: UUID) async throws {
+        try await apiClient.sendWithoutResponse(APIConstants.Endpoints.dataRefresh(fieldId), method: "POST")
+    }
+
     func fetchRecommendations(for fieldId: UUID) async throws -> [FieldRecommendation] {
-        let path = APIConstants.Endpoints.recommendations(for: fieldId)
-        let url = APIConstants.baseURL.appendingPathComponent(path)
-        let request = try await authenticatedRequest(for: url, method: "GET")
-        
-        let (data, response) = try await session.data(for: request)
-        try validate(response: response)
-        
-        return try decoder.decode([FieldRecommendation].self, from: data)
+        try await apiClient.send(APIConstants.Endpoints.recommendations(for: fieldId))
     }
-    
-    /// Provides feedback on an AI recommendation to improve future context.
+
+    func refreshRecommendations(for fieldId: UUID) async throws {
+        try await apiClient.sendWithoutResponse(APIConstants.Endpoints.recommendations(for: fieldId), method: "POST")
+    }
+
     func updateRecommendationFeedback(for fieldId: UUID, recommendationId: UUID, status: String) async throws -> FieldRecommendation {
-        let path = APIConstants.Endpoints.feedback(for: fieldId, recommendationId: recommendationId)
-        let url = APIConstants.baseURL.appendingPathComponent(path)
-        var request = try await authenticatedRequest(for: url, method: "PUT")
-        
-        struct FeedbackPayload: Encodable { let status: String }
-        let payload = FeedbackPayload(status: status)
-        
-        request.httpBody = try encoder.encode(payload)
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        let (data, response) = try await session.data(for: request)
-        try validate(response: response)
-        
-        // Return dummy model since the endpoint returns a trimmed dict, not a full FieldRecommendation,
-        // or rely on fetching again in the view model.
-        return FieldRecommendation(id: recommendationId, fieldId: fieldId, category: "", priority: "", advice: "", confidence: 1.0, status: status, ndviAtGeneration: nil, createdAt: Date())
+        try await apiClient.send(APIConstants.Endpoints.feedback(recommendationId), method: "POST", body: FeedbackRequest(status: status))
     }
-    
-    /// Fetches the conversational history for a field from the AI backend.
+
+    func recordRecommendationOutcome(for fieldId: UUID, recommendationId: UUID, outcome: String, notes: String?) async throws -> FieldRecommendation {
+        try await apiClient.send(APIConstants.Endpoints.outcome(recommendationId), method: "POST", body: OutcomeRequest(outcome: outcome, notes: notes))
+    }
+
     func fetchChatHistory(for fieldId: UUID) async throws -> [ChatMessage] {
-        let path = APIConstants.Endpoints.chat(for: fieldId)
-        let url = APIConstants.baseURL.appendingPathComponent(path)
-        let request = try await authenticatedRequest(for: url, method: "GET")
-        
-        let (data, response) = try await session.data(for: request)
-        try validate(response: response)
-        
-        return try decoder.decode([ChatMessage].self, from: data)
+        try await apiClient.send(APIConstants.Endpoints.chat(for: fieldId))
     }
-    
-    /// Submits a new user message to the AI and returns the response.
-    func sendChatMessage(for fieldId: UUID, message: String) async throws -> ChatMessage {
-        let path = APIConstants.Endpoints.chat(for: fieldId)
-        let url = APIConstants.baseURL.appendingPathComponent(path)
-        var request = try await authenticatedRequest(for: url, method: "POST")
-        
-        request.httpBody = try encoder.encode(ChatMessageRequest(message: message))
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        let (data, response) = try await session.data(for: request)
-        try validate(response: response)
-        
-        return try decoder.decode(ChatMessage.self, from: data)
+
+    func fetchChatAttachment(fieldId: UUID, attachmentId: UUID) async throws -> Data {
+        try await apiClient.sendData(APIConstants.Endpoints.chatAttachment(fieldId: fieldId, attachmentId: attachmentId))
     }
-    
-    // MARK: - Generic API Support Models
-    
-    /// Request model for creating a field, matching the backend's `FieldCreate` pydantic model.
-    private struct FieldCreateRequest: Encodable {
-        let name: String
-        let coordinates: [PointCoordinates]
-        let areaHa: Double?
-        let cropType: String?
-        let plantationDate: Date?
-        let expectedHarvestDate: Date?
-        let sensors: [SensorConfig]?
-        
-        enum CodingKeys: String, CodingKey {
-            case name
-            case coordinates
-            case areaHa = "area_ha"
-            case cropType = "crop_type"
-            case plantationDate = "plantation_date"
-            case expectedHarvestDate = "expected_harvest_date"
-            case sensors
-        }
+
+    func sendChatMessage(for fieldId: UUID, message: String, images: [ChatImageUpload], idempotencyKey: String) async throws -> ChatTurn {
+        try await apiClient.sendMultipart(
+            APIConstants.Endpoints.chat(for: fieldId),
+            fields: ["message": message],
+            files: images.map { MultipartFile(name: "images", filename: $0.filename, mimeType: $0.mimeType, data: $0.data) },
+            idempotencyKey: idempotencyKey
+        )
     }
-    
-    // MARK: - Private Helpers
+
+    func verifySensorConnection(deviceId: String) async throws -> (isVerified: Bool, message: String) {
+        let response: VerifyResponse = try await apiClient.send(APIConstants.Endpoints.verifySensor(deviceId: deviceId))
+        return (response.isVerified, response.message)
+    }
+
+    func pairSensor(deviceId: String) async throws -> (isPaired: Bool, message: String) {
+        let response: PairSensorResponse = try await apiClient.send(
+            APIConstants.Endpoints.pairSensor,
+            method: "POST",
+            body: PairSensorRequest(deviceId: deviceId)
+        )
+        return (response.isPaired, response.message)
+    }
+
+    func assignSensor(_ sensor: SensorConfig, to fieldId: UUID) async throws {
+        let _: AssignedSensorResponse = try await apiClient.send(
+            APIConstants.Endpoints.assignSensor(to: fieldId),
+            method: "POST",
+            body: sensor
+        )
+    }
+
+    func fetchWeatherSoil(for fieldId: UUID) async throws -> FieldWeatherSoil {
+        try await apiClient.send("\(APIConstants.Endpoints.field(fieldId))/weather-soil")
+    }
+
+    private var boundaryCacheKey: String {
+        "agrivision.field-boundaries.\(authService.currentUserID ?? "signed-out")"
+    }
 
     private func cachedBoundaries() -> [String: [PointCoordinates]] {
         guard let data = UserDefaults.standard.data(forKey: boundaryCacheKey),
-              let boundaries = try? decoder.decode([String: [PointCoordinates]].self, from: data) else {
-            return [:]
+              let value = try? decoder.decode([String: [PointCoordinates]].self, from: data) else { return [:] }
+        return value
+    }
+
+    private func fieldWithCachedBoundary(_ field: Field) -> Field {
+        if let coordinates = field.coordinates, coordinates.count >= 3 {
+            cacheBoundaryIfPresent(field)
+            return field
         }
-
-        return boundaries
+        guard let cached = cachedBoundaries()[field.id.uuidString.lowercased()] else { return field }
+        return field.replacingCoordinates(with: cached)
     }
 
-    private func cachedBoundary(for fieldId: UUID) -> [PointCoordinates]? {
-        cachedBoundaries()[fieldId.uuidString.lowercased()]
+    private func cacheBoundaryIfPresent(_ field: Field) {
+        guard let coordinates = field.coordinates, coordinates.count >= 3 else { return }
+        var values = cachedBoundaries()
+        values[field.id.uuidString.lowercased()] = coordinates
+        if let data = try? encoder.encode(values) { UserDefaults.standard.set(data, forKey: boundaryCacheKey) }
     }
 
-    private func cacheBoundary(_ coordinates: [PointCoordinates], for fieldId: UUID) {
-        guard coordinates.count >= 3 else { return }
-
-        var boundaries = cachedBoundaries()
-        boundaries[fieldId.uuidString.lowercased()] = coordinates
-
-        if let data = try? encoder.encode(boundaries) {
-            UserDefaults.standard.set(data, forKey: boundaryCacheKey)
-        }
-    }
-
-    private func removeCachedBoundary(for fieldId: UUID) {
-        var boundaries = cachedBoundaries()
-        boundaries.removeValue(forKey: fieldId.uuidString.lowercased())
-
-        if boundaries.isEmpty {
-            UserDefaults.standard.removeObject(forKey: boundaryCacheKey)
-        } else if let data = try? encoder.encode(boundaries) {
-            UserDefaults.standard.set(data, forKey: boundaryCacheKey)
-        }
-    }
-
-    /// Creates a base URLRequest with the necessary Firebase Authorization header.
-    private func authenticatedRequest(for url: URL, method: String) async throws -> URLRequest {
-        var request = URLRequest(url: url)
-        request.httpMethod = method
-        
-        // Get the latest Firebase ID Token
-        let token = try await authService.getIDToken()
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        
-        return request
-    }
-    
-    /// Validates the HTTP response status code.
-    private func validate(response: URLResponse) throws {
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw AgriVisionError.operationFailed
-        }
-        
-        if !(200...299).contains(httpResponse.statusCode) {
-            #if DEBUG
-            print("HTTP Error: \(httpResponse.statusCode) for URL: \(httpResponse.url?.absoluteString ?? "unknown")")
-            #endif
-            
-            if httpResponse.statusCode == 401 {
-                throw AgriVisionError.invalidCredentials
-            }
-        }
-    }
-    
-    /// Verifies if a sensor device is active and reachable.
-    func verifySensorConnection(deviceId: String) async throws -> (isVerified: Bool, message: String) {
-        let path = APIConstants.Endpoints.verifySensor(deviceId: deviceId)
-        let url = APIConstants.baseURL.appendingPathComponent(path)
-        let request = try await authenticatedRequest(for: url, method: "GET")
-        
-        let (data, response) = try await session.data(for: request)
-        try validate(response: response)
-        
-        struct VerifyResponse: Decodable {
-            let is_verified: Bool
-            let message: String
-        }
-        
-        let result = try decoder.decode(VerifyResponse.self, from: data)
-        return (result.is_verified, result.message)
-    }
-    
-    /// Fetches the satellite soil data and weather forecast for a field.
-    func fetchWeatherSoil(for fieldId: UUID) async throws -> FieldWeatherSoil {
-        let path = "api/fields/\(fieldId.uuidString.lowercased())/weather-soil/"
-        let url = APIConstants.baseURL.appendingPathComponent(path)
-        let request = try await authenticatedRequest(for: url, method: "GET")
-        
-        let (data, response) = try await session.data(for: request)
-        try validate(response: response)
-        
-        return try decoder.decode(FieldWeatherSoil.self, from: data)
+    private func removeCachedBoundary(for id: UUID) {
+        var values = cachedBoundaries()
+        values.removeValue(forKey: id.uuidString.lowercased())
+        if let data = try? encoder.encode(values) { UserDefaults.standard.set(data, forKey: boundaryCacheKey) }
     }
 }
+
+private struct FieldCreateRequest: Encodable {
+    let name: String
+    let coordinates: [PointCoordinates]
+    let areaHa: Double?
+    let cropType: String?
+    let plantationDate: Date?
+    let expectedHarvestDate: Date?
+    let sensors: [SensorConfig]
+
+    enum CodingKeys: String, CodingKey {
+        case name, coordinates, sensors
+        case areaHa = "area_ha"
+        case cropType = "crop_type"
+        case plantationDate = "plantation_date"
+        case expectedHarvestDate = "expected_harvest_date"
+    }
+}
+
+private struct FeedbackRequest: Encodable { let status: String }
+private struct OutcomeRequest: Encodable { let outcome: String; let notes: String? }
+
+private struct VerifyResponse: Decodable {
+    let isVerified: Bool
+    let message: String
+    enum CodingKeys: String, CodingKey { case isVerified = "is_verified", message }
+}
+
+private struct PairSensorRequest: Encodable {
+    let deviceId: String
+    enum CodingKeys: String, CodingKey { case deviceId = "device_id" }
+}
+
+private struct PairSensorResponse: Decodable {
+    let isPaired: Bool
+    let message: String
+    enum CodingKeys: String, CodingKey { case isPaired = "is_paired", message }
+}
+
+private struct AssignedSensorResponse: Decodable { let id: UUID }

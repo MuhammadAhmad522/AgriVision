@@ -19,6 +19,14 @@ struct Field: Identifiable, Codable {
     let cropType: String?
     let plantationDate: Date?
     let expectedHarvestDate: Date?
+
+    var status: String = "active"
+    var archivedAt: Date? = nil
+    var updatedAt: Date? = nil
+    var agromonitoringPolygonId: String? = nil
+    var agroStatus: String = "pending"
+    var agroError: String? = nil
+    var agroRetryable: Bool = true
     
     // Satellite Data
     let ndviScore: Double?
@@ -36,6 +44,13 @@ struct Field: Identifiable, Codable {
         case cropType = "crop_type"
         case plantationDate = "plantation_date"
         case expectedHarvestDate = "expected_harvest_date"
+        case status
+        case archivedAt = "archived_at"
+        case updatedAt = "updated_at"
+        case agromonitoringPolygonId = "agromonitoring_polygon_id"
+        case agroStatus = "agro_status"
+        case agroError = "agro_error"
+        case agroRetryable = "agro_retryable"
         
         // Satellite mappings
         case ndviScore = "latest_ndvi"
@@ -47,7 +62,7 @@ struct Field: Identifiable, Codable {
     /// This is used when an older backend response omits its geometry even though the
     /// vertices were successfully submitted during field creation.
     func replacingCoordinates(with coordinates: [PointCoordinates]) -> Field {
-        Field(
+        var copy = Field(
             id: id,
             ownerId: ownerId,
             name: name,
@@ -60,6 +75,14 @@ struct Field: Identifiable, Codable {
             ndviScore: ndviScore,
             lastSatelliteSync: lastSatelliteSync
         )
+        copy.status = status
+        copy.archivedAt = archivedAt
+        copy.updatedAt = updatedAt
+        copy.agromonitoringPolygonId = agromonitoringPolygonId
+        copy.agroStatus = agroStatus
+        copy.agroError = agroError
+        copy.agroRetryable = agroRetryable
+        return copy
     }
 }
 

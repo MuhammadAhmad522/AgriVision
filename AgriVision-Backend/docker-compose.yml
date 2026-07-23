@@ -1,20 +1,26 @@
 services:
-  # 1. The Database (Postgres + PostGIS + Timescale)
+  # 1. The Database (PostgreSQL + PostGIS + TimescaleDB).
   db:
-    # 'pg15-all' explicitly includes PostGIS control files
     image: timescale/timescaledb-ha:pg15-all
     container_name: agrivision_db
     restart: always
+    command: ["postgres", "-c", "shared_preload_libraries=timescaledb"]
     environment:
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=agrivision
+      - POSTGRES_USER=${POSTGRES_USER:-admin}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+      - POSTGRES_DB=${POSTGRES_DB:-agrivision}
+      - TIMESCALEDB_TELEMETRY=off
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/home/postgres/pgdata/data
     networks:
       - agrivision_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   # 2. Redis (Caching & Speed)
   redis:
@@ -30,8 +36,7 @@ services:
     container_name: agrivision_mqtt
     restart: always
     ports:
-      - "1883:1883" # Standard MQTT port
-      - "9001:9001" # WebSockets port
+      - "127.0.0.1:1883:1883"
     volumes:
       - mosquitto_data:/mosquitto/data
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
@@ -44,11 +49,12 @@ services:
     platform: linux/amd64   # Required for Apple Silicon (M1/M2/M3) — runs via Rosetta 2
     container_name: agrivision_pgadmin
     restart: always
+    profiles: ["tools"]
     environment:
       - PGADMIN_DEFAULT_EMAIL=admin@agrivision.com
       - PGADMIN_DEFAULT_PASSWORD=password
     ports:
-      - "5050:80"
+      - "127.0.0.1:5050:80"
     networks:
       - agrivision_net
 
@@ -58,20 +64,46 @@ services:
     container_name: agrivision_backend
     restart: always
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
-      - DATABASE_URL=postgresql://admin:password@db:5432/agrivision
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-agrivision}
+      - ENABLE_TIMESCALEDB=${ENABLE_TIMESCALEDB:-true}
       - REDIS_URL=redis://redis:6379/0
       - MQTT_BROKER=mqtt
-      - AGROMONITORING_API_KEY=7a9304baa8e2b0e1cf0ec9b79678ad9a
-      - GOOGLE_API_KEY=YOUR_GOOGLE_API_KEY_HERE
+      - MQTT_USERNAME=${MQTT_USERNAME:-}
+      - MQTT_PASSWORD=${MQTT_PASSWORD:-}
+      - AGROMONITORING_API_KEY=${AGROMONITORING_API_KEY:-}
+      - AGRO_FREE_MODE=${AGRO_FREE_MODE:-true}
+      - AGRO_SATELLITE_INTERVAL_HOURS=${AGRO_SATELLITE_INTERVAL_HOURS:-6}
+      - AGRO_SOIL_INTERVAL_HOURS=${AGRO_SOIL_INTERVAL_HOURS:-6}
+      - AGRO_WEATHER_INTERVAL_HOURS=${AGRO_WEATHER_INTERVAL_HOURS:-6}
+      - AGRO_UVI_INTERVAL_HOURS=${AGRO_UVI_INTERVAL_HOURS:-6}
+      - AGRO_INITIAL_SYNC_TIMEOUT_SECONDS=${AGRO_INITIAL_SYNC_TIMEOUT_SECONDS:-15}
+      - AGRO_WORKER_SCAN_SECONDS=${AGRO_WORKER_SCAN_SECONDS:-300}
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT:-}
+      - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-global}
+      - GOOGLE_GENAI_USE_VERTEXAI=${GOOGLE_GENAI_USE_VERTEXAI:-true}
+      - GOOGLE_AI_MODEL=${GOOGLE_AI_MODEL:-gemini-3.5-flash}
+      - VERTEX_SEARCH_DATASTORE=${VERTEX_SEARCH_DATASTORE:-}
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-}
+      - CHAT_REQUEST_MAX_BYTES=${CHAT_REQUEST_MAX_BYTES:-33554432}
+      - CHAT_GCS_BUCKET=${CHAT_GCS_BUCKET:-}
+      - FIREBASE_SERVICE_ACCOUNT_PATH=/app/firebase-credentials.json
+      - FIREBASE_CLOCK_SKEW_SECONDS=${FIREBASE_CLOCK_SKEW_SECONDS:-5}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
     volumes:
       - ./app:/app/app
-      - ./firebase-credentials.json:/app/firebase-credentials.json
+      - ./alembic:/app/alembic
+      - ./firebase-credentials.json:/app/firebase-credentials.json:ro
+      - agro_media:/app/media/agro
+      - chat_media:/app/media/chat
     depends_on:
-      - db
-      - redis
-      - mqtt
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      mqtt:
+        condition: service_started
     networks:
       - agrivision_net
 
@@ -80,9 +112,10 @@ services:
     image: portainer/portainer-ce:latest
     container_name: agrivision_portainer
     restart: always
+    profiles: ["tools"]
     ports:
-      - "9443:9443"
-      - "9000:9000"
+      - "127.0.0.1:9443:9443"
+      - "127.0.0.1:9000:9000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - portainer_data:/data
@@ -97,3 +130,5 @@ volumes:
   postgres_data:
   mosquitto_data:
   portainer_data:
+  agro_media:
+  chat_media:

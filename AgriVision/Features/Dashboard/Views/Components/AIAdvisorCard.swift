@@ -133,6 +133,18 @@ private struct RecommendationRow: View {
                 }
             }
             .buttonStyle(.plain)
+            if isExpanded {
+                if let rationale = recommendation.rationale {
+                    Text(rationale).font(.caption2).foregroundStyle(.secondary)
+                }
+                if recommendation.requiresExpertConfirmation {
+                    Label("Confirm with a qualified local agronomist before treatment or dosage decisions.", systemImage: "person.badge.shield.checkmark")
+                        .font(.caption2.bold()).foregroundStyle(.orange)
+                }
+                if let reason = recommendation.confidenceReason {
+                    Text(reason).font(.caption2).foregroundStyle(.secondary)
+                }
+            }
         }
         .padding(.vertical, 4)
     }

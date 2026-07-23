@@ -1,221 +1,662 @@
-import json
 import asyncio
+import hashlib
+import json
 import logging
-from datetime import datetime, timedelta
-from sqlalchemy import func
+import shutil
+from datetime import datetime, timedelta, timezone
+from uuid import UUID
+
+from geoalchemy2.functions import ST_AsGeoJSON, ST_Centroid, ST_X, ST_Y
+from sqlalchemy import text
 from sqlalchemy.orm import Session
-from geoalchemy2.functions import ST_AsGeoJSON, ST_X, ST_Y, ST_Centroid
-from app.database import SessionLocal, engine
-from app.models.db_models import Field, FieldRecommendation, Sensor, SensorReading
-from app.services.agromonitoring_service import (
-    create_polygon, get_ndvi_for_field, get_soil_data, get_weather_forecast
+
+from app.core.config import settings
+from app.core.errors import APIError
+from app.database import SessionLocal
+from app.models.db_models import (
+    AIAnalysisRun,
+    Field,
+    FieldDeletionJob,
+    FieldObservation,
+    FieldRecommendation,
+    ProviderCapability,
+    SatelliteScene,
+    Sensor,
+    SensorReading,
 )
+from app.services.agromonitoring_service import (
+    AgroAPIError,
+    AgroEntitlementError,
+    cache_scene_image,
+    create_polygon,
+    delete_polygon,
+    get_accumulated_precipitation,
+    get_accumulated_temperature,
+    get_current_uvi,
+    get_forecast_uvi,
+    get_index_statistics,
+    get_soil_data,
+    get_weather_forecast,
+    search_latest_scene,
+)
+from app.services.ai_advisor_service import get_ai_provider
+from app.services.chat_media_service import get_chat_media_storage
 
 logger = logging.getLogger(__name__)
 
 
-async def sync_satellite_data():
-    """
-    Periodic background task that fetches satellite NDVI and soil data 
-    for all registered agricultural fields.
-    """
-    logger.info("Satellite Sync Worker: Initializing background loop...")
-    
-    while True:
-        try:
-            db: Session = SessionLocal()
-            try:
-                fields = db.query(Field).all()
-                logger.info(f"Satellite Sync Worker: Syncing health data for {len(fields)} fields...")
-                
-                for field in fields:
-                    # 1. Register with Agromonitoring if not already done
-                    if not field.agromonitory_poly_id:
-                        logger.info(f"Registering field '{field.name}' with Agromonitoring satellite service...")
-                        
-                        geojson_str = db.query(ST_AsGeoJSON(Field.boundary)).filter(Field.id == field.id).scalar()
-                        
-                        if geojson_str:
-                            geojson_dict = json.loads(geojson_str)
-                            feature_geojson = {
-                                "type": "Feature",
-                                "properties": {},
-                                "geometry": geojson_dict
-                            }
-                            
-                            poly_id = await create_polygon(field.name, feature_geojson)
-                            if poly_id:
-                                field.agromonitory_poly_id = poly_id
-                                logger.info(f"Field '{field.name}' registered successfully. PolyID: {poly_id}")
-                            else:
-                                logger.warning(f"Could not register field '{field.name}'. Will retry next cycle.")
-                    
-                    # 2. Fetch NDVI if we have a poly_id
-                    if field.agromonitory_poly_id:
-                        ndvi_data = await get_ndvi_for_field(field.agromonitory_poly_id)
-                        
-                        if ndvi_data:
-                            field.latest_ndvi = ndvi_data.get("ndvi", 0.0)
-                            field.last_satellite_sync = datetime.now()
-                            logger.info(f"Updated NDVI for '{field.name}': {field.latest_ndvi}")
-                
-                db.commit()
-                logger.info("Satellite Sync Worker: Sync cycle complete.")
-                
-            except Exception as e:
-                logger.error(f"Satellite Sync Worker: Database error during sync: {e}")
-                db.rollback()
-            finally:
-                db.close()
-                
-            await asyncio.sleep(3600)  # Run every 1 hour 
-            
-        except asyncio.CancelledError:
-            logger.info("Satellite Sync Worker: Background task shutting down.")
-            break
-        except Exception as e:
-            logger.error(f"Satellite Sync Worker: Unexpected error: {e}")
-            await asyncio.sleep(60)
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
-async def run_ai_for_field(field: Field, db: Session):
-    """
-    Runs the full AI analysis pipeline for a single field.
-    Fetches multi-modal context and generates Gemini recommendations.
-    This is called both by the scheduled loop and by the on-demand /refresh endpoint.
-    """
-    from app.services.ai_advisor_service import generate_field_recommendations
+def _is_due(db: Session, field_id: UUID, metric: str, hours: int) -> bool:
+    latest = (
+        db.query(FieldObservation)
+        .filter(FieldObservation.field_id == field_id, FieldObservation.metric == metric)
+        .order_by(FieldObservation.fetched_at.desc())
+        .first()
+    )
+    return latest is None or latest.fetched_at <= _utcnow() - timedelta(hours=hours)
 
-    try:
-        # 1. Get NDVI trend (simple 2-point comparison for now)
-        ndvi = field.latest_ndvi
-        ndvi_trend = "stable"
-        if ndvi is not None:
-            if ndvi < 0.25:
-                ndvi_trend = "critically low"
-            elif ndvi < 0.4:
-                ndvi_trend = "below average — possible stress"
-            elif ndvi > 0.6:
-                ndvi_trend = "healthy and vigorous"
-            else:
-                ndvi_trend = "moderate"
 
-        # 2. Get satellite soil data
-        soil_data = None
-        if field.agromonitory_poly_id:
-            soil_data = await get_soil_data(field.agromonitory_poly_id)
-
-        # 3. Get field centroid coordinates for weather fetch
-        centroid_wkt = db.query(ST_Centroid(Field.boundary)).filter(Field.id == field.id).scalar()
-        lat, lon = None, None
-        weather_data = None
-        if centroid_wkt:
-            # ST_Centroid returns a geometry; extract X (lon) and Y (lat) 
-            lon_val = db.query(ST_X(ST_Centroid(Field.boundary))).filter(Field.id == field.id).scalar()
-            lat_val = db.query(ST_Y(ST_Centroid(Field.boundary))).filter(Field.id == field.id).scalar()
-            if lat_val and lon_val:
-                lat, lon = float(lat_val), float(lon_val)
-                weather_data = await get_weather_forecast(lat, lon)
-
-        # 4. Aggregate ESP32 sensor readings from the last 24 hours
-        sensor_summary = None
-        sensors_for_field = db.query(Sensor).filter(Sensor.field_id == field.id).all()
-        if sensors_for_field:
-            sensor_ids = [s.id for s in sensors_for_field]
-            cutoff = datetime.utcnow() - timedelta(hours=24)
-            readings = (
-                db.query(SensorReading)
-                .filter(
-                    SensorReading.sensor_id.in_(sensor_ids),
-                    SensorReading.time >= cutoff
-                )
-                .all()
-            )
-            if readings:
-                temps = [r.temperature for r in readings if r.temperature is not None]
-                moistures = [r.moisture for r in readings if r.moisture is not None]
-                humidities = [r.humidity for r in readings if r.humidity is not None]
-                sensor_summary = {
-                    "sensor_count": len(sensors_for_field),
-                    "reading_count": len(readings),
-                    "avg_temp": round(sum(temps) / len(temps), 1) if temps else None,
-                    "avg_moisture": round(sum(moistures) / len(moistures), 1) if moistures else None,
-                    "avg_humidity": round(sum(humidities) / len(humidities), 1) if humidities else None,
-                }
-
-        # 5. Call the AI Brain
-        recommendations = await generate_field_recommendations(
-            field_name=field.name,
-            area_ha=field.area_ha or 0.0,
-            ndvi=ndvi,
-            ndvi_trend=ndvi_trend,
-            soil_data=soil_data,
-            sensor_summary=sensor_summary,
-            weather=weather_data
+def _add_observation(db: Session, field_id: UUID, source: str, metric: str, payload: dict, expires_hours: int, value: float | None = None, unit: str | None = None, observed_at: datetime | None = None) -> None:
+    timestamp = observed_at or _utcnow()
+    observation = db.query(FieldObservation).filter(
+        FieldObservation.field_id == field_id,
+        FieldObservation.source == source,
+        FieldObservation.metric == metric,
+        FieldObservation.observed_at == timestamp,
+    ).first()
+    if observation is None:
+        observation = FieldObservation(
+            field_id=field_id,
+            source=source,
+            metric=metric,
+            observed_at=timestamp,
         )
+        db.add(observation)
+    observation.value = value
+    observation.unit = unit
+    observation.payload = payload
+    observation.fetched_at = _utcnow()
+    observation.expires_at = _utcnow() + timedelta(hours=expires_hours)
 
-        # 6. Delete old recommendations for this field (keep DB clean)
-        db.query(FieldRecommendation).filter(FieldRecommendation.field_id == field.id).delete()
 
-        # 7. Persist the new recommendations
-        for rec in recommendations:
-            db_rec = FieldRecommendation(
-                field_id=field.id,
-                category=rec.get("category", "General"),
-                priority=rec.get("priority", "medium"),
-                advice=rec.get("advice", ""),
-                confidence=rec.get("confidence"),
-                ndvi_at_generation=ndvi
-            )
-            db.add(db_rec)
+def _centroid(db: Session, field_id: UUID) -> tuple[float, float]:
+    lon = db.query(ST_X(ST_Centroid(Field.boundary))).filter(Field.id == field_id).scalar()
+    lat = db.query(ST_Y(ST_Centroid(Field.boundary))).filter(Field.id == field_id).scalar()
+    return float(lat), float(lon)
 
+
+def _capability(db: Session, field_id: UUID, name: str) -> ProviderCapability | None:
+    return db.query(ProviderCapability).filter(ProviderCapability.provider == "agromonitoring", ProviderCapability.field_id == field_id, ProviderCapability.capability == name).first()
+
+
+def _set_capability(db: Session, field_id: UUID, name: str, status_value: str, status_code: int | None = None, detail: str | None = None) -> None:
+    capability = _capability(db, field_id, name)
+    if capability is None:
+        capability = ProviderCapability(provider="agromonitoring", field_id=field_id, capability=name, status=status_value)
+        db.add(capability)
+    capability.status = status_value
+    capability.status_code = status_code
+    capability.detail = detail
+    capability.checked_at = _utcnow()
+
+
+def _store_derived_accumulations(db: Session, field_id: UUID) -> None:
+    if not _is_due(db, field_id, "accumulated_estimates_derived", 24):
+        return
+    snapshots = (
+        db.query(FieldObservation)
+        .filter(
+            FieldObservation.field_id == field_id,
+            FieldObservation.metric == "weather_forecast",
+            FieldObservation.observed_at >= _utcnow() - timedelta(days=7),
+        )
+        .order_by(FieldObservation.observed_at.asc())
+        .all()
+    )
+    degree_days = 0.0
+    for current, following in zip(snapshots, snapshots[1:]):
+        temperature = ((current.payload or {}).get("current") or {}).get("temp_c")
+        if temperature is None:
+            continue
+        hours = min(max((following.observed_at - current.observed_at).total_seconds() / 3600, 0), 6)
+        degree_days += max(float(temperature) - 10.0, 0.0) * hours / 24.0
+
+    rain_by_date: dict[str, float] = {}
+    for snapshot in snapshots:
+        for day in (snapshot.payload or {}).get("forecast_days", []):
+            if day.get("date") and day.get("rain_mm") is not None:
+                rain_by_date[str(day["date"])] = float(day["rain_mm"])
+    payload = {
+        "derived": True,
+        "label": "Estimate derived from locally stored weather snapshots; not provider historical data.",
+        "window_days": 7,
+        "growing_degree_days_base_10c": round(degree_days, 2),
+        "forecast_precipitation_estimate_mm": round(sum(rain_by_date.values()), 2),
+    }
+    _add_observation(db, field_id, "local_derived", "accumulated_estimates_derived", payload, 24)
+
+
+async def _register_polygon(field: Field, db: Session) -> None:
+    if field.agromonitory_poly_id or field.agro_status == "unsupported":
+        return
+    raw = db.query(ST_AsGeoJSON(Field.boundary)).filter(Field.id == field.id).scalar()
+    if not raw:
+        field.agro_status = "unavailable"
+        field.agro_error = "Stored field boundary is unavailable."
+        field.agro_retryable = False
+        return
+    try:
+        polygon_id = await create_polygon(field.name, {"type": "Feature", "properties": {}, "geometry": json.loads(raw)}, field.id)
+        field.agromonitory_poly_id = polygon_id
+        field.agro_status = "pending"
+        field.agro_error = None
+        field.agro_retryable = True
+    except AgroAPIError as exc:
+        field.agro_status = "unavailable"
+        field.agro_error = str(exc)
+        field.agro_retryable = exc.retryable
+
+
+def _sync_state_name(metric: str) -> str:
+    return f"sync:{metric}"
+
+
+def _source_is_due(db: Session, field_id: UUID, metric: str, hours: int) -> bool:
+    observation = (
+        db.query(FieldObservation)
+        .filter(FieldObservation.field_id == field_id, FieldObservation.metric == metric)
+        .order_by(FieldObservation.fetched_at.desc())
+        .first()
+    )
+    state = _capability(db, field_id, _sync_state_name(metric))
+    last_attempt = max(
+        (timestamp for timestamp in (observation.fetched_at if observation else None, state.checked_at if state else None) if timestamp),
+        default=None,
+    )
+    return last_attempt is None or last_attempt <= _utcnow() - timedelta(hours=hours)
+
+
+def _acquire_source_lock(db: Session, field_id: UUID, source: str) -> bool:
+    key = f"agro-sync:{field_id}:{source}"
+    return bool(db.execute(text("SELECT pg_try_advisory_xact_lock(hashtext(:key))"), {"key": key}).scalar())
+
+
+def _set_source_state(
+    db: Session,
+    field_id: UUID,
+    metric: str,
+    status_value: str,
+    status_code: int | None = None,
+    detail: str | None = None,
+) -> None:
+    _set_capability(
+        db,
+        field_id,
+        _sync_state_name(metric),
+        status_value,
+        status_code,
+        detail[:300] if detail else None,
+    )
+
+
+async def _sync_satellite(field: Field, db: Session, *, force: bool = False) -> tuple[str, int | None, str | None] | None:
+    if not force and not _source_is_due(db, field.id, "satellite_search", settings.AGRO_SATELLITE_INTERVAL_HOURS):
+        return None
+    scene_data = await search_latest_scene(field.agromonitory_poly_id, field.id)
+    _add_observation(db, field.id, "agromonitoring", "satellite_search", {"found": scene_data is not None}, settings.AGRO_SATELLITE_INTERVAL_HOURS)
+    field.last_satellite_sync = _utcnow()
+    if scene_data is None:
+        field.agro_status = "pending"
+        field.agro_error = "No satellite scene is available in the latest 14-day window."
+        field.agro_retryable = True
+        return ("pending", 200, field.agro_error)
+    provider_scene_id = f"{scene_data.get('dt')}:{scene_data.get('type', 'unknown')}:{scene_data.get('dc', '')}"
+    existing = db.query(SatelliteScene).filter(SatelliteScene.field_id == field.id, SatelliteScene.provider_scene_id == provider_scene_id).first()
+    if existing:
+        field.agro_status = "available"
+        field.agro_error = None
+        field.agro_retryable = True
+        return ("available", 200, None)
+
+    statistics = {}
+    for index in ("ndvi", "evi", "evi2"):
+        stats = await get_index_statistics(scene_data, index, field.id)
+        if stats:
+            statistics[index] = stats
+            mean = stats.get("mean")
+            _add_observation(db, field.id, "agromonitoring", index, stats, settings.AGRO_SATELLITE_INTERVAL_HOURS * 2, value=float(mean) if mean is not None else None, observed_at=datetime.fromtimestamp(scene_data["dt"], timezone.utc))
+    ndvi_path, truecolor_path = await asyncio.gather(
+        cache_scene_image(scene_data, "ndvi", field.id),
+        cache_scene_image(scene_data, "truecolor", field.id),
+    )
+    acquired_at = datetime.fromtimestamp(scene_data.get("dt", int(_utcnow().timestamp())), timezone.utc)
+    scene = SatelliteScene(
+        field_id=field.id,
+        provider_scene_id=provider_scene_id,
+        source_type=scene_data.get("type"),
+        acquired_at=acquired_at,
+        cloud_percent=scene_data.get("cl"),
+        coverage_percent=scene_data.get("dc"),
+        statistics=statistics,
+        ndvi_image_path=ndvi_path,
+        truecolor_image_path=truecolor_path,
+    )
+    db.add(scene)
+    ndvi_mean = (statistics.get("ndvi") or {}).get("mean")
+    if ndvi_mean is not None:
+        field.latest_ndvi = float(ndvi_mean)
+    field.agro_status = "available"
+    field.agro_error = None
+    field.agro_retryable = True
+    return ("available", 200, None)
+
+
+async def _sync_soil(field: Field, db: Session, *, force: bool = False) -> tuple[str, int | None, str | None] | None:
+    if not force and not _source_is_due(db, field.id, "soil_current", settings.AGRO_SOIL_INTERVAL_HOURS):
+        return None
+    soil = await get_soil_data(field.agromonitory_poly_id, field.id)
+    observed = datetime.fromtimestamp(soil["observed_at"], timezone.utc) if soil.get("observed_at") else _utcnow()
+    _add_observation(db, field.id, "agromonitoring", "soil_current", soil, settings.AGRO_SOIL_INTERVAL_HOURS, value=soil.get("moisture"), unit="m3/m3", observed_at=observed)
+    return ("available", 200, None)
+
+
+async def _sync_weather(field: Field, db: Session, *, force: bool = False) -> tuple[str, int | None, str | None] | None:
+    if not force and not _source_is_due(db, field.id, "weather_forecast", settings.AGRO_WEATHER_INTERVAL_HOURS):
+        return None
+    lat, lon = _centroid(db, field.id)
+    weather = await get_weather_forecast(lat, lon, field.id)
+    _add_observation(db, field.id, "agromonitoring", "weather_forecast", weather, settings.AGRO_WEATHER_INTERVAL_HOURS)
+    return ("available", 200, None)
+
+
+async def _sync_uvi(field: Field, db: Session, *, force: bool = False) -> tuple[str, int | None, str | None] | None:
+    if not force and not _source_is_due(db, field.id, "uvi_current", settings.AGRO_UVI_INTERVAL_HOURS):
+        return None
+    uvi = await get_current_uvi(field.agromonitory_poly_id, field.id)
+    payload = uvi if isinstance(uvi, dict) else {"values": uvi}
+    _add_observation(db, field.id, "agromonitoring", "uvi_current", payload, settings.AGRO_UVI_INTERVAL_HOURS, value=payload.get("uvi"), unit="index")
+    try:
+        forecast = await get_forecast_uvi(field.agromonitory_poly_id, field.id)
+        forecast_payload = forecast if isinstance(forecast, dict) else {"values": forecast}
+        _add_observation(db, field.id, "agromonitoring", "uvi_forecast", forecast_payload, settings.AGRO_UVI_INTERVAL_HOURS)
+        _set_capability(db, field.id, "uvi_forecast", "supported", 200)
+    except AgroAPIError as exc:
+        status_value = "unsupported" if isinstance(exc, AgroEntitlementError) or not exc.retryable else "unavailable"
+        _set_capability(db, field.id, "uvi_forecast", status_value, exc.status_code, str(exc))
+    return ("available", 200, None)
+
+
+async def _sync_accumulations(field: Field, db: Session, *, force: bool = False) -> tuple[str, int | None, str | None] | None:
+    lat, lon = _centroid(db, field.id)
+    end = int(_utcnow().timestamp())
+    start = int((_utcnow() - timedelta(days=7)).timestamp())
+    for name, call in (
+        ("accumulated_temperature", get_accumulated_temperature),
+        ("accumulated_precipitation", get_accumulated_precipitation),
+    ):
+        if _capability(db, field.id, name) is not None:
+            continue
+        try:
+            result = await call(lat, lon, start, end, field.id)
+            _set_capability(db, field.id, name, "supported", 200)
+            _add_observation(db, field.id, "agromonitoring", name, {"values": result, "derived": False}, 24)
+        except AgroEntitlementError as exc:
+            _set_capability(db, field.id, name, "unsupported", exc.status_code, str(exc))
+
+    if any(
+        (capability := _capability(db, field.id, name)) is not None and capability.status == "unsupported"
+        for name in ("accumulated_temperature", "accumulated_precipitation")
+    ):
+        _store_derived_accumulations(db, field.id)
+    return ("available", 200, None)
+
+
+async def _ensure_polygon(field_id: UUID) -> bool:
+    db = SessionLocal()
+    try:
+        if not _acquire_source_lock(db, field_id, "polygon"):
+            return False
+        field = db.query(Field).filter(Field.id == field_id, Field.status == "active").first()
+        if field is None or field.agro_status == "unsupported":
+            return False
+        await _register_polygon(field, db)
         db.commit()
-        logger.info(f"AI Advisor: Saved {len(recommendations)} recommendations for '{field.name}'")
-
-    except Exception as e:
-        logger.error(f"AI Advisor: Failed to generate recommendations for '{field.name}': {e}")
+        return bool(field.agromonitory_poly_id)
+    except asyncio.CancelledError:
         db.rollback()
+        raise
+    except Exception:
+        db.rollback()
+        field = db.query(Field).filter(Field.id == field_id).first()
+        if field:
+            field.agro_status = "unavailable"
+            field.agro_error = "AgroMonitoring polygon registration failed."
+            field.agro_retryable = True
+            db.commit()
+        logger.exception("AgroMonitoring polygon registration failed field_id=%s", field_id)
+        return False
+    finally:
+        db.close()
 
 
-async def ai_reasoning_loop():
-    """
-    Periodic background task that runs the AI advisor for all fields.
-    Executes every 4 hours.
-    """
-    logger.info("AI Advisor Worker: Initializing background loop...")
-    # Initial delay — let satellite sync run first to ensure NDVI is fresh
-    await asyncio.sleep(30)
+async def _run_source(field_id: UUID, metric: str, handler, *, force: bool = False, satellite: bool = False) -> None:
+    db = SessionLocal()
+    try:
+        if not _acquire_source_lock(db, field_id, metric):
+            return
+        field = db.query(Field).filter(Field.id == field_id, Field.status == "active").first()
+        if field is None or not field.agromonitory_poly_id:
+            return
+        result = await handler(field, db, force=force)
+        if result is None:
+            db.rollback()
+            return
+        status_value, status_code, detail = result
+        if not satellite:
+            _set_source_state(db, field_id, metric, status_value, status_code, detail)
+        db.commit()
+    except asyncio.CancelledError:
+        db.rollback()
+        raise
+    except AgroEntitlementError as exc:
+        db.rollback()
+        field = db.query(Field).filter(Field.id == field_id).first()
+        if field:
+            if satellite:
+                field.agro_status = "unsupported"
+                field.agro_error = str(exc)
+                field.agro_retryable = False
+                field.last_satellite_sync = _utcnow()
+            else:
+                _set_source_state(db, field_id, metric, "unsupported", exc.status_code, str(exc))
+            db.commit()
+    except AgroAPIError as exc:
+        db.rollback()
+        field = db.query(Field).filter(Field.id == field_id).first()
+        if field:
+            if satellite:
+                field.agro_status = "unavailable"
+                field.agro_error = str(exc)
+                field.agro_retryable = exc.retryable
+                field.last_satellite_sync = _utcnow()
+            else:
+                _set_source_state(db, field_id, metric, "unavailable", exc.status_code, str(exc))
+            db.commit()
+    except Exception:
+        db.rollback()
+        field = db.query(Field).filter(Field.id == field_id).first()
+        if field:
+            detail = "AgroMonitoring data refresh failed."
+            if satellite:
+                field.agro_status = "unavailable"
+                field.agro_error = detail
+                field.agro_retryable = True
+                field.last_satellite_sync = _utcnow()
+            else:
+                _set_source_state(db, field_id, metric, "unavailable", None, detail)
+            db.commit()
+        logger.exception("AgroMonitoring source refresh failed field_id=%s source=%s", field_id, metric)
+    finally:
+        db.close()
 
+
+async def sync_field_once(field_id: UUID, *, force: bool = False, include_optional: bool = True) -> None:
+    if not settings.AGROMONITORING_API_KEY.strip():
+        return
+    if not await _ensure_polygon(field_id):
+        return
+    jobs = [
+        _run_source(field_id, "satellite_search", _sync_satellite, force=force, satellite=True),
+        _run_source(field_id, "soil_current", _sync_soil, force=force),
+        _run_source(field_id, "weather_forecast", _sync_weather, force=force),
+        _run_source(field_id, "uvi_current", _sync_uvi, force=force),
+    ]
+    if include_optional:
+        jobs.append(_run_source(field_id, "accumulations", _sync_accumulations, force=force))
+    await asyncio.gather(*jobs)
+
+
+async def sync_field_initial(field_id: UUID, timeout_seconds: int | None = None) -> bool:
+    timeout = timeout_seconds or settings.AGRO_INITIAL_SYNC_TIMEOUT_SECONDS
+    try:
+        await asyncio.wait_for(
+            sync_field_once(field_id, force=True, include_optional=False),
+            timeout=timeout,
+        )
+        return True
+    except TimeoutError:
+        logger.info("Initial AgroMonitoring sync timed out field_id=%s timeout=%ss", field_id, timeout)
+        return False
+
+
+def sync_field_by_id(field_id: UUID, *, force: bool = False) -> None:
+    try:
+        asyncio.run(sync_field_once(field_id, force=force))
+    except Exception:
+        logger.exception("Background AgroMonitoring sync failed field_id=%s", field_id)
+
+
+async def sync_external_data_once() -> None:
+    db = SessionLocal()
+    try:
+        field_ids = [row[0] for row in db.query(Field.id).filter(Field.status == "active").all()]
+    finally:
+        db.close()
+    for field_id in field_ids:
+        await sync_field_once(field_id)
+    process_pending_field_deletions()
+
+
+async def external_data_loop() -> None:
     while True:
         try:
-            db: Session = SessionLocal()
-            try:
-                fields = db.query(Field).all()
-                logger.info(f"AI Advisor Worker: Running analysis for {len(fields)} fields...")
-                for field in fields:
-                    await run_ai_for_field(field, db)
-                logger.info("AI Advisor Worker: Analysis cycle complete.")
-            except Exception as e:
-                logger.error(f"AI Advisor Worker: Error during loop: {e}")
-                db.rollback()
-            finally:
-                db.close()
-
-            await asyncio.sleep(4 * 3600)  # Run every 4 hours
-
+            await sync_external_data_once()
         except asyncio.CancelledError:
-            logger.info("AI Advisor Worker: Background task shutting down.")
-            break
-        except Exception as e:
-            logger.error(f"AI Advisor Worker: Unexpected error: {e}")
-            await asyncio.sleep(300)
+            raise
+        except Exception:
+            logger.exception("External data synchronization cycle failed")
+        await asyncio.sleep(settings.AGRO_WORKER_SCAN_SECONDS)
+
+
+async def run_ai_for_field(field: Field, db: Session) -> None:
+    observations = db.query(FieldObservation).filter(FieldObservation.field_id == field.id).order_by(FieldObservation.observed_at.desc()).limit(100).all()
+    sensors = db.query(Sensor).filter(Sensor.field_id == field.id).all()
+    sensor_ids = [sensor.id for sensor in sensors]
+    readings = [] if not sensor_ids else (
+        db.query(SensorReading)
+        .filter(SensorReading.sensor_id.in_(sensor_ids), SensorReading.time >= _utcnow() - timedelta(hours=24))
+        .order_by(SensorReading.time.asc())
+        .all()
+    )
+    numeric_readings = {
+        name: [float(getattr(item, name)) for item in readings if getattr(item, name) is not None]
+        for name in ("temperature", "moisture", "humidity", "ph", "ec", "npk_n", "npk_p", "npk_k")
+    }
+    sensor_summary = {
+        "sensor_count": len(sensors),
+        "reading_count": len(readings),
+        "optional": len(sensors) == 0,
+        "metrics": {
+            name: {
+                "average": round(sum(values) / len(values), 3),
+                "minimum": min(values),
+                "maximum": max(values),
+                "latest": values[-1],
+            }
+            for name, values in numeric_readings.items() if values
+        },
+    }
+    fresh_observations = [item for item in observations if item.expires_at is None or item.expires_at >= _utcnow()]
+    days_since_planting = max(0, (_utcnow().date() - field.plantation_date.date()).days) if field.plantation_date else None
+    context = {
+        "field": {
+            "name": field.name,
+            "area_ha": field.area_ha,
+            "crop_type": field.crop_type,
+            "plantation_date": field.plantation_date,
+            "days_since_planting": days_since_planting,
+            "region": "Punjab, Pakistan",
+        },
+        "latest_ndvi": field.latest_ndvi,
+        "observations": [{
+            "source": item.source,
+            "metric": item.metric,
+            "value": item.value,
+            "unit": item.unit,
+            "payload": item.payload,
+            "observed_at": item.observed_at,
+            "expires_at": item.expires_at,
+            "fresh": item in fresh_observations,
+        } for item in observations],
+        "sensor_summary": sensor_summary,
+    }
+    serializable_context = json.loads(json.dumps(context, default=str))
+    data_quality = "good" if field.crop_type and len(fresh_observations) >= 2 else ("limited" if field.crop_type and (fresh_observations or readings) else "insufficient")
+    serializable_context["data_quality"] = data_quality
+    provider = get_ai_provider()
+    fingerprint_payload = json.dumps(serializable_context, sort_keys=True, separators=(",", ":"))
+    context_fingerprint = hashlib.sha256(fingerprint_payload.encode("utf-8")).hexdigest()
+    duplicate = db.query(AIAnalysisRun).filter(
+        AIAnalysisRun.field_id == field.id,
+        AIAnalysisRun.status == "completed",
+        AIAnalysisRun.context_fingerprint == context_fingerprint,
+        AIAnalysisRun.model_name == provider.model_name,
+        AIAnalysisRun.prompt_version == settings.AI_PROMPT_VERSION,
+        AIAnalysisRun.policy_version == settings.AI_POLICY_VERSION,
+    ).first()
+    if duplicate:
+        return
+    run = AIAnalysisRun(
+        field_id=field.id,
+        provider=provider.name,
+        model_name=provider.model_name,
+        prompt_version=settings.AI_PROMPT_VERSION,
+        policy_version=settings.AI_POLICY_VERSION,
+        context_fingerprint=context_fingerprint,
+        data_quality=data_quality,
+        evidence=[{"source": item.source, "metric": item.metric, "observed_at": item.observed_at.isoformat(), "fresh": item in fresh_observations} for item in observations[:30]],
+        status="running",
+        context_snapshot=serializable_context,
+    )
+    db.add(run)
+    db.flush()
+    try:
+        recommendations = await provider.recommendations(serializable_context)
+        for item in recommendations:
+            db.query(FieldRecommendation).filter(
+                FieldRecommendation.field_id == field.id,
+                FieldRecommendation.category == item["category"],
+                FieldRecommendation.status == "pending",
+            ).update({"status": "superseded"}, synchronize_session=False)
+            db.add(FieldRecommendation(
+                field_id=field.id,
+                analysis_run_id=run.id,
+                category=item["category"],
+                priority=item["priority"],
+                advice=item["advice"],
+                rationale=item.get("rationale"),
+                confidence=item["confidence"],
+                confidence_reason=item.get("confidence_reason"),
+                evidence=item.get("evidence", []),
+                safety_level=item.get("safety_level", "guarded"),
+                requires_expert_confirmation=item.get("requires_expert_confirmation", False),
+                ndvi_at_generation=field.latest_ndvi,
+                expires_at=_utcnow() + timedelta(days=7),
+            ))
+        run.status = "completed"
+        run.completed_at = _utcnow()
+        db.commit()
+    except APIError as exc:
+        run.status = "failed"
+        run.error = exc.message
+        run.completed_at = _utcnow()
+        db.commit()
+
+
+def run_ai_by_field_id(field_id: UUID) -> None:
+    db = SessionLocal()
+    try:
+        field = db.query(Field).filter(Field.id == field_id, Field.status == "active").first()
+        if field:
+            asyncio.run(run_ai_for_field(field, db))
+    finally:
+        db.close()
+
+
+async def ai_reasoning_loop() -> None:
+    await asyncio.sleep(30)
+    while True:
+        db = SessionLocal()
+        try:
+            fields = db.query(Field).filter(Field.status == "active").all()
+            for field in fields:
+                await run_ai_for_field(field, db)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("AI reasoning cycle failed")
+            db.rollback()
+        finally:
+            db.close()
+        await asyncio.sleep(4 * 3600)
+
+
+def process_field_deletion_job(job_id: UUID) -> None:
+    db = SessionLocal()
+    try:
+        job = db.query(FieldDeletionJob).filter(FieldDeletionJob.id == job_id).with_for_update().first()
+        if job is None or job.status == "completed":
+            return
+        job.status = "running"
+        job.attempts += 1
+        db.commit()
+        try:
+            if job.provider_polygon_id:
+                asyncio.run(delete_polygon(job.provider_polygon_id, job.field_id))
+            agro_root = (settings.agro_media_path / str(job.field_id)).resolve()
+            allowed_agro_root = settings.agro_media_path.resolve()
+            if allowed_agro_root in agro_root.parents and agro_root.exists():
+                shutil.rmtree(agro_root)
+            get_chat_media_storage().delete_field(job.field_id)
+            job = db.query(FieldDeletionJob).filter(FieldDeletionJob.id == job_id).first()
+            if job:
+                job.status = "completed"
+                job.completed_at = _utcnow()
+                job.last_error = None
+                db.commit()
+        except Exception as exc:
+            db.rollback()
+            job = db.query(FieldDeletionJob).filter(FieldDeletionJob.id == job_id).first()
+            if job:
+                job.status = "pending"
+                job.last_error = type(exc).__name__
+                backoff_minutes = min(2 ** min(job.attempts, 8), 360)
+                job.next_attempt_at = _utcnow() + timedelta(minutes=backoff_minutes)
+                db.commit()
+            logger.warning("Field deletion cleanup will retry job=%s error=%s", job_id, type(exc).__name__)
+    finally:
+        db.close()
+
+
+def process_pending_field_deletions() -> None:
+    db = SessionLocal()
+    try:
+        job_ids = [row[0] for row in db.query(FieldDeletionJob.id).filter(
+            FieldDeletionJob.status == "pending",
+            (FieldDeletionJob.next_attempt_at.is_(None)) | (FieldDeletionJob.next_attempt_at <= _utcnow()),
+        ).limit(20).all()]
+    finally:
+        db.close()
+    for job_id in job_ids:
+        process_field_deletion_job(job_id)
 
 
 def start_satellite_sync_worker():
-    """Starts the satellite sync loop in the background."""
-    return asyncio.create_task(sync_satellite_data())
+    return asyncio.create_task(external_data_loop())
 
 
 def start_ai_reasoning_worker():
-    """Starts the AI advisor reasoning loop in the background."""
     return asyncio.create_task(ai_reasoning_loop())

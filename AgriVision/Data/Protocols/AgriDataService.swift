@@ -1,47 +1,28 @@
 import CoreLocation
 
-/**
- A `protocol` in Swift is like a contract or a blueprint.
- It says: "Any class or struct that uses this protocol MUST have these specific methods."
- We use this so our ViewModels don't care *where* the data comes from (mock data or a real server),
- as long as it has a `fetchSensorReadings` method.
- */
 protocol AgriDataService {
-    /// Fetches sensor readings. 
-    func fetchSensorReadings() async throws -> [SensorReading]
-    
-    /// Persists a new field boundary for the user with detailed metadata.
-    func saveField(
-        name: String,
-        coordinates: [CLLocationCoordinate2D],
-        areaHa: Double?,
-        cropType: String?,
-        plantationDate: Date?,
-        expectedHarvestDate: Date?,
-        sensors: [SensorConfig]?
-    ) async throws -> Field
-    
-    /// Fetches all fields belonging to the current user, including satellite data.
-    func fetchFields() async throws -> [Field]
-    
-    /// Deletes a specific field by its ID.
+    func bootstrapSession() async throws -> SessionBootstrap
+    func fetchFields(includeArchived: Bool) async throws -> [Field]
+    func fetchDashboard(for fieldId: UUID) async throws -> DashboardSnapshot
+    func fetchSatelliteImage(for fieldId: UUID, kind: String) async throws -> Data
+    func fetchSensorReadings(for fieldId: UUID) async throws -> [SensorReading]
+    func fetchSensors(for fieldId: UUID) async throws -> [FieldSensor]
+    func saveField(name: String, coordinates: [CLLocationCoordinate2D], areaHa: Double?, cropType: String?, plantationDate: Date?, expectedHarvestDate: Date?, sensors: [SensorConfig]?) async throws -> Field
     func deleteField(id: UUID) async throws
-    
-    /// Fetches the latest AI recommendations for a given field.
+    func refreshFieldData(for fieldId: UUID) async throws
     func fetchRecommendations(for fieldId: UUID) async throws -> [FieldRecommendation]
-    
-    /// Provides feedback on an AI recommendation to improve future context.
+    func refreshRecommendations(for fieldId: UUID) async throws
     func updateRecommendationFeedback(for fieldId: UUID, recommendationId: UUID, status: String) async throws -> FieldRecommendation
-    
-    /// Fetches the conversational history for a field from the AI backend.
+    func recordRecommendationOutcome(for fieldId: UUID, recommendationId: UUID, outcome: String, notes: String?) async throws -> FieldRecommendation
     func fetchChatHistory(for fieldId: UUID) async throws -> [ChatMessage]
-    
-    /// Submits a new user message to the AI and returns the response.
-    func sendChatMessage(for fieldId: UUID, message: String) async throws -> ChatMessage
-    
-    /// Verifies if a sensor device is active and reachable.
+    func fetchChatAttachment(fieldId: UUID, attachmentId: UUID) async throws -> Data
+    func sendChatMessage(for fieldId: UUID, message: String, images: [ChatImageUpload], idempotencyKey: String) async throws -> ChatTurn
     func verifySensorConnection(deviceId: String) async throws -> (isVerified: Bool, message: String)
-    
-    /// Fetches the satellite soil data and weather forecast for a field.
+    func pairSensor(deviceId: String) async throws -> (isPaired: Bool, message: String)
+    func assignSensor(_ sensor: SensorConfig, to fieldId: UUID) async throws
     func fetchWeatherSoil(for fieldId: UUID) async throws -> FieldWeatherSoil
+}
+
+extension AgriDataService {
+    func fetchFields() async throws -> [Field] { try await fetchFields(includeArchived: false) }
 }

@@ -14,6 +14,7 @@ enum AgriVisionError: LocalizedError {
     case weakPassword
     case tooManyRequests
     case networkUnavailable
+    case requestTimedOut
     case passwordResetRequiresPasswordSignIn
     case operationFailed
     case unknown(String)
@@ -29,6 +30,7 @@ enum AgriVisionError: LocalizedError {
         case .weakPassword: return "The password is too weak."
         case .tooManyRequests: return "Too many attempts. Please wait a moment and try again."
         case .networkUnavailable: return "Network error. Please check your internet connection and try again."
+        case .requestTimedOut: return "The request timed out. Please try again."
         case .passwordResetRequiresPasswordSignIn: return "This account uses Google sign-in. Please continue with Google."
         case .operationFailed: return "We couldn’t complete your request right now. Please try again."
         case .unknown(let message): return message
@@ -41,6 +43,9 @@ enum AgriVisionError: LocalizedError {
 /// Follows Interface Segregation Principle (ISP) by keeping the interface focused on auth tasks.
 /// ViewModels depend on this abstraction rather than concrete implementations (DIP).
 protocol AuthService {
+    /// Stable tenant identifier used only to namespace local per-user state.
+    var currentUserID: String? { get }
+
     /// Attempts to sign in with Google.
     /// - Returns: void on success, throws on error.
     func signInWithGoogle() async throws
@@ -68,9 +73,18 @@ protocol AuthService {
     
     /// Returns the display name of the current user, if available.
     var currentUserDisplayName: String? { get }
+
+    /// Returns the signed-in user's email address, if available.
+    var currentUserEmail: String? { get }
+
+    /// Whether Google is already one of the Firebase user's providers.
+    var isGoogleProviderLinked: Bool { get }
     
     /// Returns the photo URL of the current user, if available.
     var currentUserPhotoURL: URL? { get }
+
+    /// Updates the Firebase display name shown throughout the app.
+    func updateDisplayName(_ name: String) async throws
     
     /// Sends an email verification link to the currently signed-in user.
     func sendEmailVerification() async throws
@@ -87,5 +101,11 @@ protocol AuthService {
     
     /// Returns the Firebase ID token for the current user.
     /// Used for authenticating with our custom Python backend.
-    func getIDToken() async throws -> String
+    func getIDToken(forceRefresh: Bool) async throws -> String
+}
+
+extension AuthService {
+    func getIDToken() async throws -> String {
+        try await getIDToken(forceRefresh: false)
+    }
 }

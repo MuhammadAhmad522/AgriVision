@@ -64,3 +64,10 @@ fastlane/test_output
 ## Firebase
 GoogleService-Info.plist
 firebase-credentials.json
+
+## Local secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key

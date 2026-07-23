@@ -1,34 +1,27 @@
 import Foundation
 
-/**
- `APIConstants` centralizes network configuration.
- Using a struct instead of hardcoded strings in repositories ensures that changes 
- to the backend URL only need to be updated in one place (DRY principle).
- */
 struct APIConstants {
-    /// The base URL for our FastAPI backend.
-    /// - Note: If testing on a physical device, replace 'localhost' with your Mac's local IP.
-    static let baseURL = URL(string: "http://34.67.93.107:8000")!
-    
-    /// API Endpoints
+    /// Simulator/local-Mac default. A physical device must use the Mac's LAN address.
+    static let baseURL = URL(string: "http://localhost:8000")!
+
     struct Endpoints {
-        static let fields = "api/fields/"
-        static let sensors = "api/sensors/"
-        static let readings = "api/sensors/readings/"
+        static let bootstrap = "api/session/bootstrap"
+        static let fields = "api/fields"
+
+        static func field(_ id: UUID) -> String { "api/fields/\(id.uuidString.lowercased())" }
+        static func dataRefresh(_ id: UUID) -> String { "\(field(id))/data-refresh" }
+        static func dashboard(_ id: UUID) -> String { "\(field(id))/dashboard" }
+        static func readings(_ id: UUID) -> String { "\(field(id))/sensor-readings" }
+        static func assignSensor(to id: UUID) -> String { "\(field(id))/sensors" }
+        static func recommendations(for id: UUID) -> String { "\(field(id))/recommendations" }
+        static func feedback(_ recommendationID: UUID) -> String { "api/recommendations/\(recommendationID.uuidString.lowercased())/feedback" }
+        static func outcome(_ recommendationID: UUID) -> String { "api/recommendations/\(recommendationID.uuidString.lowercased())/outcome" }
+        static func chat(for id: UUID) -> String { "\(field(id))/chat" }
+        static func chatAttachment(fieldId: UUID, attachmentId: UUID) -> String { "\(chat(for: fieldId))/attachments/\(attachmentId.uuidString.lowercased())" }
         static func verifySensor(deviceId: String) -> String {
-            "api/sensors/verify/\(deviceId)"
+            let safe = deviceId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? ""
+            return "api/sensors/verify/\(safe)"
         }
-        
-        static func recommendations(for fieldId: UUID) -> String {
-            "api/fields/\(fieldId.uuidString.lowercased())/recommendations/"
-        }
-        
-        static func feedback(for fieldId: UUID, recommendationId: UUID) -> String {
-            "api/fields/\(fieldId.uuidString.lowercased())/recommendations/\(recommendationId.uuidString.lowercased())/feedback"
-        }
-        
-        static func chat(for fieldId: UUID) -> String {
-            "fields/\(fieldId.uuidString.lowercased())/chat"
-        }
+        static let pairSensor = "api/sensors/pair"
     }
 }

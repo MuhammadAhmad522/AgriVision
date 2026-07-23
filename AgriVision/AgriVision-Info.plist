@@ -34,8 +34,10 @@
             </array>
         </dict>
     </array>
-    <key>NSLocationWhenInUseUsageDescription</key>
-    <string>AgriVision needs access to your location to help you define field boundaries accurately.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>AgriVision needs access to your location to help you define field boundaries accurately.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>AgriVision uses the camera so you can share crop and field photos with your AI advisor.</string>
     <key>NSAppTransportSecurity</key>
     <dict>
         <key>NSAllowsArbitraryLoads</key>

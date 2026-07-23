@@ -26,6 +26,7 @@ class SensorIntegrationViewModel: ObservableObject {
     private let dataService: AgriDataService
     private let authService: AuthService
     private let fieldData: FieldSelectionData
+    private var createdFieldID: UUID?
     
     // MARK: - Callbacks
     
@@ -74,10 +75,10 @@ class SensorIntegrationViewModel: ObservableObject {
         
         Task {
             do {
-                let result = try await dataService.verifySensorConnection(deviceId: pairingCode)
-                isVerified = result.isVerified
+                let result = try await dataService.pairSensor(deviceId: pairingCode)
+                isVerified = result.isPaired
                 verificationMessage = result.message
-                if !result.isVerified {
+                if !result.isPaired {
                     errorMessage = result.message
                     ToastMessageAutoDismiss.schedule(
                         expectedMessage: errorMessage ?? "",
@@ -89,7 +90,7 @@ class SensorIntegrationViewModel: ObservableObject {
             } catch {
                 isVerified = false
                 isVerifying = false
-                errorMessage = "Verification failed: \(error.localizedDescription)"
+                errorMessage = error.userFacingMessage
                 ToastMessageAutoDismiss.schedule(
                     expectedMessage: errorMessage ?? "",
                     currentMessage: { self.errorMessage },
@@ -101,7 +102,7 @@ class SensorIntegrationViewModel: ObservableObject {
     
     func completeSetup() {
         guard isVerified else {
-            errorMessage = "Please verify your hardware connection first."
+            errorMessage = "Please pair your sensor first."
             ToastMessageAutoDismiss.schedule(
                 expectedMessage: errorMessage ?? "",
                 currentMessage: { self.errorMessage },
@@ -125,30 +126,37 @@ class SensorIntegrationViewModel: ObservableObject {
         
         Task {
             do {
-                // Assembly: Field + Sensors (ESP32)
-                let sensors = [
+                let fieldID: UUID
+                if let createdFieldID {
+                    fieldID = createdFieldID
+                } else {
+                    let field = try await dataService.saveField(
+                        name: fieldData.name,
+                        coordinates: fieldData.coordinates,
+                        areaHa: fieldData.areaHa,
+                        cropType: fieldData.cropType,
+                        plantationDate: fieldData.plantationDate,
+                        expectedHarvestDate: fieldData.expectedHarvestDate,
+                        sensors: nil
+                    )
+                    createdFieldID = field.id
+                    fieldID = field.id
+                }
+
+                try await dataService.assignSensor(
                     SensorConfig(
-                        deviceId: pairingCode, 
+                        deviceId: pairingCode,
                         name: sensorName,
                         sensorType: "esp32_multi_sensor"
-                    )
-                ]
-                
-                _ = try await dataService.saveField(
-                    name: fieldData.name,
-                    coordinates: fieldData.coordinates,
-                    areaHa: fieldData.areaHa,
-                    cropType: fieldData.cropType,
-                    plantationDate: fieldData.plantationDate,
-                    expectedHarvestDate: fieldData.expectedHarvestDate,
-                    sensors: sensors
+                    ),
+                    to: fieldID
                 )
                 
                 isLoading = false
                 onSetupSuccess?()
             } catch {
                 isLoading = false
-                errorMessage = error.localizedDescription
+                errorMessage = error.userFacingMessage
                 ToastMessageAutoDismiss.schedule(
                     expectedMessage: errorMessage ?? "",
                     currentMessage: { self.errorMessage },

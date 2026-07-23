@@ -11,6 +11,10 @@ extension Error {
         if let validationError = self as? ValidationError {
             return validationError.errorDescription ?? fallbackMessage
         }
+        if let apiError = self as? BackendAPIError {
+            guard let requestID = apiError.requestID, !requestID.isEmpty else { return apiError.message }
+            return "\(apiError.message) Reference: \(requestID.prefix(8))."
+        }
         return fallbackMessage
     }
 }

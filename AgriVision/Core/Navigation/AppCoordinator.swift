@@ -29,6 +29,7 @@ final class AppCoordinator: Coordinator {
     private let authService: AuthService
     private let userProfileService: UserProfileService
     private let preferencesService: PreferencesService
+    private let fieldSessionStore: FieldSessionStore
 
     init(
         window: UIWindow,
@@ -36,7 +37,8 @@ final class AppCoordinator: Coordinator {
         dataService: AgriDataService,
         authService: AuthService,
         userProfileService: UserProfileService,
-        preferencesService: PreferencesService
+        preferencesService: PreferencesService,
+        fieldSessionStore: FieldSessionStore
     ) {
         self.window = window
         self.onboardingStateService = onboardingStateService
@@ -44,6 +46,7 @@ final class AppCoordinator: Coordinator {
         self.authService = authService
         self.userProfileService = userProfileService
         self.preferencesService = preferencesService
+        self.fieldSessionStore = fieldSessionStore
         self.navigationController = UINavigationController()
         // Hide the navigation bar by default for a cleaner, full-screen experience.
         self.navigationController.isNavigationBarHidden = true
@@ -120,12 +123,11 @@ final class AppCoordinator: Coordinator {
     }
     
     private func checkFieldsAndRoute() {
-        // Assume we might want a loading spinner here ideally, but for now we just verify fields.
         Task {
             do {
-                let fields = try await dataService.fetchFields()
+                try await fieldSessionStore.bootstrap()
                 await MainActor.run {
-                    if fields.isEmpty {
+                    if fieldSessionStore.fields.isEmpty {
                         showFieldSelection()
                     } else {
                         showMain()
@@ -133,11 +135,25 @@ final class AppCoordinator: Coordinator {
                 }
             } catch {
                 await MainActor.run {
-                    // On error fetching fields (e.g. no network), safest to show Main.
-                    showMain()
+                    showBackendConnectionError(error)
                 }
             }
         }
+    }
+
+    private func showBackendConnectionError(_ error: Error) {
+        let view = BackendConnectionView(
+            message: error.userFacingMessage,
+            isRetrying: fieldSessionStore.isRefreshing,
+            onRetry: { [weak self] in self?.checkFieldsAndRoute() },
+            onSignOut: { [weak self] in
+                guard let self else { return }
+                try? self.authService.signOut()
+                self.fieldSessionStore.clear()
+                self.showAuth()
+            }
+        )
+        navigationController.setViewControllers([UIHostingController(rootView: view)], animated: true)
     }
     
     private func showFieldSelection() {
@@ -150,7 +166,10 @@ final class AppCoordinator: Coordinator {
         fieldCoordinator.onFieldConfirmed = { [weak self, weak fieldCoordinator] in
             guard let self = self, let coordinator = fieldCoordinator else { return }
             self.childCoordinators.removeAll { $0 === coordinator }
-            self.showMain()
+            Task {
+                try? await self.fieldSessionStore.refresh()
+                await MainActor.run { self.showMain() }
+            }
         }
         
         fieldCoordinator.onCancel = {
@@ -166,11 +185,13 @@ final class AppCoordinator: Coordinator {
             navigationController: navigationController,
             dataService: dataService,
             authService: authService,
-            preferencesService: preferencesService
+            preferencesService: preferencesService,
+            fieldSessionStore: fieldSessionStore
         )
         dashboardCoordinator.onSignOut = { [weak self] in
             // When sign out occurs in the dashboard, we unwind to the auth flow.
             self?.childCoordinators.removeAll { $0 === dashboardCoordinator }
+            self?.fieldSessionStore.clear()
             self?.showAuth()
         }
         

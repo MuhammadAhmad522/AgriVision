@@ -8,6 +8,10 @@ import UIKit
 /// This class handles the specific details of the Firebase SDK and Google Sign-In SDK.
 final class FirebaseAuthService: AuthService {
 
+    var currentUserID: String? {
+        Auth.auth().currentUser?.uid
+    }
+
     
     
     init() {}
@@ -21,10 +25,30 @@ final class FirebaseAuthService: AuthService {
     var currentUserDisplayName: String? {
         return Auth.auth().currentUser?.displayName
     }
+
+    var currentUserEmail: String? {
+        Auth.auth().currentUser?.email
+    }
+
+    var isGoogleProviderLinked: Bool {
+        Auth.auth().currentUser?.providerData.contains(where: { $0.providerID == GoogleAuthProviderID }) ?? false
+    }
     
     /// Returns the photo URL of the current user, if available.
     var currentUserPhotoURL: URL? {
         return Auth.auth().currentUser?.photoURL
+    }
+
+    func updateDisplayName(_ name: String) async throws {
+        guard let user = Auth.auth().currentUser else { throw AgriVisionError.userNotFound }
+        do {
+            let request = user.createProfileChangeRequest()
+            request.displayName = name
+            try await request.commitChanges()
+            try await user.reload()
+        } catch {
+            throw FirebaseAuthErrorMapper.map(error)
+        }
     }
     
     /// Returns true if the user's email is verified.
@@ -174,12 +198,12 @@ final class FirebaseAuthService: AuthService {
 
     /// Fetches the current Firebase ID token.
     /// This method is intended for use in network requests to verify identity.
-    func getIDToken() async throws -> String {
+    func getIDToken(forceRefresh: Bool = false) async throws -> String {
         guard let user = Auth.auth().currentUser else {
             throw AgriVisionError.userNotFound
         }
         do {
-            return try await user.getIDToken()
+            return try await user.getIDToken(forcingRefresh: forceRefresh)
         } catch {
             throw FirebaseAuthErrorMapper.map(error)
         }

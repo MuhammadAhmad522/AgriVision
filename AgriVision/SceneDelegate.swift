@@ -39,6 +39,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         let onboardingStateService = UserDefaultsOnboardingStateService()
         let authService = FirebaseAuthService()
         let dataService = NetworkAgriDataRepository(authService: authService)
+        let fieldSessionStore = FieldSessionStore(dataService: dataService, authService: authService)
         let userProfileService = FirebaseUserProfileService()
         let preferencesService = UserDefaultsPreferencesService()
 
@@ -48,7 +49,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             dataService: dataService,
             authService: authService,
             userProfileService: userProfileService,
-            preferencesService: preferencesService
+            preferencesService: preferencesService,
+            fieldSessionStore: fieldSessionStore
         )
         self.appCoordinator = coordinator
         

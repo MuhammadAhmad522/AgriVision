@@ -11,6 +11,11 @@ struct SensorReading: Identifiable, Codable {
     let temperature: Double?
     let moisture: Double?
     let humidity: Double?
+    var ph: Double? = nil
+    var ec: Double? = nil
+    var npk_n: Double? = nil
+    var npk_p: Double? = nil
+    var npk_k: Double? = nil
     
     // Synthesize an ID for SwiftUI lists since timeseries rows don't have UUID primary keys themselves
     var id: String {

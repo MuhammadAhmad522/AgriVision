@@ -81,7 +81,7 @@ struct SensorIntegrationView: View {
                                 HStack {
                                     Image(systemName: "checkmark.circle.fill")
                                         .foregroundColor(.green)
-                                    Text(viewModel.verificationMessage ?? "Device Verified")
+                                    Text(viewModel.verificationMessage ?? "Sensor Paired")
                                         .font(.system(size: 14, weight: .medium))
                                         .foregroundColor(.green)
                                 }
@@ -96,7 +96,7 @@ struct SensorIntegrationView: View {
                                                 .progressViewStyle(CircularProgressViewStyle(tint: .white))
                                                 .scaleEffect(0.8)
                                         }
-                                        Text(viewModel.isVerifying ? "Verifying..." : "Verify Connection")
+                                        Text(viewModel.isVerifying ? "Pairing..." : "Pair Sensor")
                                             .font(.system(size: 14, weight: .semibold))
                                     }
                                     .frame(maxWidth: .infinity)
@@ -108,7 +108,7 @@ struct SensorIntegrationView: View {
                                 .disabled(viewModel.isVerifying)
                             }
                             
-                            Text("The pairing code helps us identify your pre-registered hardware. Click verify once your device is plugged in.")
+                            Text("Power on the device and start its MQTT connection, then pair it to this account. It will be assigned to this field when setup completes.")
                                 .font(.system(size: 12))
                                 .foregroundColor(Color.black.opacity(0.5))
                                 .multilineTextAlignment(.center)
@@ -124,7 +124,14 @@ struct SensorIntegrationView: View {
                         ) {
                             viewModel.completeSetup()
                         }
-                        .padding(.bottom, 12)
+                        .padding(.bottom, viewModel.isLoading ? 0 : 12)
+                        if viewModel.isLoading {
+                            Text("Preparing dashboard data…")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(AppColors.charcoalGreen.opacity(0.75))
+                                .multilineTextAlignment(.center)
+                                .padding(.bottom, 12)
+                        }
                     }
                     .padding(.horizontal, UIConstants.Auth.cardHorizontalPadding)
                     .frame(width: UIConstants.Auth.cardWidth)

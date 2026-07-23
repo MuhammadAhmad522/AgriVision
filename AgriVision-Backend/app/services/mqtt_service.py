@@ -1,7 +1,8 @@
-import os
 import json
 import logging
 import threading
+import time
+from collections import defaultdict, deque
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -10,13 +11,28 @@ from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models.db_models import Sensor, SensorReading
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-MQTT_BROKER = os.getenv("MQTT_BROKER", "localhost")
-MQTT_PORT = 1883
+MQTT_BROKER = settings.MQTT_BROKER
+MQTT_PORT = settings.MQTT_PORT
 # Topic pattern: agrivision/sensors/<device_id>/readings
 MQTT_TOPIC = "agrivision/sensors/+/readings"
+_device_events: dict[str, deque[float]] = defaultdict(deque)
+_device_events_lock = threading.Lock()
+
+
+def _accept_device_message(device_id: str, limit: int = 120, window_seconds: int = 60) -> bool:
+    now = time.monotonic()
+    with _device_events_lock:
+        events = _device_events[device_id]
+        while events and events[0] <= now - window_seconds:
+            events.popleft()
+        if len(events) >= limit:
+            return False
+        events.append(now)
+        return True
 
 
 def on_connect(client, userdata, flags, reason_code, properties=None):
@@ -40,9 +56,37 @@ def on_message(client, userdata, msg):
     try:
         # Extract device_id from topic: agrivision/sensors/<device_id>/readings
         topic_parts = msg.topic.split("/")
+        if len(topic_parts) != 4:
+            raise ValueError("Invalid MQTT topic")
         device_id = topic_parts[2]
+        if not 3 <= len(device_id) <= 100 or not all(character.isalnum() or character in "._:-" for character in device_id):
+            raise ValueError("Invalid MQTT device ID")
+        if not _accept_device_message(device_id):
+            logger.warning("MQTT rate limit reached for a device")
+            return
 
+        if len(msg.payload) > 16_384:
+            raise ValueError("MQTT payload exceeds 16KB")
         payload = json.loads(msg.payload.decode("utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("MQTT payload must be an object")
+
+        reading_fields = {"temperature", "moisture", "humidity", "ph", "ec", "npk_n", "npk_p", "npk_k"}
+        allowed = reading_fields | {"device_id"}
+        unexpected = set(payload) - allowed
+        if unexpected:
+            raise ValueError(f"MQTT payload contains unsupported fields: {', '.join(sorted(unexpected))}")
+        payload_device_id = payload.get("device_id")
+        if payload_device_id is not None and payload_device_id != device_id:
+            raise ValueError("MQTT payload device ID does not match topic")
+        values = {}
+        for key in reading_fields:
+            value = payload.get(key)
+            if value is not None:
+                value = float(value)
+                if not -10000 <= value <= 10000:
+                    raise ValueError(f"Reading {key} is outside the accepted range")
+            values[key] = value
 
         db: Session = SessionLocal()
         try:
@@ -61,14 +105,7 @@ def on_message(client, userdata, msg):
             reading = SensorReading(
                 sensor_id=sensor.id,
                 time=datetime.now(timezone.utc),
-                temperature=payload.get("temperature"),
-                moisture=payload.get("moisture"),
-                humidity=payload.get("humidity"),
-                ph=payload.get("ph"),
-                ec=payload.get("ec"),
-                npk_n=payload.get("npk_n"),
-                npk_p=payload.get("npk_p"),
-                npk_k=payload.get("npk_k")
+                **values,
             )
             db.add(reading)
             sensor.last_seen = datetime.now(timezone.utc)
@@ -87,6 +124,8 @@ def start_mqtt_bridge():
     client = mqtt.Client(CallbackAPIVersion.VERSION2)
     client.on_connect = on_connect
     client.on_message = on_message
+    if settings.MQTT_USERNAME and settings.MQTT_PASSWORD:
+        client.username_pw_set(settings.MQTT_USERNAME, settings.MQTT_PASSWORD)
 
     try:
         client.connect(MQTT_BROKER, MQTT_PORT, 60)

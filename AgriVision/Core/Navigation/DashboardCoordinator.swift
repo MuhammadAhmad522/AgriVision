@@ -16,34 +16,26 @@ final class DashboardCoordinator: Coordinator {
     private let dataService: AgriDataService
     private let authService: AuthService
     private let preferencesService: PreferencesService
+    private let fieldSessionStore: FieldSessionStore
     
     var onSignOut: (() -> Void)?
 
-    init(navigationController: UINavigationController, dataService: AgriDataService, authService: AuthService, preferencesService: PreferencesService) {
+    init(navigationController: UINavigationController, dataService: AgriDataService, authService: AuthService, preferencesService: PreferencesService, fieldSessionStore: FieldSessionStore) {
         self.navigationController = navigationController
         self.dataService = dataService
         self.authService = authService
         self.preferencesService = preferencesService
+        self.fieldSessionStore = fieldSessionStore
     }
 
     func start() {
         // At startup, we check if the user has any fields registered.
         // If not, we guide them through the "Add Field" flow.
         Task {
-            do {
-                let fields = try await dataService.fetchFields()
-                
-                await MainActor.run {
-                    if fields.isEmpty {
-                        showAddFieldIntro()
-                    } else {
-                        showDashboard()
-                    }
-                }
-            } catch {
-                // If we can't fetch (maybe network error), fallback to dashboard 
-                // which handles its own error states.
-                await MainActor.run {
+            await MainActor.run {
+                if self.fieldSessionStore.fields.isEmpty {
+                    showAddFieldIntro()
+                } else {
                     showDashboard()
                 }
             }
@@ -60,7 +52,10 @@ final class DashboardCoordinator: Coordinator {
         fieldSelectionCoordinator.onFieldConfirmed = { [weak self, weak fieldSelectionCoordinator] in
             guard let self = self, let coordinator = fieldSelectionCoordinator else { return }
             self.childCoordinators.removeAll { $0 === coordinator }
-            self.showDashboard()
+            Task {
+                try? await self.fieldSessionStore.refresh()
+                await MainActor.run { self.showDashboard() }
+            }
         }
         
         fieldSelectionCoordinator.onCancel = {
@@ -74,12 +69,15 @@ final class DashboardCoordinator: Coordinator {
     private func showDashboard() {
         let viewModel = DashboardViewModel(
             dataService: dataService, 
-            authService: authService
+            authService: authService,
+            preferencesService: preferencesService,
+            fieldSessionStore: fieldSessionStore
         )
         let settingsViewModel = SettingsViewModel(
             authService: authService,
             dataService: dataService,
-            preferencesService: preferencesService
+            preferencesService: preferencesService,
+            fieldSessionStore: fieldSessionStore
         )
 
         viewModel.onSignOut = { [weak self] in
@@ -99,6 +97,7 @@ final class DashboardCoordinator: Coordinator {
             self?.navigationController.setViewControllers([], animated: false)
             self?.showAddFieldIntro()
         }
+        viewModel.onAddFieldTapped = { [weak self] in self?.showAddFieldSheet() }
         
         let view = DashboardView(
             viewModel: viewModel,
@@ -115,12 +114,33 @@ final class DashboardCoordinator: Coordinator {
         navigationController.setViewControllers([hostingController], animated: true)
     }
 
+    private func showAddFieldSheet() {
+        guard !fieldSessionStore.hasReachedLimit else { return }
+        let modalNavigation = UINavigationController()
+        let coordinator = FieldSelectionCoordinator(navigationController: modalNavigation, authService: authService, dataService: dataService)
+        coordinator.onFieldConfirmed = { [weak self, weak coordinator] in
+            guard let self else { return }
+            Task {
+                try? await self.fieldSessionStore.refresh()
+                await MainActor.run {
+                    modalNavigation.dismiss(animated: true)
+                    if let coordinator { self.childCoordinators.removeAll { $0 === coordinator } }
+                }
+            }
+        }
+        coordinator.onCancel = { modalNavigation.dismiss(animated: true) }
+        childCoordinators.append(coordinator)
+        coordinator.start()
+        navigationController.present(modalNavigation, animated: true)
+    }
+
     private func showSettings() {
         let settingsCoordinator = SettingsCoordinator(
             navigationController: navigationController,
             authService: authService,
             dataService: dataService,
-            preferencesService: preferencesService
+            preferencesService: preferencesService,
+            fieldSessionStore: fieldSessionStore
         )
         
         settingsCoordinator.onSignOut = { [weak self] in

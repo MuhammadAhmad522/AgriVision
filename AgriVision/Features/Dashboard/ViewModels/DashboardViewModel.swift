@@ -1,227 +1,209 @@
-import Foundation
 import Combine
+import Foundation
 
-/**
- The `DashboardViewModel` connects the Data (Model) to the User Interface (View).
- It uses the `ObservableObject` protocol, which means SwiftUI Views can "watch" it for changes.
- Whenever a property marked with `@Published` changes, the UI will automatically update.
- */
+@MainActor
 final class DashboardViewModel: ObservableObject {
-
-    // MARK: - Published Properties
-
-    /// The title of the screen.
-    @Published var title: String = "Dashboard"
-    
-    /// Success message for toast/banner
-    @Published var successMessage: String?
-
-    /// The list of sensor readings displayed by the View.
-    @Published var readings: [SensorReading] = []
-
-    /// The list of user's fields, containing satellite data.
-    @Published var fields: [Field] = []
-    
-    /// AI-generated agronomic recommendations for the primary field.
     @Published var recommendations: [FieldRecommendation] = []
-    
-    /// Weather and soil satellite data for the primary field.
-    @Published var weatherSoil: FieldWeatherSoil? = nil
-
-    /// A boolean flag indicating an in-flight data request. Used to show a loading spinner.
-    @Published var isLoading: Bool = false
-
-    /// A human-readable error message set when data fetching fails, `nil` otherwise.
-    /// The View observes this to surface error banners or alerts without containing
-    /// any error-handling logic itself (Single Responsibility Principle).
+    @Published var readings: [SensorReading] = []
+    @Published var weatherSoil: FieldWeatherSoil?
+    @Published var satellite: SourceState<SatelliteSnapshot>?
+    @Published var satelliteImageData: Data?
+    @Published var truecolorImageData: Data?
+    @Published var uvi: SourceState<UVISnapshot>?
+    @Published var sensorCount = 0
+    @Published var sensorStatus = "not_configured"
+    @Published var dataAvailability: [DataAvailabilityItem] = []
+    @Published var isLoading = false
+    @Published var isRefreshingAI = false
     @Published var errorMessage: String?
-
-    /// The display name of the currently signed-in user.
+    @Published var successMessage: String?
     @Published var userName: String?
-    
-    /// The profile image URL for the currently signed-in user.
     @Published var profileImageURL: URL?
-    
-    /// The profile initial (last name first letter) for the currently signed-in user.
-    @Published var profileInitial: String = ""
+    @Published var profileInitial = "U"
 
-    // MARK: - Private Properties
-
-    /// The service responsible for supplying data.
-    /// Kept as a protocol (`AgriDataService`) so the ViewModel never depends on a
-    /// concrete repository — satisfying the Dependency Inversion Principle.
+    let fieldSessionStore: FieldSessionStore
     private let dataService: AgriDataService
-    
-    /// The authentication service for managing user sessions.
     private let authService: AuthService
-    
-    // MARK: - Coordinator Callbacks
-    
-    /// Injected by the Coordinator. Called when the user signs out.
+    private let preferencesService: PreferencesService
+    private var cancellables: Set<AnyCancellable> = []
+
     var onSignOut: (() -> Void)?
-    
-    /// Injected by the Coordinator. Called when the user taps the settings button.
     var onSettingsTap: (() -> Void)?
-    
-    /// Injected by the Coordinator. Called when the user taps the AI Chat button.
     var onChatTapped: ((UUID) -> Void)?
+    var onAddFieldTapped: (() -> Void)?
 
-    // MARK: - Initialization
-
-    /// Initializer-based dependency injection: the caller supplies the concrete data service.
-    /// No default value is provided here so that the composition root (Coordinator) is always
-    /// the single place where concrete types are chosen (Dependency Inversion Principle).
-    init(dataService: AgriDataService, authService: AuthService) {
+    init(dataService: AgriDataService, authService: AuthService, preferencesService: PreferencesService, fieldSessionStore: FieldSessionStore) {
         self.dataService = dataService
         self.authService = authService
-        self.userName = authService.currentUserDisplayName
-        loadUserData()
-    }
-    
-    /// Loads the current user's profile data (photo URL and name initial)
-    private func loadUserData() {
-        self.profileImageURL = authService.currentUserPhotoURL
-        
-        if let displayName = authService.currentUserDisplayName, !displayName.isEmpty {
-            let components = displayName.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: " ")
-            
-            if components.count > 1, let last = components.last, let firstChar = last.first {
-                self.profileInitial = String(firstChar).uppercased()
-            } else if let firstComponent = components.first, let firstChar = firstComponent.first {
-                self.profileInitial = String(firstChar).uppercased()
+        self.preferencesService = preferencesService
+        self.fieldSessionStore = fieldSessionStore
+        userName = authService.currentUserDisplayName
+        profileImageURL = authService.currentUserPhotoURL
+        if let name = authService.currentUserDisplayName?.trimmingCharacters(in: .whitespacesAndNewlines), let character = name.split(separator: " ").last?.first {
+            profileInitial = String(character).uppercased()
+        }
+        fieldSessionStore.$activeFieldId
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.clearFieldData()
+                Task { await self?.refreshData() }
             }
-        } else {
-            self.profileInitial = "U"
-        }
+            .store(in: &cancellables)
     }
 
-    // MARK: - Methods
-    
-    /// Signs out the current user and notifies the coordinator.
-    func signOut() {
-        do {
-            try authService.signOut()
-            onSignOut?()
-        } catch {
-            errorMessage = "Failed to sign out: \(error.userFacingMessage)"
-        }
-    }
-    
-    /// Helper to trigger the settings navigation flow.
-    func openSettings() {
-        onSettingsTap?()
-    }
-    
-    /// Triggers the AI Chat for the primary field.
-    func openChat() {
-        guard let primaryField = fields.first else { return }
-        onChatTapped?(primaryField.id)
-    }
-    
-    /// Links the current user's account with Google credentials.
-    /// This allows users who signed up with email/password to also sign in with Google.
-    func linkGoogle() {
-        Task {
-            // Ensure UI updates happen on main thread
-            await MainActor.run { isLoading = true }
-            
-            do {
-                try await authService.linkGoogleAccount()
-                await MainActor.run {
-                    isLoading = false
-                    successMessage = "Account successfully linked with Google!"
-                }
-                // Clear after delay
-                try? await Task.sleep(nanoseconds: 3 * 1_000_000_000)
-                await MainActor.run {
-                    // Only clear if the message hasn't changed
-                    if successMessage == "Account successfully linked with Google!" {
-                        successMessage = nil
-                    }
-                }
-            } catch {
-                let errorMsg = "Failed to link account: \(error.userFacingMessage)"
-                await MainActor.run {
-                    isLoading = false
-                    errorMessage = errorMsg
-                }
-                // Clear after delay
-                try? await Task.sleep(nanoseconds: 3 * 1_000_000_000)
-                await MainActor.run {
-                    if errorMessage == errorMsg {
-                        errorMessage = nil
-                    }
-                }
-            }
-        }
-    }
+    var activeField: Field? { fieldSessionStore.activeField }
+    var fields: [Field] { fieldSessionStore.fields }
+    var currentCropType: String { activeField?.cropType ?? "Unknown crop" }
 
-    /// Fetches new sensor readings from the data service.
-    /// `@MainActor` ensures all `@Published` mutations happen on the main thread.
-    @MainActor
-    func refreshData() async {
-        isLoading = true
-        errorMessage = nil
-
-        defer { isLoading = false }
-
-        do {
-            let fetchedFields = try await dataService.fetchFields()
-            fields = fetchedFields
-
-            // Field geometry drives the Fields map, so publish it before loading optional
-            // sensor data. A sensor endpoint failure must not leave the map without a field.
-            let fetchedReadings = try await dataService.fetchSensorReadings()
-            readings = fetchedReadings
-            
-            // Fetch AI recommendations for the primary field
-            if let primaryField = fetchedFields.first {
-                let fetchedRecs = try await dataService.fetchRecommendations(for: primaryField.id)
-                recommendations = fetchedRecs
-                
-                // Fetch satellite soil and weather forecast
-                if let ws = try? await dataService.fetchWeatherSoil(for: primaryField.id) {
-                    weatherSoil = ws
-                } else {
-                    weatherSoil = nil
-                }
-            } else {
-                weatherSoil = nil
-            }
-        } catch {
-            errorMessage = error.userFacingMessage
-        }
-    }
-
-    // MARK: - Computed Properties for UI
-    
-    /// Returns the primary crop type.
-    var currentCropType: String {
-        return fields.first?.cropType ?? "Rice"
-    }
-    
-    /// Returns the health summary for the primary field.
     var healthSummary: (score: Double, message: String, color: String)? {
-        guard let field = fields.first, let ndvi = field.ndviScore else { return nil }
-        
-        let message: String
-        let color: String
-        
+        guard let ndvi = activeField?.ndviScore else { return nil }
         switch ndvi {
-        case 0.7...1.0:
-            message = "Excellent Crop Health"
-            color = "green"
-        case 0.4..<0.7:
-            message = "Good Health - Monitor Moisture"
-            color = "orange"
-        case 0..<0.4:
-            message = "Low Vitality - Inspection Required"
-            color = "red"
-        default:
-            message = "Awaiting Analysis"
-            color = "gray"
+        case 0.7...1: return (ndvi, "Excellent Crop Health", "green")
+        case 0.4..<0.7: return (ndvi, "Monitor Crop Health", "orange")
+        case 0..<0.4: return (ndvi, "Inspection Recommended", "red")
+        default: return nil
         }
-        
-        return (ndvi, message, color)
+    }
+
+    func signOut() {
+        do { try authService.signOut(); fieldSessionStore.clear(); onSignOut?() }
+        catch { errorMessage = error.userFacingMessage }
+    }
+
+    func openSettings() { onSettingsTap?() }
+    func openChat() { if let id = fieldSessionStore.activeFieldId { onChatTapped?(id) } }
+    func addField() {
+        if fieldSessionStore.hasReachedLimit {
+            presentError("Delete a field before adding another. You can have up to \(fieldSessionStore.activeFieldLimit) fields.")
+        } else {
+            onAddFieldTapped?()
+        }
+    }
+
+    func pollUntilCancelled() async {
+        while !Task.isCancelled {
+            await refreshData()
+            try? await Task.sleep(for: .seconds(preferencesService.dashboardRefreshInterval))
+        }
+    }
+
+    func refreshData() async {
+        guard let fieldID = fieldSessionStore.activeFieldId else {
+            clearFieldData()
+            return
+        }
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let snapshot = try await dataService.fetchDashboard(for: fieldID)
+            guard fieldID == fieldSessionStore.activeFieldId else { return }
+            fieldSessionStore.merge(snapshot.field)
+            recommendations = snapshot.recommendations
+            readings = snapshot.sources.sensors.data ?? []
+            sensorCount = snapshot.sources.sensors.configuredCount ?? Set(readings.map(\.sensor_id)).count
+            sensorStatus = snapshot.sources.sensors.status
+            satellite = snapshot.sources.satellite
+            uvi = snapshot.sources.uvi
+            let soil = snapshot.sources.soil.data ?? FieldWeatherSoil.SoilData(moisture: nil, surfaceTempC: nil, depthTempC: nil, source: snapshot.sources.soil.status)
+            let weather = snapshot.sources.weather.data ?? FieldWeatherSoil.WeatherData(current: .init(tempC: nil, humidity: nil, description: nil), forecastDays: [], source: snapshot.sources.weather.status)
+            weatherSoil = FieldWeatherSoil(fieldId: fieldID, soil: soil, weather: weather)
+            dataAvailability = availabilityItems(from: snapshot.sources)
+            errorMessage = nil
+            await loadSatelliteImages(
+                for: fieldID,
+                hasNDVI: snapshot.sources.satellite.data?.ndviImageURL != nil,
+                hasTruecolor: snapshot.sources.satellite.data?.truecolorImageURL != nil
+            )
+        } catch is CancellationError {
+        } catch {
+            presentError(error.userFacingMessage)
+        }
+    }
+
+    private func clearFieldData() {
+        recommendations = []
+        readings = []
+        weatherSoil = nil
+        satellite = nil
+        satelliteImageData = nil
+        truecolorImageData = nil
+        uvi = nil
+        sensorCount = 0
+        sensorStatus = "not_configured"
+        dataAvailability = []
+        errorMessage = nil
+    }
+
+    private func loadSatelliteImages(for fieldID: UUID, hasNDVI: Bool, hasTruecolor: Bool) async {
+        async let ndviData: Data? = hasNDVI ? try? dataService.fetchSatelliteImage(for: fieldID, kind: "ndvi") : nil
+        async let truecolorData: Data? = hasTruecolor ? try? dataService.fetchSatelliteImage(for: fieldID, kind: "truecolor") : nil
+        let images = await (ndviData, truecolorData)
+        guard fieldID == fieldSessionStore.activeFieldId else { return }
+        satelliteImageData = images.0
+        truecolorImageData = images.1
+    }
+
+    func refreshRecommendations() async {
+        guard let fieldID = fieldSessionStore.activeFieldId else { return }
+        isRefreshingAI = true
+        defer { isRefreshingAI = false }
+        do {
+            try await dataService.refreshRecommendations(for: fieldID)
+            successMessage = "AI analysis queued."
+            ToastMessageAutoDismiss.schedule(expectedMessage: successMessage ?? "", currentMessage: { self.successMessage }, clearMessage: { self.successMessage = nil })
+        } catch { presentError(error.userFacingMessage) }
+    }
+
+    func updateFeedback(_ recommendation: FieldRecommendation, status: String) async {
+        do {
+            let updated = try await dataService.updateRecommendationFeedback(for: recommendation.fieldId, recommendationId: recommendation.id, status: status)
+            if let index = recommendations.firstIndex(where: { $0.id == updated.id }) { recommendations[index] = updated }
+        } catch { presentError(error.userFacingMessage) }
+    }
+
+    func recordOutcome(_ recommendation: FieldRecommendation, outcome: String) async {
+        do {
+            let updated = try await dataService.recordRecommendationOutcome(
+                for: recommendation.fieldId,
+                recommendationId: recommendation.id,
+                outcome: outcome,
+                notes: nil
+            )
+            if let index = recommendations.firstIndex(where: { $0.id == updated.id }) { recommendations[index] = updated }
+            successMessage = "Outcome recorded."
+            ToastMessageAutoDismiss.schedule(expectedMessage: successMessage ?? "", currentMessage: { self.successMessage }, clearMessage: { self.successMessage = nil })
+        } catch { presentError(error.userFacingMessage) }
+    }
+
+    func requestDataRefresh() async {
+        guard let fieldID = fieldSessionStore.activeFieldId else { return }
+        do {
+            try await dataService.refreshFieldData(for: fieldID)
+            successMessage = "Data refresh queued."
+            ToastMessageAutoDismiss.schedule(expectedMessage: successMessage ?? "", currentMessage: { self.successMessage }, clearMessage: { self.successMessage = nil })
+        } catch {
+            presentError(error.userFacingMessage)
+        }
+    }
+
+    private func availabilityItems(from sources: DashboardSources) -> [DataAvailabilityItem] {
+        let values: [(String, String, Date?, String?, Bool)] = [
+            ("satellite", "Satellite", sources.satellite.lastUpdated, sources.satellite.message, sources.satellite.canRetry),
+            ("soil", "Soil", sources.soil.lastUpdated, sources.soil.message, sources.soil.canRetry),
+            ("weather", "Weather", sources.weather.lastUpdated, sources.weather.message, sources.weather.canRetry),
+            ("uvi", "UV index", sources.uvi.lastUpdated, sources.uvi.message, sources.uvi.canRetry),
+            ("sensors", "IoT sensors", sources.sensors.lastUpdated, sources.sensors.message, sources.sensors.canRetry),
+        ]
+        let states = [sources.satellite.availability, sources.soil.availability, sources.weather.availability, sources.uvi.availability, sources.sensors.availability]
+        return zip(values, states).compactMap { value, state in
+            if state == .available || (value.0 == "sensors" && state == .notConfigured) { return nil }
+            return DataAvailabilityItem(id: value.0, title: value.1, status: state, lastUpdated: value.2, message: value.3, retryable: value.4)
+        }
+    }
+
+    private func presentError(_ message: String) {
+        errorMessage = message
+        ToastMessageAutoDismiss.schedule(expectedMessage: message, currentMessage: { self.errorMessage }, clearMessage: { self.errorMessage = nil })
     }
 }

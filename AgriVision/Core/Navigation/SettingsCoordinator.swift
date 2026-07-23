@@ -11,6 +11,7 @@ final class SettingsCoordinator: Coordinator {
     private let authService: AuthService
     private let dataService: AgriDataService
     private let preferencesService: PreferencesService
+    private let fieldSessionStore: FieldSessionStore
     
     /// Called when the user signs out, ending the logged-in session.
     var onSignOut: (() -> Void)?
@@ -25,19 +26,22 @@ final class SettingsCoordinator: Coordinator {
         navigationController: UINavigationController, 
         authService: AuthService, 
         dataService: AgriDataService, 
-        preferencesService: PreferencesService
+        preferencesService: PreferencesService,
+        fieldSessionStore: FieldSessionStore
     ) {
         self.navigationController = navigationController
         self.authService = authService
         self.dataService = dataService
         self.preferencesService = preferencesService
+        self.fieldSessionStore = fieldSessionStore
     }
 
     func start() {
         let viewModel = SettingsViewModel(
             authService: authService,
             dataService: dataService,
-            preferencesService: preferencesService
+            preferencesService: preferencesService,
+            fieldSessionStore: fieldSessionStore
         )
         
         viewModel.onSignOut = { [weak self] in

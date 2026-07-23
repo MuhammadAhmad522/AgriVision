@@ -29,6 +29,31 @@ class FieldDetailsViewModel: ObservableObject {
     private let dataService: AgriDataService
     private let authService: AuthService
     private let coordinates: [CLLocationCoordinate2D]
+
+    private var calculatedAreaHa: Double {
+        guard coordinates.count >= 3 else { return 0 }
+        let earthRadiusMeters = 6_378_137.0
+        let radians = Double.pi / 180
+        var area = 0.0
+
+        for index in coordinates.indices {
+            let current = coordinates[index]
+            let next = coordinates[(index + 1) % coordinates.count]
+            var longitudeDelta = (next.longitude - current.longitude) * radians
+            if longitudeDelta > Double.pi {
+                longitudeDelta -= 2 * Double.pi
+            } else if longitudeDelta < -Double.pi {
+                longitudeDelta += 2 * Double.pi
+            }
+            area += longitudeDelta * (
+                2
+                + sin(current.latitude * radians)
+                + sin(next.latitude * radians)
+            )
+        }
+
+        return abs(area * earthRadiusMeters * earthRadiusMeters / 2) / 10_000
+    }
     
     // MARK: - Callbacks
     
@@ -74,11 +99,25 @@ class FieldDetailsViewModel: ObservableObject {
             )
             return
         }
+
+        let areaHa = calculatedAreaHa
+        guard (1.0...3000.0).contains(areaHa) else {
+            errorMessage = areaHa < 1
+                ? "Field area must be at least 1 hectare. Draw a larger boundary."
+                : "Field area cannot exceed 3000 hectares. Draw a smaller boundary."
+            ToastMessageAutoDismiss.schedule(
+                expectedMessage: errorMessage ?? "",
+                currentMessage: { self.errorMessage },
+                clearMessage: { self.errorMessage = nil }
+            )
+            return
+        }
         
         let data = FieldSelectionData(
             name: name,
             coordinates: coordinates,
-            areaHa: calculateArea(),
+            // The server recalculates this with PostGIS and remains authoritative.
+            areaHa: areaHa,
             cropType: selectedCrop,
             plantationDate: plantationDate,
             expectedHarvestDate: harvestDate
@@ -113,7 +152,7 @@ class FieldDetailsViewModel: ObservableObject {
                 onSaveTriggered?(data, false)
             } catch {
                 isLoading = false
-                errorMessage = error.localizedDescription
+                errorMessage = error.userFacingMessage
                 ToastMessageAutoDismiss.schedule(
                     expectedMessage: errorMessage ?? "",
                     currentMessage: { self.errorMessage },
@@ -127,11 +166,4 @@ class FieldDetailsViewModel: ObservableObject {
         onBack?()
     }
     
-    // MARK: - Helpers
-    
-    private func calculateArea() -> Double {
-        // Logic to calculate area from coordinates could go here
-        // For simplicity, we'll return a placeholder or 0.0
-        return 0.0
-    }
 }

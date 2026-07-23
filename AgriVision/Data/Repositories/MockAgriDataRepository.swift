@@ -13,6 +13,16 @@ class MockAgriDataRepository: AgriDataService {
     init(mockCropType: String = "Wheat") {
         self.mockCropType = mockCropType
     }
+
+    func bootstrapSession() async throws -> SessionBootstrap {
+        let fields = try await fetchFields()
+        return SessionBootstrap(
+            user: BackendUser(id: UUID(), firebaseUid: "mock-user", email: "mock@example.com"),
+            fields: fields,
+            activeFieldLimit: 5,
+            activeFieldCount: fields.count
+        )
+    }
     
     /// This method creates fake sensor data and returns it.
     /// Fakes a field save operation
@@ -44,7 +54,7 @@ class MockAgriDataRepository: AgriDataService {
     }
 
     /// Mock implementation for fetching fields.
-    func fetchFields() async throws -> [Field] {
+    func fetchFields(includeArchived: Bool = false) async throws -> [Field] {
         // Return a mock field to populate the dashboard UI
         return [
             Field(
@@ -69,7 +79,7 @@ class MockAgriDataRepository: AgriDataService {
     }
     
     /// Fetches mock sensor readings.
-    func fetchSensorReadings() async throws -> [SensorReading] {
+    func fetchSensorReadings(for fieldId: UUID) async throws -> [SensorReading] {
         return [
             SensorReading(
                 sensor_id: UUID(),
@@ -80,6 +90,8 @@ class MockAgriDataRepository: AgriDataService {
             )
         ]
     }
+
+    func fetchSensors(for fieldId: UUID) async throws -> [FieldSensor] { [] }
     
     /// Returns mock AI recommendations for UI Preview and testing.
     func fetchRecommendations(for fieldId: UUID) async throws -> [FieldRecommendation] {
@@ -106,6 +118,27 @@ class MockAgriDataRepository: AgriDataService {
     func deleteField(id: UUID) async throws {
         // Mock a successful deletion
     }
+
+    func refreshFieldData(for fieldId: UUID) async throws {}
+
+    func fetchDashboard(for fieldId: UUID) async throws -> DashboardSnapshot {
+        let fields = try await fetchFields()
+        let field = fields[0]
+        let weatherSoil = try await fetchWeatherSoil(for: fieldId)
+        return DashboardSnapshot(
+            field: field,
+            sources: DashboardSources(
+                satellite: SourceState(status: "available", lastUpdated: Date(), data: nil, message: nil),
+                soil: SourceState(status: "available", lastUpdated: Date(), data: weatherSoil.soil, message: nil),
+                weather: SourceState(status: "available", lastUpdated: Date(), data: weatherSoil.weather, message: nil),
+                uvi: SourceState(status: "unavailable", lastUpdated: nil, data: nil, message: nil),
+                sensors: SourceState(status: "available", lastUpdated: Date(), data: try await fetchSensorReadings(for: fieldId), message: nil)
+            ),
+            recommendations: try await fetchRecommendations(for: fieldId)
+        )
+    }
+
+    func fetchSatelliteImage(for fieldId: UUID, kind: String) async throws -> Data { Data() }
     
     /// Provides feedback on an AI recommendation to improve future context.
     func updateRecommendationFeedback(for fieldId: UUID, recommendationId: UUID, status: String) async throws -> FieldRecommendation {
@@ -114,6 +147,16 @@ class MockAgriDataRepository: AgriDataService {
             advice: "Feedback received", confidence: 1.0, status: status, ndviAtGeneration: nil, createdAt: Date()
         )
     }
+
+    func recordRecommendationOutcome(for fieldId: UUID, recommendationId: UUID, outcome: String, notes: String?) async throws -> FieldRecommendation {
+        FieldRecommendation(
+            id: recommendationId, fieldId: fieldId, category: "Mock", priority: "low",
+            advice: "Outcome received", confidence: 1.0, status: "implemented", ndviAtGeneration: nil,
+            createdAt: Date(), outcome: outcome, outcomeNotes: notes
+        )
+    }
+
+    func refreshRecommendations(for fieldId: UUID) async throws {}
     
     /// Fetches the conversational history for a field from the AI backend.
     func fetchChatHistory(for fieldId: UUID) async throws -> [ChatMessage] {
@@ -121,11 +164,16 @@ class MockAgriDataRepository: AgriDataService {
             ChatMessage(id: UUID(), role: "model", content: "Hello! I am your AI Agronomist. How can I help you today?", createdAt: Date())
         ]
     }
+
+    func fetchChatAttachment(fieldId: UUID, attachmentId: UUID) async throws -> Data { Data() }
     
     /// Submits a new user message to the AI and returns the response.
-    func sendChatMessage(for fieldId: UUID, message: String) async throws -> ChatMessage {
+    func sendChatMessage(for fieldId: UUID, message: String, images: [ChatImageUpload], idempotencyKey: String) async throws -> ChatTurn {
         try await Task.sleep(nanoseconds: 1 * 1_000_000_000)
-        return ChatMessage(id: UUID(), role: "model", content: "I've analyzed the conditions based on your message: \(message). Everything looks stable.", createdAt: Date())
+        return ChatTurn(
+            userMessage: ChatMessage(id: UUID(), role: "user", content: message, status: "completed", attachments: [], createdAt: Date()),
+            assistantMessage: ChatMessage(id: UUID(), role: "model", content: "I've analyzed the conditions based on your message: \(message). Everything looks stable.", status: "completed", attachments: [], createdAt: Date())
+        )
     }
     
     func verifySensorConnection(deviceId: String) async throws -> (isVerified: Bool, message: String) {
@@ -138,6 +186,14 @@ class MockAgriDataRepository: AgriDataService {
             return (false, "Hardware ID not found. Ensure your ESP32 is powered and connected via USB/MQTT.")
         }
     }
+
+    func pairSensor(deviceId: String) async throws -> (isPaired: Bool, message: String) {
+        let verification = try await verifySensorConnection(deviceId: deviceId)
+        return (verification.isVerified, verification.isVerified ? "Sensor paired and ready to assign to a field." : verification.message)
+    }
+
+
+    func assignSensor(_ sensor: SensorConfig, to fieldId: UUID) async throws {}
     
     /// Fetches mock satellite soil data and weather forecast for a field.
     func fetchWeatherSoil(for fieldId: UUID) async throws -> FieldWeatherSoil {
