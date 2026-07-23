@@ -86,15 +86,19 @@ services:
       - GOOGLE_AI_MODEL=${GOOGLE_AI_MODEL:-gemini-3.5-flash}
       - VERTEX_SEARCH_DATASTORE=${VERTEX_SEARCH_DATASTORE:-}
       - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-}
+      - AI_PROVIDER_TIMEOUT_SECONDS=${AI_PROVIDER_TIMEOUT_SECONDS:-45}
       - CHAT_REQUEST_MAX_BYTES=${CHAT_REQUEST_MAX_BYTES:-33554432}
       - CHAT_GCS_BUCKET=${CHAT_GCS_BUCKET:-}
       - FIREBASE_SERVICE_ACCOUNT_PATH=/app/firebase-credentials.json
       - FIREBASE_CLOCK_SKEW_SECONDS=${FIREBASE_CLOCK_SKEW_SECONDS:-5}
+      - FIREBASE_CHECK_REVOKED=${FIREBASE_CHECK_REVOKED:-false}
+      - FIREBASE_VERIFY_TIMEOUT_SECONDS=${FIREBASE_VERIFY_TIMEOUT_SECONDS:-8}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
     volumes:
       - ./app:/app/app
       - ./alembic:/app/alembic
       - ./firebase-credentials.json:/app/firebase-credentials.json:ro
+      - ${GOOGLE_ADC_HOST_PATH:-./google-application-credentials.json}:/app/google-application-credentials.json:ro
       - agro_media:/app/media/agro
       - chat_media:/app/media/chat
     depends_on:

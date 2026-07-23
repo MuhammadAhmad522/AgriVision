@@ -4,6 +4,10 @@ import Foundation
 @MainActor
 final class DashboardViewModel: ObservableObject {
     @Published var recommendations: [FieldRecommendation] = []
+    @Published var advisorStatus = "pending"
+    @Published var advisorMessage: String?
+    @Published var advisorDataQuality: String?
+    @Published var loadedFieldId: UUID?
     @Published var readings: [SensorReading] = []
     @Published var weatherSoil: FieldWeatherSoil?
     @Published var satellite: SourceState<SatelliteSnapshot>?
@@ -99,7 +103,11 @@ final class DashboardViewModel: ObservableObject {
             let snapshot = try await dataService.fetchDashboard(for: fieldID)
             guard fieldID == fieldSessionStore.activeFieldId else { return }
             fieldSessionStore.merge(snapshot.field)
+            loadedFieldId = fieldID
             recommendations = snapshot.recommendations
+            advisorStatus = snapshot.advisor?.status ?? (recommendations.isEmpty ? "pending" : "available")
+            advisorMessage = snapshot.advisor?.message
+            advisorDataQuality = snapshot.advisor?.dataQuality
             readings = snapshot.sources.sensors.data ?? []
             sensorCount = snapshot.sources.sensors.configuredCount ?? Set(readings.map(\.sensor_id)).count
             sensorStatus = snapshot.sources.sensors.status
@@ -123,6 +131,10 @@ final class DashboardViewModel: ObservableObject {
 
     private func clearFieldData() {
         recommendations = []
+        advisorStatus = "pending"
+        advisorMessage = nil
+        advisorDataQuality = nil
+        loadedFieldId = nil
         readings = []
         weatherSoil = nil
         satellite = nil
@@ -149,10 +161,16 @@ final class DashboardViewModel: ObservableObject {
         isRefreshingAI = true
         defer { isRefreshingAI = false }
         do {
+            advisorStatus = "pending"
+            advisorMessage = "AI is reviewing the latest field evidence."
             try await dataService.refreshRecommendations(for: fieldID)
-            successMessage = "AI analysis queued."
+            successMessage = "AI analysis started. Recommendations will appear automatically."
             ToastMessageAutoDismiss.schedule(expectedMessage: successMessage ?? "", currentMessage: { self.successMessage }, clearMessage: { self.successMessage = nil })
-        } catch { presentError(error.userFacingMessage) }
+        } catch {
+            advisorStatus = "unavailable"
+            advisorMessage = error.userFacingMessage
+            presentError(error.userFacingMessage)
+        }
     }
 
     func updateFeedback(_ recommendation: FieldRecommendation, status: String) async {

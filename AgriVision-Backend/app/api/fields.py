@@ -13,6 +13,7 @@ from app.core.errors import APIError
 from app.core.rate_limit import rate_limiter
 from app.database import get_db
 from app.models.db_models import (
+    AIAnalysisRun,
     Field,
     FieldDeletionJob,
     FieldObservation,
@@ -156,6 +157,11 @@ async def create_field(
             background_tasks.add_task(_sync_field_background, new_field.id)
         db.expire_all()
         new_field = db.query(Field).filter(Field.id == new_field.id).first()
+    # AI generation is independent from the provider sync and starts as soon
+    # as the field-creation response has been returned to the app.
+    from app.services.scheduler import run_ai_by_field_id
+
+    background_tasks.add_task(run_ai_by_field_id, new_field.id, force=True)
     return field_to_response(new_field, db)
 
 
@@ -346,11 +352,45 @@ def get_dashboard(field_id: UUID, db: Session = Depends(get_db), current_user: U
         )
     recommendations = (
         db.query(FieldRecommendation)
-        .filter(FieldRecommendation.field_id == field.id)
+        .filter(
+            FieldRecommendation.field_id == field.id,
+            FieldRecommendation.status != "superseded",
+            (FieldRecommendation.expires_at.is_(None))
+            | (FieldRecommendation.expires_at >= datetime.now(timezone.utc)),
+        )
         .order_by(FieldRecommendation.created_at.desc())
         .limit(10)
         .all()
     )
+    latest_ai_run = (
+        db.query(AIAnalysisRun)
+        .filter(AIAnalysisRun.field_id == field.id)
+        .order_by(AIAnalysisRun.started_at.desc())
+        .first()
+    )
+    if latest_ai_run is None:
+        advisor_status = "available" if recommendations else "pending"
+        advisor_message = None if recommendations else "AI is preparing the first field assessment."
+    elif latest_ai_run.status == "running":
+        advisor_status = "pending"
+        advisor_message = "AI is reviewing the latest field evidence."
+    elif latest_ai_run.status == "failed":
+        advisor_status = "stale" if recommendations else "unavailable"
+        advisor_message = latest_ai_run.error or "AI Advisor could not complete the latest analysis."
+    else:
+        advisor_status = "available" if recommendations else "pending"
+        advisor_message = None if recommendations else "AI analysis completed without a field-specific action."
+    advisor = {
+        "status": advisor_status,
+        "last_updated": (
+            latest_ai_run.completed_at or latest_ai_run.started_at
+            if latest_ai_run is not None
+            else None
+        ),
+        "message": advisor_message,
+        "retryable": advisor_status in {"pending", "stale", "unavailable"},
+        "data_quality": latest_ai_run.data_quality if latest_ai_run is not None else None,
+    }
     scene = db.query(SatelliteScene).filter(SatelliteScene.field_id == field.id).order_by(SatelliteScene.acquired_at.desc()).first()
     provider_configured = bool(settings.AGROMONITORING_API_KEY.strip())
     if scene is None:
@@ -389,6 +429,7 @@ def get_dashboard(field_id: UUID, db: Session = Depends(get_db), current_user: U
                 "retryable": bool(sensors and not latest_readings),
             },
         },
+        "advisor": advisor,
         "recommendations": recommendations,
     }
 

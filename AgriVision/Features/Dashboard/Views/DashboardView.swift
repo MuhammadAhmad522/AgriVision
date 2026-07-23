@@ -132,6 +132,8 @@ struct DashboardView: View {
                 satellite: viewModel.satellite,
                 satelliteImageData: viewModel.satelliteImageData,
                 sensorCount: viewModel.sensorCount,
+                snapshotFieldId: viewModel.loadedFieldId,
+                isLoadingSnapshot: viewModel.isLoading,
                 profileImageURL: viewModel.profileImageURL,
                 profileInitial: viewModel.profileInitial,
                 onAddField: viewModel.addField
@@ -1019,9 +1021,42 @@ struct AlertsBottomSheet: View {
                             }
                         }
                         if viewModel.recommendations.isEmpty {
-                            Text(viewModel.isLoading ? "Loading recommendations…" : "No recommendations are available yet.")
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack(spacing: 8) {
+                                    if viewModel.advisorStatus == "pending" {
+                                        ProgressView().controlSize(.small)
+                                    } else {
+                                        Image(systemName: "exclamationmark.triangle.fill")
+                                            .foregroundStyle(.orange)
+                                    }
+                                    Text(
+                                        viewModel.isLoading
+                                            ? "Loading recommendations…"
+                                            : (viewModel.advisorMessage ?? "AI is preparing the first field assessment.")
+                                    )
+                                }
                                 .foregroundStyle(.secondary)
+                                if let quality = viewModel.advisorDataQuality {
+                                    Text("Evidence quality: \(quality.capitalized)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                if viewModel.advisorStatus == "unavailable" || viewModel.advisorStatus == "stale" {
+                                    Button("Retry analysis") {
+                                        Task { await viewModel.refreshRecommendations() }
+                                    }
+                                    .font(.caption.bold())
+                                }
+                            }
                         } else {
+                            if viewModel.advisorStatus == "stale" || viewModel.advisorStatus == "unavailable" {
+                                Label(
+                                    viewModel.advisorMessage ?? "Showing the last successful advice while AI retries.",
+                                    systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90"
+                                )
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                            }
                             ForEach(viewModel.recommendations) { recommendation in
                                 VStack(alignment: .leading, spacing: 8) {
                                     HStack {

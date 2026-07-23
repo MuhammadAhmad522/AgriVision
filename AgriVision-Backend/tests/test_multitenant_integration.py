@@ -37,6 +37,7 @@ pytestmark = pytest.mark.integration
 @pytest.fixture(autouse=True)
 def _disable_external_provider_calls(monkeypatch):
     monkeypatch.setattr("app.api.fields.settings.AGROMONITORING_API_KEY", "")
+    monkeypatch.setattr("app.services.scheduler.run_ai_by_field_id", lambda *args, **kwargs: None)
 
 
 def _field_payload(name: str, sensor_id: str | None = None):

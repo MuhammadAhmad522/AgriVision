@@ -85,7 +85,7 @@ def record_outcome(
 def _run_ai_background(field_id: UUID) -> None:
     from app.services.scheduler import run_ai_by_field_id
 
-    run_ai_by_field_id(field_id)
+    run_ai_by_field_id(field_id, force=True)
 
 
 @router.post("/api/fields/{field_id}/recommendations", status_code=status.HTTP_202_ACCEPTED)

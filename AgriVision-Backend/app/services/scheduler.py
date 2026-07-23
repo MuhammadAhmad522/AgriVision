@@ -447,6 +447,9 @@ async def sync_external_data_once() -> None:
         db.close()
     for field_id in field_ids:
         await sync_field_once(field_id)
+        # Re-evaluate immediately after provider data changes. The context
+        # fingerprint prevents a paid model call when nothing changed.
+        await run_ai_for_field_id(field_id)
     process_pending_field_deletions()
 
 
@@ -461,7 +464,31 @@ async def external_data_loop() -> None:
         await asyncio.sleep(settings.AGRO_WORKER_SCAN_SECONDS)
 
 
-async def run_ai_for_field(field: Field, db: Session) -> None:
+async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) -> None:
+    if not _acquire_source_lock(db, field.id, "ai_analysis"):
+        db.rollback()
+        return
+    stale_before = _utcnow() - timedelta(seconds=max(settings.AI_PROVIDER_TIMEOUT_SECONDS * 2, 120))
+    active_run = db.query(AIAnalysisRun).filter(
+        AIAnalysisRun.field_id == field.id,
+        AIAnalysisRun.status == "running",
+        AIAnalysisRun.started_at >= stale_before,
+    ).first()
+    if active_run:
+        db.rollback()
+        return
+    db.query(AIAnalysisRun).filter(
+        AIAnalysisRun.field_id == field.id,
+        AIAnalysisRun.status == "running",
+        AIAnalysisRun.started_at < stale_before,
+    ).update(
+        {
+            "status": "failed",
+            "error": "AI analysis exceeded its execution window.",
+            "completed_at": _utcnow(),
+        },
+        synchronize_session=False,
+    )
     observations = db.query(FieldObservation).filter(FieldObservation.field_id == field.id).order_by(FieldObservation.observed_at.desc()).limit(100).all()
     sensors = db.query(Sensor).filter(Sensor.field_id == field.id).all()
     sensor_ids = [sensor.id for sensor in sensors]
@@ -527,7 +554,8 @@ async def run_ai_for_field(field: Field, db: Session) -> None:
         AIAnalysisRun.prompt_version == settings.AI_PROMPT_VERSION,
         AIAnalysisRun.policy_version == settings.AI_POLICY_VERSION,
     ).first()
-    if duplicate:
+    if duplicate and not force:
+        db.commit()
         return
     run = AIAnalysisRun(
         field_id=field.id,
@@ -543,6 +571,9 @@ async def run_ai_for_field(field: Field, db: Session) -> None:
     )
     db.add(run)
     db.flush()
+    # Make the running state visible to dashboard polling while Gemini works.
+    db.commit()
+    db.refresh(run)
     try:
         recommendations = await provider.recommendations(serializable_context)
         for item in recommendations:
@@ -569,21 +600,40 @@ async def run_ai_for_field(field: Field, db: Session) -> None:
         run.status = "completed"
         run.completed_at = _utcnow()
         db.commit()
+    except asyncio.CancelledError:
+        run.status = "failed"
+        run.error = "AI analysis was interrupted and will retry."
+        run.completed_at = _utcnow()
+        db.commit()
+        raise
     except APIError as exc:
         run.status = "failed"
         run.error = exc.message
         run.completed_at = _utcnow()
         db.commit()
+    except Exception:
+        logger.exception("Unexpected AI analysis failure field_id=%s", field.id)
+        db.rollback()
+        run = db.query(AIAnalysisRun).filter(AIAnalysisRun.id == run.id).first()
+        if run:
+            run.status = "failed"
+            run.error = "AI Advisor could not complete the analysis."
+            run.completed_at = _utcnow()
+            db.commit()
 
 
-def run_ai_by_field_id(field_id: UUID) -> None:
+async def run_ai_for_field_id(field_id: UUID, *, force: bool = False) -> None:
     db = SessionLocal()
     try:
         field = db.query(Field).filter(Field.id == field_id, Field.status == "active").first()
         if field:
-            asyncio.run(run_ai_for_field(field, db))
+            await run_ai_for_field(field, db, force=force)
     finally:
         db.close()
+
+
+def run_ai_by_field_id(field_id: UUID, *, force: bool = False) -> None:
+    asyncio.run(run_ai_for_field_id(field_id, force=force))
 
 
 async def ai_reasoning_loop() -> None:

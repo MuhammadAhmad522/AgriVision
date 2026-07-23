@@ -1,5 +1,6 @@
 .env
 firebase-credentials.json
+google-application-credentials.json
 media/
 __pycache__/
 *.py[cod]

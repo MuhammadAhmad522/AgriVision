@@ -7,6 +7,8 @@ struct FieldsView: View {
     let satellite: SourceState<SatelliteSnapshot>?
     let satelliteImageData: Data?
     let sensorCount: Int
+    let snapshotFieldId: UUID?
+    let isLoadingSnapshot: Bool
     let profileImageURL: URL?
     let profileInitial: String
     let onAddField: () -> Void
@@ -29,17 +31,6 @@ struct FieldsView: View {
             }
             .mapStyle(.imagery(elevation: .realistic))
             .ignoresSafeArea()
-
-            if let satelliteImageData, let image = UIImage(data: satelliteImageData), activeField != nil {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .ignoresSafeArea()
-                    .opacity(0.24)
-                    .blendMode(.multiply)
-                    .allowsHitTesting(false)
-                    .accessibilityLabel("Latest cached NDVI overlay")
-            }
 
             LinearGradient(colors: [.black.opacity(0.25), .clear, .black.opacity(0.2)], startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
@@ -67,22 +58,13 @@ struct FieldsView: View {
                 .padding(.bottom, 12)
 
                 summaryCard
+                    .id(activeField?.id)
                     .padding(.horizontal, 18)
                     .padding(.bottom, 14)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
         .task(id: fieldStore.activeFieldId) { cameraPosition = .region(region ?? Self.fallbackRegion) }
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 60).onEnded { gesture in
-                guard abs(gesture.translation.width) > abs(gesture.translation.height) else { return }
-                if gesture.translation.width < 0 {
-                    fieldStore.selectNext()
-                } else {
-                    fieldStore.selectPrevious()
-                }
-            }
-        )
     }
 
     private var header: some View {
@@ -112,24 +94,45 @@ struct FieldsView: View {
     private var summaryCard: some View {
         VStack(spacing: 12) {
             HStack {
-                Button(action: fieldStore.selectPrevious) { Image(systemName: "chevron.left") }
+                Button(action: fieldStore.selectPrevious) {
+                    Image(systemName: "chevron.left")
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
                     .disabled(currentIndex == 0)
                 Spacer()
-                VStack {
+                VStack(spacing: 3) {
                     Text(activeField?.name ?? "No field selected").font(.title3.bold())
                     Text(coordinateDescription).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button(action: fieldStore.selectNext) { Image(systemName: "chevron.right") }
+                Button(action: fieldStore.selectNext) {
+                    Image(systemName: "chevron.right")
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
                     .disabled(fieldStore.fields.isEmpty || currentIndex >= fieldStore.fields.count - 1)
             }
             Divider()
             if let field = activeField {
-                fact("Area", field.areaHa.map { String(format: "%.2f ha", $0) } ?? "Unavailable")
-                fact("Crop", field.cropType ?? "Not set")
-                fact("Sensors", "\(sensorCount)")
-                fact("Satellite", satellite?.status.capitalized ?? field.agroStatus.capitalized)
-                fact("NDVI", field.ndviScore.map { String(format: "%.2f", $0) } ?? "Pending")
+                HStack(alignment: .top, spacing: 16) {
+                    VStack(spacing: 9) {
+                        fact("Area", field.areaHa.map { String(format: "%.2f ha", $0) } ?? "Unavailable")
+                        fact("Crop", field.cropType ?? "Not set")
+                        fact("Sensors", hasLiveSnapshot ? "\(sensorCount)" : (isLoadingSnapshot ? "Loading…" : "Unavailable"))
+                        fact("Satellite", hasLiveSnapshot ? (satellite?.status.capitalized ?? field.agroStatus.capitalized) : field.agroStatus.capitalized)
+                        fact("NDVI", field.ndviScore.map { String(format: "%.2f", $0) } ?? "Pending")
+                    }
+                    if hasLiveSnapshot, let satelliteImageData, let image = UIImage(data: satelliteImageData) {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 78, height: 78)
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 14).stroke(AppColors.limeGreen.opacity(0.65)))
+                            .accessibilityLabel("Latest cached NDVI image")
+                    }
+                }
                 if let message = field.agroError { Text(message).font(.caption).foregroundStyle(.orange) }
             } else {
                 Text("Use the plus button to register a field.").foregroundStyle(.secondary)
@@ -141,7 +144,9 @@ struct FieldsView: View {
         }
         .foregroundStyle(AppColors.charcoalGreen)
         .padding(18)
+        .frame(maxWidth: .infinity)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 28))
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private func fact(_ label: String, _ value: String) -> some View {
@@ -149,6 +154,7 @@ struct FieldsView: View {
     }
 
     private var activeField: Field? { fieldStore.activeField }
+    private var hasLiveSnapshot: Bool { activeField?.id == snapshotFieldId }
     private var currentIndex: Int { fieldStore.fields.firstIndex(where: { $0.id == fieldStore.activeFieldId }) ?? 0 }
     private var boundary: [CLLocationCoordinate2D] { activeField?.coordinates?.map(\.coordinate) ?? [] }
     private var center: CLLocationCoordinate2D? {

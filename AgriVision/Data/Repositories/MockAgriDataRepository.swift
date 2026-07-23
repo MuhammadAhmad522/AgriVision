@@ -134,6 +134,13 @@ class MockAgriDataRepository: AgriDataService {
                 uvi: SourceState(status: "unavailable", lastUpdated: nil, data: nil, message: nil),
                 sensors: SourceState(status: "available", lastUpdated: Date(), data: try await fetchSensorReadings(for: fieldId), message: nil)
             ),
+            advisor: AdvisorSnapshot(
+                status: "available",
+                lastUpdated: Date(),
+                message: nil,
+                retryable: false,
+                dataQuality: "good"
+            ),
             recommendations: try await fetchRecommendations(for: fieldId)
         )
     }

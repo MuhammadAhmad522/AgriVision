@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     # Firebase permits 0...60 seconds. Five seconds absorbs normal clock and
     # token-issuance jitter without materially extending token validity.
     FIREBASE_CLOCK_SKEW_SECONDS: int = Field(default=5, ge=0, le=60)
+    # Online revocation checks call Identity Toolkit for every authenticated
+    # request. Keep routine verification local and bounded by default.
+    FIREBASE_CHECK_REVOKED: bool = False
+    FIREBASE_VERIFY_TIMEOUT_SECONDS: float = Field(default=8.0, gt=0, le=30)
     MQTT_BROKER: str = "mqtt"
     MQTT_PORT: int = 1883
     MQTT_USERNAME: str | None = None
@@ -41,6 +45,7 @@ class Settings(BaseSettings):
     VERTEX_SEARCH_DATASTORE: str = ""
     AI_PROMPT_VERSION: str = "agrivision-punjab-v2"
     AI_POLICY_VERSION: str = "guarded-advisory-v1"
+    AI_PROVIDER_TIMEOUT_SECONDS: float = Field(default=45.0, gt=0, le=120)
     CHAT_MEDIA_ROOT: str = "/app/media/chat"
     CHAT_GCS_BUCKET: str = ""
     CHAT_MAX_IMAGES: int = 3

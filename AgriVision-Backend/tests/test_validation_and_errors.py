@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
@@ -8,7 +9,12 @@ from app.core.auth import get_current_user
 from app.core.config import settings
 from app.core.errors import APIError, error_payload
 from app.schemas.pydantic_schemas import ChatMessageRequest, FieldWithSensorsCreate, RecommendationOutcome
-from app.services.ai_advisor_service import _apply_safety_policy, _guard_chat_response
+from app.services.ai_advisor_service import (
+    _apply_safety_policy,
+    _canonical_category,
+    _guard_chat_response,
+    _recommendation_payload,
+)
 
 
 def valid_field_payload():
@@ -93,6 +99,24 @@ def test_chat_treatment_and_photo_claims_are_deterministically_guarded():
     assert visual.startswith("This is a visual assessment, not a definitive diagnosis.")
 
 
+def test_recommendation_payload_accepts_parsed_and_fenced_json():
+    parsed = _recommendation_payload(
+        SimpleNamespace(parsed={"recommendations": [{"category": "Plant Health"}]}, text="ignored")
+    )
+    assert parsed["recommendations"][0]["category"] == "Plant Health"
+
+    fenced = _recommendation_payload(
+        SimpleNamespace(parsed=None, text='```json\n{"recommendations":[{"category":"Irrigation"}]}\n```')
+    )
+    assert fenced["recommendations"][0]["category"] == "Irrigation"
+
+
+def test_recommendation_categories_are_normalized_for_the_ios_cards():
+    assert _canonical_category("Irrigation Management") == "Irrigation"
+    assert _canonical_category("NDVI crop condition") == "Plant Health"
+    assert _canonical_category("unrecognized") == "Field Monitoring"
+
+
 def test_standard_error_envelope_contains_safe_metadata():
     error = APIError(429, "rate_limited", "Please wait.", retryable=True)
     assert error_payload(error, "request-123") == {
@@ -132,6 +156,26 @@ async def test_authentication_allows_only_configured_bounded_clock_skew():
     assert result is existing_user
     verify.assert_called_once_with(
         "fresh-id-token",
-        check_revoked=True,
+        check_revoked=settings.FIREBASE_CHECK_REVOKED,
         clock_skew_seconds=settings.FIREBASE_CLOCK_SKEW_SECONDS,
     )
+
+
+@pytest.mark.asyncio
+async def test_authentication_timeout_is_retryable():
+    credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials="slow-token")
+
+    async def raise_timeout(awaitable, timeout):
+        awaitable.close()
+        raise TimeoutError
+
+    with patch("app.core.auth.firebase_admin.get_app"), patch(
+        "app.core.auth.asyncio.wait_for",
+        side_effect=raise_timeout,
+    ):
+        with pytest.raises(APIError) as raised:
+            await get_current_user(credentials=credentials, db=Mock())
+
+    assert raised.value.status_code == 503
+    assert raised.value.code == "authentication_unavailable"
+    assert raised.value.retryable is True

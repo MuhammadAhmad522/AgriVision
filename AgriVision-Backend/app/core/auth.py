@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 import firebase_admin
@@ -29,12 +30,32 @@ async def get_current_user(
         raise APIError(503, "authentication_unavailable", "Authentication is temporarily unavailable.", retryable=True) from exc
 
     try:
-        decoded = auth.verify_id_token(
-            credentials.credentials,
-            check_revoked=True,
-            clock_skew_seconds=settings.FIREBASE_CLOCK_SKEW_SECONDS,
+        decoded = await asyncio.wait_for(
+            asyncio.to_thread(
+                auth.verify_id_token,
+                credentials.credentials,
+                check_revoked=settings.FIREBASE_CHECK_REVOKED,
+                clock_skew_seconds=settings.FIREBASE_CLOCK_SKEW_SECONDS,
+            ),
+            timeout=settings.FIREBASE_VERIFY_TIMEOUT_SECONDS,
         )
+    except TimeoutError as exc:
+        logger.warning("Firebase token verification timed out")
+        raise APIError(
+            503,
+            "authentication_unavailable",
+            "Authentication is temporarily unavailable.",
+            retryable=True,
+        ) from exc
     except Exception as exc:
+        if type(exc).__name__ in {"TransportError", "CertificateFetchError", "ConnectionError", "ReadTimeout"}:
+            logger.warning("Firebase token verification transport failed: %s", type(exc).__name__)
+            raise APIError(
+                503,
+                "authentication_unavailable",
+                "Authentication is temporarily unavailable.",
+                retryable=True,
+            ) from exc
         logger.info("Firebase token verification failed: %s", type(exc).__name__)
         raise APIError(401, "invalid_token", "Your session is invalid or expired.") from exc
 

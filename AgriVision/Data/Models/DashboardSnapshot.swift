@@ -55,7 +55,22 @@ struct DataAvailabilityItem: Identifiable {
 struct DashboardSnapshot: Decodable {
     let field: Field
     let sources: DashboardSources
+    let advisor: AdvisorSnapshot?
     let recommendations: [FieldRecommendation]
+}
+
+struct AdvisorSnapshot: Decodable {
+    let status: String
+    let lastUpdated: Date?
+    let message: String?
+    let retryable: Bool?
+    let dataQuality: String?
+
+    enum CodingKeys: String, CodingKey {
+        case status, message, retryable
+        case lastUpdated = "last_updated"
+        case dataQuality = "data_quality"
+    }
 }
 
 struct DashboardSources: Decodable {
