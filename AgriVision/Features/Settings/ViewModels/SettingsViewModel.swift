@@ -73,6 +73,9 @@ final class SettingsViewModel: ObservableObject {
             .sink { [weak self] id in
                 guard let self else { return }
                 activeFieldId = id
+                sensors = []
+                sensorStatus = id == nil ? "not_configured" : "pending"
+                satelliteStatus = fieldSessionStore?.activeField?.agroStatus ?? "pending"
                 Task { await self.refreshIntegrationStatus() }
             }
             .store(in: &cancellables)
@@ -232,8 +235,11 @@ final class SettingsViewModel: ObservableObject {
         }
 
         do {
-            sensors = try await dataService.fetchSensors(for: fieldID)
+            let fetchedSensors = try await dataService.fetchSensors(for: fieldID)
+            guard fieldID == activeFieldId else { return }
+            sensors = fetchedSensors
         } catch {
+            guard fieldID == activeFieldId else { return }
             sensors = []
             sensorStatus = "unavailable"
         }
@@ -244,6 +250,7 @@ final class SettingsViewModel: ObservableObject {
             satelliteStatus = dashboard.sources.satellite.status
             fieldSessionStore?.merge(dashboard.field)
         } catch {
+            guard fieldID == activeFieldId else { return }
             sensorStatus = sensors.isEmpty ? "not_configured" : "unavailable"
             satelliteStatus = activeField?.agroStatus ?? "unavailable"
         }

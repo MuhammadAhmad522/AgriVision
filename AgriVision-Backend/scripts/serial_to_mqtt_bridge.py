@@ -16,22 +16,33 @@ MQTT_PORT = 1883
 def start_bridge():
     print(f"🚀 AgriVision Serial-to-MQTT Bridge starting...")
     print(f"🔌 Monitoring Port: {SERIAL_PORT} @ {BAUD_RATE} baud")
-    
+
+    ser = None
+    client = None
+    mqtt_loop_started = False
+
     try:
-        ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+        # Keep ESP32 reset/boot pins inactive when the USB serial port opens.
+        ser = serial.Serial(port=None, baudrate=BAUD_RATE, timeout=1)
+        ser.dtr = False
+        ser.rts = False
+        ser.port = SERIAL_PORT
+        ser.open()
     except Exception as e:
         print(f"❌ Error: Could not open serial port {SERIAL_PORT}. {e}")
         sys.exit(1)
 
-    client = mqtt.Client()
+    client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
     try:
         client.connect(MQTT_BROKER, MQTT_PORT, 60)
         print(f"✅ Connected to MQTT Broker at {MQTT_BROKER}:{MQTT_PORT}")
     except Exception as e:
         print(f"❌ Error: Could not connect to MQTT broker. {e}")
+        ser.close()
         sys.exit(1)
 
     client.loop_start()
+    mqtt_loop_started = True
 
     print("📡 Waiting for ESP32 data (JSON format)...")
     
@@ -67,9 +78,20 @@ def start_bridge():
     except KeyboardInterrupt:
         print("\n🛑 Bridge shutting down...")
     finally:
-        ser.close()
-        client.loop_stop()
-        client.disconnect()
+        if client is not None:
+            try:
+                client.disconnect()
+            except Exception:
+                pass
+
+            if mqtt_loop_started:
+                try:
+                    client.loop_stop()
+                except KeyboardInterrupt:
+                    print("\n🛑 Shutdown interrupted; exiting.")
+
+        if ser is not None and ser.is_open:
+            ser.close()
 
 if __name__ == "__main__":
     start_bridge()

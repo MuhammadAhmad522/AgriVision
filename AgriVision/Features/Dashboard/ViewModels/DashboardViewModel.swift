@@ -30,6 +30,7 @@ final class DashboardViewModel: ObservableObject {
     private let authService: AuthService
     private let preferencesService: PreferencesService
     private var cancellables: Set<AnyCancellable> = []
+    private var dashboardRequestToken: UUID?
 
     var onSignOut: (() -> Void)?
     var onSettingsTap: (() -> Void)?
@@ -97,14 +98,24 @@ final class DashboardViewModel: ObservableObject {
             clearFieldData()
             return
         }
+        let requestToken = UUID()
+        dashboardRequestToken = requestToken
         isLoading = true
-        defer { isLoading = false }
+        defer {
+            if dashboardRequestToken == requestToken {
+                isLoading = false
+            }
+        }
         do {
             let snapshot = try await dataService.fetchDashboard(for: fieldID)
-            guard fieldID == fieldSessionStore.activeFieldId else { return }
+            guard fieldID == fieldSessionStore.activeFieldId, dashboardRequestToken == requestToken else { return }
+            guard snapshot.field.id == fieldID else {
+                presentError("Dashboard data did not match the selected field. Please refresh and try again.")
+                return
+            }
             fieldSessionStore.merge(snapshot.field)
             loadedFieldId = fieldID
-            recommendations = snapshot.recommendations
+            recommendations = snapshot.recommendations.filter { $0.fieldId == fieldID }
             advisorStatus = snapshot.advisor?.status ?? (recommendations.isEmpty ? "pending" : "available")
             advisorMessage = snapshot.advisor?.message
             advisorDataQuality = snapshot.advisor?.dataQuality
@@ -120,16 +131,19 @@ final class DashboardViewModel: ObservableObject {
             errorMessage = nil
             await loadSatelliteImages(
                 for: fieldID,
+                requestToken: requestToken,
                 hasNDVI: snapshot.sources.satellite.data?.ndviImageURL != nil,
                 hasTruecolor: snapshot.sources.satellite.data?.truecolorImageURL != nil
             )
         } catch is CancellationError {
         } catch {
+            guard fieldID == fieldSessionStore.activeFieldId, dashboardRequestToken == requestToken else { return }
             presentError(error.userFacingMessage)
         }
     }
 
     private func clearFieldData() {
+        dashboardRequestToken = nil
         recommendations = []
         advisorStatus = "pending"
         advisorMessage = nil
@@ -147,11 +161,11 @@ final class DashboardViewModel: ObservableObject {
         errorMessage = nil
     }
 
-    private func loadSatelliteImages(for fieldID: UUID, hasNDVI: Bool, hasTruecolor: Bool) async {
+    private func loadSatelliteImages(for fieldID: UUID, requestToken: UUID, hasNDVI: Bool, hasTruecolor: Bool) async {
         async let ndviData: Data? = hasNDVI ? try? dataService.fetchSatelliteImage(for: fieldID, kind: "ndvi") : nil
         async let truecolorData: Data? = hasTruecolor ? try? dataService.fetchSatelliteImage(for: fieldID, kind: "truecolor") : nil
         let images = await (ndviData, truecolorData)
-        guard fieldID == fieldSessionStore.activeFieldId else { return }
+        guard fieldID == fieldSessionStore.activeFieldId, dashboardRequestToken == requestToken else { return }
         satelliteImageData = images.0
         truecolorImageData = images.1
     }
@@ -164,9 +178,11 @@ final class DashboardViewModel: ObservableObject {
             advisorStatus = "pending"
             advisorMessage = "AI is reviewing the latest field evidence."
             try await dataService.refreshRecommendations(for: fieldID)
+            guard fieldID == fieldSessionStore.activeFieldId else { return }
             successMessage = "AI analysis started. Recommendations will appear automatically."
             ToastMessageAutoDismiss.schedule(expectedMessage: successMessage ?? "", currentMessage: { self.successMessage }, clearMessage: { self.successMessage = nil })
         } catch {
+            guard fieldID == fieldSessionStore.activeFieldId else { return }
             advisorStatus = "unavailable"
             advisorMessage = error.userFacingMessage
             presentError(error.userFacingMessage)
@@ -176,6 +192,7 @@ final class DashboardViewModel: ObservableObject {
     func updateFeedback(_ recommendation: FieldRecommendation, status: String) async {
         do {
             let updated = try await dataService.updateRecommendationFeedback(for: recommendation.fieldId, recommendationId: recommendation.id, status: status)
+            guard updated.fieldId == fieldSessionStore.activeFieldId else { return }
             if let index = recommendations.firstIndex(where: { $0.id == updated.id }) { recommendations[index] = updated }
         } catch { presentError(error.userFacingMessage) }
     }
@@ -188,6 +205,7 @@ final class DashboardViewModel: ObservableObject {
                 outcome: outcome,
                 notes: nil
             )
+            guard updated.fieldId == fieldSessionStore.activeFieldId else { return }
             if let index = recommendations.firstIndex(where: { $0.id == updated.id }) { recommendations[index] = updated }
             successMessage = "Outcome recorded."
             ToastMessageAutoDismiss.schedule(expectedMessage: successMessage ?? "", currentMessage: { self.successMessage }, clearMessage: { self.successMessage = nil })

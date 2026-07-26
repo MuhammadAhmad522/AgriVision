@@ -322,6 +322,123 @@ def test_sensor_cannot_be_reassigned_across_tenants():
         _cleanup(tenant_a, tenant_b)
 
 
+def test_two_fields_for_same_owner_return_only_their_own_dashboard_data():
+    tenant = _make_user("same-owner-field-isolation")
+    app.dependency_overrides[get_db] = _database_override
+    app.dependency_overrides[get_current_user] = lambda: tenant
+    client = TestClient(app)
+    now = datetime.now(timezone.utc)
+    try:
+        first = client.post("/api/fields", json=_field_payload("North Field"))
+        second_payload = _field_payload("South Field")
+        second_payload["coordinates"] = [
+            {"longitude": 74.4000, "latitude": 31.6000},
+            {"longitude": 74.4020, "latitude": 31.6000},
+            {"longitude": 74.4020, "latitude": 31.6020},
+            {"longitude": 74.4000, "latitude": 31.6020},
+        ]
+        second = client.post("/api/fields", json=second_payload)
+        assert first.status_code == second.status_code == 201
+        first_id, second_id = first.json()["id"], second.json()["id"]
+
+        db = SessionLocal()
+        try:
+            first_field = db.query(Field).filter(Field.id == first_id).first()
+            second_field = db.query(Field).filter(Field.id == second_id).first()
+            first_field.latest_ndvi = 0.21
+            first_field.agro_status = "available"
+            second_field.latest_ndvi = 0.79
+            second_field.agro_status = "available"
+
+            first_sensor = Sensor(
+                owner_id=tenant.id,
+                field_id=first_id,
+                device_id=f"north-{uuid4()}",
+                sensor_type="soil",
+            )
+            second_sensor = Sensor(
+                owner_id=tenant.id,
+                field_id=second_id,
+                device_id=f"south-{uuid4()}",
+                sensor_type="soil",
+            )
+            db.add_all([first_sensor, second_sensor])
+            db.flush()
+            db.add_all(
+                [
+                    SensorReading(sensor_id=first_sensor.id, time=now, moisture=21, temperature=20),
+                    SensorReading(sensor_id=second_sensor.id, time=now, moisture=67, temperature=29),
+                    FieldObservation(
+                        field_id=first_id,
+                        source="test",
+                        metric="soil_current",
+                        payload={"moisture": 0.21, "source": "north"},
+                        observed_at=now,
+                        expires_at=now + timedelta(hours=6),
+                    ),
+                    FieldObservation(
+                        field_id=second_id,
+                        source="test",
+                        metric="soil_current",
+                        payload={"moisture": 0.67, "source": "south"},
+                        observed_at=now,
+                        expires_at=now + timedelta(hours=6),
+                    ),
+                    SatelliteScene(
+                        field_id=first_id,
+                        provider_scene_id=f"north-scene-{uuid4()}",
+                        acquired_at=now,
+                        statistics={"ndvi": {"mean": 0.21}},
+                    ),
+                    SatelliteScene(
+                        field_id=second_id,
+                        provider_scene_id=f"south-scene-{uuid4()}",
+                        acquired_at=now,
+                        statistics={"ndvi": {"mean": 0.79}},
+                    ),
+                    FieldRecommendation(
+                        field_id=first_id,
+                        category="Monitoring",
+                        priority="low",
+                        advice="Inspect the north field.",
+                    ),
+                    FieldRecommendation(
+                        field_id=second_id,
+                        category="Irrigation",
+                        priority="high",
+                        advice="Irrigate the south field.",
+                    ),
+                ]
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        first_dashboard = client.get(f"/api/fields/{first_id}/dashboard")
+        second_dashboard = client.get(f"/api/fields/{second_id}/dashboard")
+        assert first_dashboard.status_code == second_dashboard.status_code == 200
+        north, south = first_dashboard.json(), second_dashboard.json()
+
+        assert north["field"]["id"] == first_id
+        assert south["field"]["id"] == second_id
+        assert north["field"]["latest_ndvi"] == 0.21
+        assert south["field"]["latest_ndvi"] == 0.79
+        assert north["sources"]["soil"]["data"]["source"] == "north"
+        assert south["sources"]["soil"]["data"]["source"] == "south"
+        assert north["sources"]["sensors"]["data"][0]["moisture"] == 21
+        assert south["sources"]["sensors"]["data"][0]["moisture"] == 67
+        assert north["sources"]["satellite"]["data"]["statistics"]["ndvi"]["mean"] == 0.21
+        assert south["sources"]["satellite"]["data"]["statistics"]["ndvi"]["mean"] == 0.79
+        assert {item["field_id"] for item in north["recommendations"]} == {first_id}
+        assert {item["field_id"] for item in south["recommendations"]} == {second_id}
+        assert north["recommendations"][0]["advice"] == "Inspect the north field."
+        assert south["recommendations"][0]["advice"] == "Irrigate the south field."
+    finally:
+        client.close()
+        app.dependency_overrides.clear()
+        _cleanup(tenant)
+
+
 def test_permanent_delete_cascades_all_field_owned_database_data():
     tenant = _make_user("delete-cascade")
     app.dependency_overrides[get_db] = _database_override

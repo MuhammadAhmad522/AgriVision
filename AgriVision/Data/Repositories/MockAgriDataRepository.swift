@@ -9,15 +9,23 @@ import CoreLocation
 class MockAgriDataRepository: AgriDataService {
     
     private let mockCropType: String
+    private let mockFieldID: UUID
+    private let mockOwnerID: UUID
     
-    init(mockCropType: String = "Wheat") {
+    init(
+        mockCropType: String = "Wheat",
+        mockFieldID: UUID = UUID(),
+        mockOwnerID: UUID = UUID()
+    ) {
         self.mockCropType = mockCropType
+        self.mockFieldID = mockFieldID
+        self.mockOwnerID = mockOwnerID
     }
 
     func bootstrapSession() async throws -> SessionBootstrap {
         let fields = try await fetchFields()
         return SessionBootstrap(
-            user: BackendUser(id: UUID(), firebaseUid: "mock-user", email: "mock@example.com"),
+            user: BackendUser(id: mockOwnerID, firebaseUid: "mock-user", email: "mock@example.com"),
             fields: fields,
             activeFieldLimit: 5,
             activeFieldCount: fields.count
@@ -58,8 +66,8 @@ class MockAgriDataRepository: AgriDataService {
         // Return a mock field to populate the dashboard UI
         return [
             Field(
-                id: UUID(),
-                ownerId: UUID(),
+                id: mockFieldID,
+                ownerId: mockOwnerID,
                 name: "Alpha Field (Mock)",
                 coordinates: [
                     PointCoordinates(latitude: 31.5244, longitude: 74.3538),

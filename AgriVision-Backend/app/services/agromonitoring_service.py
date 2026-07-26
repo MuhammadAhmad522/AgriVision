@@ -204,8 +204,19 @@ async def _request(
     return await _singleflight(key, perform)
 
 
+def _provider_polygon_name(name: str, field_id: UUID | None) -> str:
+    base = name.strip() or "AgriVision field"
+    if field_id is None:
+        return base[:100]
+    # AgroMonitoring may reject duplicate polygon names. A field UUID makes the
+    # provider identity unique even when one user gives multiple fields the same
+    # display name, preventing a fallback lookup from reusing another boundary.
+    suffix = f" · {field_id.hex}"
+    return f"{base[:100 - len(suffix)]}{suffix}"
+
+
 async def create_polygon(name: str, geojson: dict[str, Any], field_id: UUID | None = None) -> str:
-    payload = {"name": name[:100], "geo_json": geojson}
+    payload = {"name": _provider_polygon_name(name, field_id), "geo_json": geojson}
     try:
         data = await _request("POST", "polygons", json_body=payload, field_id=field_id)
         return data["id"]

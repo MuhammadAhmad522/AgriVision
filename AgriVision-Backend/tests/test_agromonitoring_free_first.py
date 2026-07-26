@@ -1,12 +1,31 @@
 import asyncio
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
+from uuid import UUID
 
 import httpx
 import pytest
 from urllib.parse import parse_qs, urlsplit
 
 from app.services import agromonitoring_service as agro
+
+
+@pytest.mark.asyncio
+async def test_polygon_provider_names_are_unique_per_field_even_with_same_display_name():
+    first_id = UUID("11111111-1111-1111-1111-111111111111")
+    second_id = UUID("22222222-2222-2222-2222-222222222222")
+    geojson = {"type": "Feature", "geometry": {"type": "Polygon", "coordinates": []}}
+    with patch.object(agro, "_request", AsyncMock(side_effect=[{"id": "poly-1"}, {"id": "poly-2"}])) as request:
+        assert await agro.create_polygon("North Field", geojson, first_id) == "poly-1"
+        assert await agro.create_polygon("North Field", geojson, second_id) == "poly-2"
+
+    first_name = request.await_args_list[0].kwargs["json_body"]["name"]
+    second_name = request.await_args_list[1].kwargs["json_body"]["name"]
+    assert first_name != second_name
+    assert first_id.hex in first_name
+    assert second_id.hex in second_name
+    assert len(first_name) <= 100
+    assert len(second_name) <= 100
 
 
 @pytest.mark.asyncio

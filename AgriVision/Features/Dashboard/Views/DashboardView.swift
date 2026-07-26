@@ -82,7 +82,16 @@ struct DashboardView: View {
                             Spacer()
                         }
                         // Bottom Alerts Sheet (Draggable with snapping)
-                        AlertsBottomSheet(viewModel: viewModel)
+                        AlertsBottomSheet(
+                            viewModel: viewModel,
+                            onShowAll: {
+                                withAnimation(.interpolatingSpring(stiffness: 300, damping: 30)) {
+                                    sheetHeight = geo.size.height * 0.85
+                                    startingSheetHeight = sheetHeight
+                                }
+                            }
+                        )
+                            .id(viewModel.fieldSessionStore.activeFieldId)
                             .frame(height: sheetHeight)
                             .gesture(
                                 DragGesture()
@@ -160,6 +169,10 @@ struct DashboardView: View {
         }
         .task(id: viewModel.fieldSessionStore.activeFieldId) {
             await viewModel.refreshData()
+        }
+        .onChange(of: viewModel.fieldSessionStore.activeFieldId) {
+            sheetHeight = DashboardLayout.collapsedAlertsSheetHeight
+            startingSheetHeight = DashboardLayout.collapsedAlertsSheetHeight
         }
         .overlay(alignment: .top) {
             if let error = viewModel.errorMessage {
@@ -990,6 +1003,7 @@ struct SatelliteImageCardView: View {
 
 struct AlertsBottomSheet: View {
     @ObservedObject var viewModel: DashboardViewModel
+    let onShowAll: () -> Void
     
     var body: some View {
         ZStack(alignment: .top) {
@@ -1010,6 +1024,25 @@ struct AlertsBottomSheet: View {
                 
                 List {
                     Section {
+                        HStack(alignment: .center, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("AI Field Advisor")
+                                    .font(.headline)
+                                Text(advisorSummary)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if !viewModel.recommendations.isEmpty {
+                                Button(action: onShowAll) {
+                                    Label(
+                                        "View all \(viewModel.recommendations.count)",
+                                        systemImage: "arrow.up.left.and.arrow.down.right"
+                                    )
+                                }
+                                .font(.caption.bold())
+                            }
+                        }
                         HStack {
                             Button { Task { await viewModel.refreshRecommendations() } } label: {
                                 Label("Refresh advice", systemImage: "arrow.clockwise")
@@ -1056,6 +1089,11 @@ struct AlertsBottomSheet: View {
                                 )
                                 .font(.caption)
                                 .foregroundStyle(.orange)
+                            }
+                            if viewModel.recommendations.count > 1 {
+                                Text("Scroll or tap View all to read every recommendation for this field.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                             }
                             ForEach(viewModel.recommendations) { recommendation in
                                 VStack(alignment: .leading, spacing: 8) {
@@ -1111,6 +1149,15 @@ struct AlertsBottomSheet: View {
                 .scrollContentBackground(.hidden)
             }
         }
+    }
+
+    private var advisorSummary: String {
+        let fieldName = viewModel.activeField?.name ?? "Selected field"
+        let count = viewModel.recommendations.count
+        if count == 0 {
+            return "\(fieldName) · Preparing recommendations"
+        }
+        return "\(fieldName) · \(count) recommendation\(count == 1 ? "" : "s")"
     }
 }
 
