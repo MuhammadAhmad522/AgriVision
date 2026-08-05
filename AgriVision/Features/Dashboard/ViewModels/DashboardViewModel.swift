@@ -180,7 +180,7 @@ final class DashboardViewModel: ObservableObject {
             try await dataService.refreshRecommendations(for: fieldID)
             guard fieldID == fieldSessionStore.activeFieldId else { return }
             successMessage = "AI analysis started. Recommendations will appear automatically."
-            ToastMessageAutoDismiss.schedule(expectedMessage: successMessage ?? "", currentMessage: { self.successMessage }, clearMessage: { self.successMessage = nil })
+            ToastMessageAutoDismiss.schedule(expectedMessage: successMessage ?? "", currentMessage: { [weak self] in self?.successMessage }, clearMessage: { [weak self] in self?.successMessage = nil })
         } catch {
             guard fieldID == fieldSessionStore.activeFieldId else { return }
             advisorStatus = "unavailable"
@@ -208,7 +208,7 @@ final class DashboardViewModel: ObservableObject {
             guard updated.fieldId == fieldSessionStore.activeFieldId else { return }
             if let index = recommendations.firstIndex(where: { $0.id == updated.id }) { recommendations[index] = updated }
             successMessage = "Outcome recorded."
-            ToastMessageAutoDismiss.schedule(expectedMessage: successMessage ?? "", currentMessage: { self.successMessage }, clearMessage: { self.successMessage = nil })
+            ToastMessageAutoDismiss.schedule(expectedMessage: successMessage ?? "", currentMessage: { [weak self] in self?.successMessage }, clearMessage: { [weak self] in self?.successMessage = nil })
         } catch { presentError(error.userFacingMessage) }
     }
 
@@ -217,7 +217,7 @@ final class DashboardViewModel: ObservableObject {
         do {
             try await dataService.refreshFieldData(for: fieldID)
             successMessage = "Data refresh queued."
-            ToastMessageAutoDismiss.schedule(expectedMessage: successMessage ?? "", currentMessage: { self.successMessage }, clearMessage: { self.successMessage = nil })
+            ToastMessageAutoDismiss.schedule(expectedMessage: successMessage ?? "", currentMessage: { [weak self] in self?.successMessage }, clearMessage: { [weak self] in self?.successMessage = nil })
         } catch {
             presentError(error.userFacingMessage)
         }
@@ -240,6 +240,6 @@ final class DashboardViewModel: ObservableObject {
 
     private func presentError(_ message: String) {
         errorMessage = message
-        ToastMessageAutoDismiss.schedule(expectedMessage: message, currentMessage: { self.errorMessage }, clearMessage: { self.errorMessage = nil })
+        ToastMessageAutoDismiss.schedule(expectedMessage: message, currentMessage: { [weak self] in self?.errorMessage }, clearMessage: { [weak self] in self?.errorMessage = nil })
     }
 }

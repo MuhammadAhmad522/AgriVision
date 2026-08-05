@@ -7,11 +7,12 @@ final class MockAuthService: AuthService {
     
     var shouldFail: Bool = false
     var isLoggedInStub: Bool = false
-    private var displayName = "Mock User"
+    private var displayName: String?
     
-    init(isLoggedIn: Bool = false, shouldFail: Bool = false) {
+    init(isLoggedIn: Bool = false, shouldFail: Bool = false, displayName: String? = "Mock User") {
         self.isLoggedInStub = isLoggedIn
         self.shouldFail = shouldFail
+        self.displayName = displayName
     }
     
     var isUserLoggedIn: Bool {

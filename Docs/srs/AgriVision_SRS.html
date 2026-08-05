@@ -1,0 +1,638 @@
+<h1>AgriVision Software Requirements Specification (SRS)</h1>
+<h1>1. Scope of the Project</h1>
+<h2>1.1 Project Overview</h2>
+<p>AgriVision is an intelligent precision agriculture platform designed to act as an interactive agronomy advisor. The core objective of the system is to continuously analyze crop health and environmental conditions by synthesizing data from three distinct layers: macro-level satellite telemetry, micro-level IoT field sensors, and direct user input via an AI chatbot. By aggregating this tri-source data, AgriVision interactively guides farmers through the entire crop lifecycle, providing timely, field-specific insights to optimize yield and mitigate risks.</p>
+<h2>1.2 Target Audience</h2>
+<p>The primary end-users are small to medium-scale farmers and agricultural stakeholders. The platform is designed to bridge the gap between complex agronomic data and accessible mobile technology, translating rich environmental telemetry into simple, interactive conversational guidance that any farmer can act upon.</p>
+<h2>1.3 In-Scope Functionalities</h2>
+<p>The core functional deliverables of the AgriVision capstone project include:</p>
+<ul>
+<li><strong>Tri-Source Data Ingestion &amp; Synthesis:</strong> <ol>
+<li><strong>Satellite Integration:</strong> Defining field polygons to retrieve automated Sentinel-2 imagery, NDVI vegetation indices, weather forecasts, and soil profiles.</li>
+<li><strong>IoT Sensor Integration:</strong> Ingesting real-time ground telemetry (Temperature, Moisture, Humidity, pH, EC, NPK) from physical ESP32 sensor nodes via a local MQTT bridge.</li>
+<li><strong>User Input (Visual &amp; Text):</strong> Allowing farmers to upload diagnostic photos of their crops and ask natural-language questions.</li>
+</ol>
+</li>
+<li><strong>Interactive AI Agronomist:</strong> A central conversational agent (powered by a multi-modal RAG pipeline) that processes the ingested satellite and sensor data alongside user uploads. It acts as a localized agricultural expert, interactively answering farmer queries regarding crop diseases, irrigation needs, and fertilizer application.</li>
+<li><strong>Automated Field Recommendations (Background Reasoning):</strong> The generation of customized, safe, step-by-step guidance for field management (e.g., Irrigation, Pest Risk, Fertilizer Windows) based on continuous analysis. This is driven by asynchronous background scheduling loops (<code>ai_reasoning_loop</code>, <code>external_data_loop</code>) that automatically monitor the field&#39;s data streams and trigger AI evaluations without requiring manual user intervention.</li>
+<li><strong>Native Mobile Client:</strong> A comprehensive iOS application featuring interactive dashboards, field boundary management, and the AI chat interface.</li>
+</ul>
+<h2>1.4 Out of Scope</h2>
+<p>To maintain a clear and achievable boundary for the final capstone presentation, the following features are not included in the current system:</p>
+<ul>
+<li><strong>Automated Hardware Actuation:</strong> The system will <em>recommend</em> when to irrigate or apply fertilizer based on sensor deficits, but it will not automatically actuate physical water valves or farming hardware.</li>
+<li><strong>Live Drone Integration:</strong> The ingestion of real-time autonomous drone video feeds is reserved as a future scalability feature.</li>
+</ul>
+<hr>
+<h1>2. Functional &amp; Non-Functional Requirements</h1>
+<h2>2.1 Functional Requirements</h2>
+<p>The functional requirements define the core behaviors and capabilities of the AgriVision system. Based on the tri-source data architecture, the primary functional requirements are:</p>
+<ol>
+<li><strong>Multi-Modal AI Chatbot Interface:</strong><ul>
+<li>The system must provide an interactive chat interface allowing farmers to ask natural language questions.</li>
+<li>The system must allow users to upload images (e.g., crop leaves) for visual disease diagnostics. The backend must enforce secure image sanitization, resize inputs, and strip EXIF metadata to protect user privacy.</li>
+<li>The chatbot must provide instant, synchronous responses to direct user queries.</li>
+</ul>
+</li>
+<li><strong>Automated Satellite Data Ingestion:</strong><ul>
+<li>The system must allow users to define field boundaries (polygons).</li>
+<li>The system must automatically retrieve Sentinel-2 satellite imagery, NDVI (Normalized Difference Vegetation Index) data, and soil profiles for registered fields.</li>
+<li>The system must fetch and display localized weather forecasts and UV indices.</li>
+</ul>
+</li>
+<li><strong>Real-Time IoT Telemetry Aggregation:</strong><ul>
+<li>The system must ingest real-time hardware sensor data (Temperature, Moisture, Humidity, pH, EC, NPK) via an MQTT bridge. The backend must enforce per-device rate limits and asynchronously batch-write readings to maximize ingestion throughput.</li>
+<li>The system must aggregate and store this telemetry mapped to specific farmer fields.</li>
+</ul>
+</li>
+<li><strong>Asynchronous Field Recommendations:</strong><ul>
+<li>The system must run background AI analysis on the combined field data (satellite + sensors) to generate actionable agronomic recommendations. If the AI provider fails, the system must generate deterministic fallback recommendations based on sensor telemetry.</li>
+</ul>
+</li>
+<li><strong>Push Notification &amp; Alert System:</strong><ul>
+<li>The system must notify users asynchronously when long-running field analyses or recommendations are completed.</li>
+<li>The system must push immediate, critical emergency alerts to the user&#39;s device (even if the app is closed) if severe weather or critical sensor thresholds are breached.</li>
+</ul>
+</li>
+<li><strong>User Authentication:</strong><ul>
+<li>The system must provide secure user registration and login functionalities via Firebase Authentication.</li>
+</ul>
+</li>
+</ol>
+<h2>2.2 Non-Functional Requirements</h2>
+<p>The non-functional requirements define the system&#39;s operational constraints, performance, and deployment strategy for the capstone presentation and future scalability.</p>
+<ol>
+<li><strong>Performance &amp; Latency:</strong><ul>
+<li><strong>Chatbot:</strong> Must provide near-instantaneous replies to maintain a conversational user experience.</li>
+<li><strong>Background Processing:</strong> Heavy AI recommendations and satellite data syncing must run asynchronously without blocking the user interface.</li>
+</ul>
+</li>
+<li><strong>Deployment &amp; Architecture (Version 1.0 - Capstone Presentation):</strong><ul>
+<li>The primary presentation architecture will be hosted locally to ensure demonstration stability.</li>
+<li>The backend must be fully containerized using Docker, running on a local host machine.</li>
+<li>The frontend will be demonstrated via the Xcode iOS Simulator.</li>
+<li>IoT sensor data will be bridged locally via a physical USB-C serial connection to the host machine.</li>
+<li>External internet connectivity is strictly required <em>only</em> for third-party cloud APIs (Firebase, AgroMonitoring, Google Gemini).</li>
+</ul>
+</li>
+<li><strong>Scalability &amp; Cloud Readiness (Version 2.0):</strong><ul>
+<li>While presented locally, the Dockerized FastAPI backend and MQTT architecture must be inherently designed for seamless migration to cloud infrastructure (e.g., AWS, Google Cloud) for the v2.0 production release.</li>
+</ul>
+</li>
+<li><strong>Security:</strong><ul>
+<li>All API endpoints must be secured using JWT (JSON Web Tokens) validated against the Firebase Authentication provider.</li>
+</ul>
+</li>
+</ol>
+<hr>
+<h1>3. Use Case Diagram &amp; Usage Scenarios</h1>
+<h2>3.1 Actors Description</h2>
+<ul>
+<li><strong>Farmer (Primary Human Actor):</strong> Interacts with the mobile application to manage fields, upload crop images, view dashboards, and converse with the AI chatbot.</li>
+<li><strong>System Admin (Secondary Human Actor):</strong> Manages user accounts, oversees system health, and handles backend configurations.</li>
+<li><strong>IoT Sensor Array (System Actor):</strong> Physical ESP32 nodes planted in the field that continuously transmit telemetry (moisture, temperature, NPK) via the MQTT bridge.</li>
+<li><strong>AgroMonitoring API (External Actor):</strong> Third-party service providing satellite imagery, NDVI statistics, weather, and soil data based on geographical polygons.</li>
+<li><strong>Gemini AI (External Actor):</strong> Google&#39;s GenAI model that processes visual and textual inputs alongside field data to generate agronomic recommendations.</li>
+</ul>
+<h2>3.2 Use Case Diagram</h2>
+<p><em>You can copy the code block below and paste it into Mermaid Live (mermaid.live) to generate your visual diagram.</em></p>
+<pre><code class="language-mermaid">flowchart LR
+    %% Actors
+    F([Farmer])
+    A([System Admin])
+    IoT[[IoT Sensor Array]]
+    Agro[[AgroMonitoring API]]
+    AI[[Gemini AI]]
+
+    %% System
+    subgraph AgriVision_Platform [AgriVision Platform]
+        direction TB
+        UC1(Register &amp; Authenticate)
+        UC2(Setup Field / Draw Polygon)
+        UC3(View Environment Dashboard)
+        UC4(Chat with Agronomy Advisor)
+        UC5(Receive Automated Recommendations)
+        UC6(Manage System Users)
+        UC7(Transmit Ground Telemetry)
+    end
+
+    %% Actor Connections
+    F --&gt; UC1
+    F --&gt; UC2
+    F --&gt; UC3
+    F --&gt; UC4
+    F --&gt; UC5
+
+    A --&gt; UC1
+    A --&gt; UC6
+
+    IoT --&gt; UC7
+    UC7 -. &quot;&lt;&lt;include&gt;&gt;&quot; .-&gt; UC3
+
+    UC2 --&gt; Agro
+    UC3 --&gt; Agro
+    UC4 --&gt; AI
+    UC5 --&gt; AI
+</code></pre>
+<h2>3.3 Primary Usage Scenario: Field Setup &amp; Satellite Integration</h2>
+<p><strong>Use Case:</strong> Setup Field (Draw Polygon)
+<strong>Primary Actor:</strong> Farmer
+<strong>Secondary Actors:</strong> AgroMonitoring API
+<strong>Pre-condition:</strong> The Farmer has successfully authenticated and is viewing the empty field dashboard.</p>
+<p><strong>Main Success Scenario (Flow of Events):</strong></p>
+<ol>
+<li>The Farmer selects the &quot;Add New Field&quot; option from the mobile application menu.</li>
+<li>The system renders an interactive map interface centered on the user&#39;s current GPS location.</li>
+<li>The Farmer taps on the map to draw a geographical boundary (polygon) that outlines their physical farm.</li>
+<li>The Farmer names the field and selects the current crop type (e.g., &quot;Wheat&quot;).</li>
+<li>The Farmer clicks &quot;Save Field&quot;.</li>
+<li>The backend system receives the GeoJSON polygon data and transmits it to the <strong>AgroMonitoring API</strong>.</li>
+<li>The external API registers the boundary and returns a unique <code>Polygon_ID</code>.</li>
+<li>The system immediately triggers asynchronous background workers (<code>sync_field_background</code>) to fetch Sentinel-2 satellite imagery, NDVI (health) statistics, soil moisture profiles, UV indices, and a 5-day weather forecast for that specific polygon.</li>
+<li>The system stores the field profile and satellite data in the local database.</li>
+<li>The Farmer is redirected to the Dashboard, which successfully populates with live weather data, UVI, soil profiles, and a satellite view of their newly created field.</li>
+</ol>
+<p><strong>Alternative Flows (Exceptions):</strong></p>
+<ul>
+<li><strong>3a. Invalid Polygon:</strong> If the lines of the polygon intersect or the area is too large, the system prompts the farmer to redraw the boundary.</li>
+<li><strong>7a. API Timeout:</strong> If the AgroMonitoring API fails to respond, the system saves the polygon locally and marks the satellite sync status as &quot;Pending Retry&quot; to prevent blocking the user&#39;s workflow.</li>
+</ul>
+<hr>
+<h1>4. Adopted Methodology</h1>
+<h2>4.1 Agile Scrum Framework</h2>
+<p>For the development of AgriVision, the <strong>Agile Scrum</strong> methodology was officially adopted. Given the complexity of integrating three highly distinct technology stacks—physical IoT hardware (ESP32), an AI-driven backend (FastAPI/Gemini), and a native mobile frontend (iOS/Swift)—a rigid, sequential Waterfall approach was deemed unviable. </p>
+<p>Agile Scrum allowed the development to occur iteratively and concurrently. </p>
+<ul>
+<li><strong>Iterative Development:</strong> The project was divided into a series of time-boxed iterations called &quot;Sprints&quot;, each resulting in a testable increment of the system.</li>
+<li><strong>Parallel Tracks:</strong> Agile enabled the hardware telemetry bridge to be developed in parallel with the iOS UI design and AI pipeline engineering, drastically reducing bottlenecks.</li>
+<li><strong>Adaptability:</strong> Frequent testing at the end of each sprint allowed the team to refine the multi-modal AI prompts and adjust sensor calibration without derailing the overall project timeline.</li>
+</ul>
+<hr>
+<h1>5. Work Plan (MS Project Schedule Breakdown)</h1>
+<p>The project was executed over a standard <strong>6-Month</strong> timeframe, structured into 6 primary Sprints.</p>
+<h2>5.1 Project Gantt Chart</h2>
+<p><em>You can copy the code block below and paste it into any Mermaid.js viewer (like mermaid.live) to generate the visual Gantt chart for your documentation.</em></p>
+<pre><code class="language-mermaid">gantt
+    title AgriVision 6-Month Project Schedule
+    dateFormat  YYYY-MM-DD
+    axisFormat  %b
+
+    section Sprint 1-2: Setup
+    Project Proposal &amp; VU Approval       :a1, 2024-01-01, 15d
+    Requirements Gathering (SRS)         :a2, after a1, 15d
+    System Architecture &amp; DB Design      :a3, after a2, 15d
+    Environment Setup (Docker/FastAPI)   :a4, after a3, 15d
+
+    section Sprint 3-5: Features
+    IoT Sensor Bridge &amp; MQTT Setup       :b1, after a4, 25d
+    AgroMonitoring API &amp; Satellite Data  :b2, after a4, 25d
+    iOS Client (MVVM-C) UI/UX Build      :b3, after a4, 45d
+    Gemini AI &amp; RAG Pipeline Integration :b4, after b1, 30d
+
+    section Sprint 6: Integration
+    Full System Integration              :c1, after b4, 20d
+    System Testing &amp; Debugging           :c2, after c1, 15d
+    Final Documentation &amp; Viva Prep      :c3, after c2, 15d
+</code></pre>
+<h2>5.2 Sprint Breakdown</h2>
+<ul>
+<li><strong>Sprint 1-2 (Setup &amp; Architecture):</strong> Focused entirely on securing project approval, documenting requirements, modeling the PostgreSQL database, and scaffolding the Dockerized FastAPI environment and iOS project structure.</li>
+<li><strong>Sprint 3-5 (Core Feature Development):</strong> The most intensive phase, executed in parallel tracks. The IoT bridge was established to read raw telemetry. Simultaneously, external API integrations (AgroMonitoring, Gemini) were coded, and the native iOS screens (Dashboard, AI Chat) were built.</li>
+<li><strong>Sprint 6 (Final Integration &amp; Testing):</strong> Focused on tying the three data sources together, ensuring the AI model correctly ingested live sensor data and satellite polygons, followed by rigorous testing and final documentation preparation.</li>
+</ul>
+<hr>
+<h1>6. Entity Relationship Diagram (ERD) &amp; Database Design</h1>
+<p>To maintain clarity for the capstone presentation, this ERD focuses strictly on the core business entities that drive the AgriVision platform, omitting lower-level telemetry logging tables.</p>
+<h2>6.1 Core Database ERD</h2>
+<p><em>Copy the code block below into Mermaid Live (mermaid.live) to generate the database diagram.</em></p>
+<pre><code class="language-mermaid">erDiagram
+    USER ||--o{ FIELD : &quot;owns&quot;
+    USER ||--o{ SENSOR : &quot;owns&quot;
+    FIELD ||--o{ SENSOR : &quot;has&quot;
+    SENSOR ||--o{ SENSOR_READING : &quot;generates&quot;
+    SENSOR ||--o{ SENSOR_READING_HOURLY : &quot;generates&quot;
+    FIELD ||--o{ FIELD_OBSERVATION : &quot;has&quot;
+    FIELD ||--o{ SATELLITE_SCENE : &quot;has&quot;
+    FIELD ||--o{ AI_ANALYSIS_RUN : &quot;has&quot;
+    FIELD ||--o{ FIELD_RECOMMENDATION : &quot;receives&quot;
+    AI_ANALYSIS_RUN ||--o{ FIELD_RECOMMENDATION : &quot;generates&quot;
+    FIELD ||--|| AI_CHAT_THREAD : &quot;has&quot;
+    AI_CHAT_THREAD ||--o{ AI_CHAT_MESSAGE : &quot;contains&quot;
+    FIELD ||--o{ AI_CHAT_MESSAGE : &quot;contains&quot;
+    AI_CHAT_MESSAGE ||--o{ CHAT_ATTACHMENT : &quot;has&quot;
+    FIELD ||--o{ CHAT_ATTACHMENT : &quot;has&quot;
+    FIELD ||--o{ PROVIDER_CAPABILITY : &quot;has&quot;
+    FIELD ||--o{ PROVIDER_REQUEST_LOG : &quot;has&quot;
+    FIELD ||--o{ PROVIDER_CACHE : &quot;has&quot;
+
+    USER {
+        uuid id PK
+        string firebase_uid
+        string email
+    }
+    FIELD {
+        uuid id PK
+        uuid owner_id FK
+        string name
+        string crop_type
+        geometry boundary
+    }
+    SENSOR {
+        uuid id PK
+        uuid owner_id FK
+        uuid field_id FK
+        string device_id
+    }
+    SENSOR_READING {
+        datetime time PK
+        uuid sensor_id FK
+        float temperature
+        float moisture
+        float humidity
+        float ph
+        float ec
+        float npk_n
+    }
+    FIELD_OBSERVATION {
+        uuid id PK
+        uuid field_id FK
+        string source
+        string metric
+        float value
+    }
+    SATELLITE_SCENE {
+        uuid id PK
+        uuid field_id FK
+        string provider_scene_id
+    }
+    AI_ANALYSIS_RUN {
+        uuid id PK
+        uuid field_id FK
+        string status
+    }
+    FIELD_RECOMMENDATION {
+        uuid id PK
+        uuid field_id FK
+        uuid analysis_run_id FK
+        string category
+        string advice
+    }
+    AI_CHAT_THREAD {
+        uuid id PK
+        uuid field_id FK
+        text rolling_summary
+    }
+    AI_CHAT_MESSAGE {
+        uuid id PK
+        uuid field_id FK
+        uuid thread_id FK
+        string role
+        text content
+    }
+    CHAT_ATTACHMENT {
+        uuid id PK
+        uuid field_id FK
+        uuid message_id FK
+        string storage_key
+    }
+    AGRONOMY_KNOWLEDGE_DOCUMENT {
+        uuid id PK
+        string external_id
+        string title
+        string crop
+    }
+</code></pre>
+<hr>
+<h1>7. Architecture Design Diagram</h1>
+<p>To comprehensively demonstrate the system to the evaluation panel, the architecture is broken down into two perspectives: High-Level Logical Flow and Low-Level Deployment.</p>
+<h2>7.1 High-Level Logical Architecture</h2>
+<p>This diagram illustrates how data flows between the primary actors, the backend core, and the external AI/Satellite APIs.</p>
+<pre><code class="language-mermaid">flowchart TD
+    %% Actors
+    Farmer([Farmer / iOS App])
+    Sensor([ESP32 IoT Sensors])
+    
+    %% AgriVision Backend
+    subgraph AgriVision Platform
+        API[FastAPI Backend Core]
+        AI[AI Advisor Service]
+        MQTT[Mosquitto MQTT Broker]
+        DB[(PostgreSQL + TimescaleDB)]
+        Scheduler[Background Scheduler]
+    end
+    
+    %% External Services
+    subgraph External Cloud Services
+        AgroAPI[AgroMonitoring API\n(Satellite &amp; Weather)]
+        Gemini[Google Gemini API\n(Vision &amp; Text)]
+        Vertex[Vertex AI Search\n(Punjab Agronomy DB)]
+        Firebase[Firebase Auth]
+        GCS[(Google Cloud Storage\nMedia Backup)]
+    end
+    
+    %% Connections
+    Farmer -- HTTP / REST --&gt; API
+    Farmer -- Authenticates --&gt; Firebase
+    Sensor -- Serial / MQTT --&gt; MQTT
+    MQTT -- Ingests Telemetry --&gt; API
+    
+    API -- Read / Write --&gt; DB
+    API -- Fetch Imagery --&gt; AgroAPI
+    API -- Delegates Logic --&gt; AI
+    API -- Uploads Chat Images --&gt; GCS
+    
+    Scheduler -- Triggers Field Sync --&gt; API
+    Scheduler -- Polls Satellite Data --&gt; AgroAPI
+    Scheduler -- Generates Background Insights --&gt; AI
+    
+    AI -- RAG Document Retrieval --&gt; Vertex
+    AI -- Generates Insights --&gt; Gemini
+</code></pre>
+<h2>7.2 Low-Level Deployment Architecture (v1.0 Capstone)</h2>
+<p>This diagram illustrates exactly how the software components are deployed and isolated on the local host machine for the final presentation.</p>
+<pre><code class="language-mermaid">flowchart LR
+    subgraph Mac_Host [Local Host Machine (macOS)]
+        direction TB
+        
+        subgraph Docker_Network [Docker Compose Bridge]
+            App[FastAPI Container\nPort 8000]
+            DB[(PostgreSQL Container\nPort 5432)]
+            Broker[Mosquitto Container\nPort 1883]
+            
+            App --- DB
+            App --- Broker
+        end
+        
+        Simulator[Xcode iOS Simulator]
+        SerialBridge[Python Serial-to-MQTT Bridge]
+        LocalMedia[Local File System\n(PrivateMediaStorage)]
+    end
+    
+    Hardware[Physical ESP32 Board]
+    Cloud((External Internet APIs\nFirebase, GCS, AgroMonitoring))
+    
+    %% Connections
+    Hardware -- USB-C / Serial Cable --&gt; SerialBridge
+    SerialBridge -- Publishes Data --&gt; Broker
+    Simulator -- Localhost REST API --&gt; App
+    App -- Read / Write Images --&gt; LocalMedia
+    App -- HTTPS Outbound --&gt; Cloud
+</code></pre>
+<hr>
+<h1>8. Sequence Diagrams</h1>
+<p>To demonstrate the dynamic interactions between the components of the AgriVision system, the four most critical processes are modeled below.</p>
+<p><em>You can copy the code blocks below and paste them into Mermaid Live (mermaid.live) to generate the visual sequence diagrams.</em></p>
+<h2>8.1 Field Creation &amp; Satellite Sync</h2>
+<p>This flow demonstrates how a user establishes a field boundary and how the backend asynchronously pulls initial satellite data to prevent UI blocking.</p>
+<pre><code class="language-mermaid">sequenceDiagram
+    participant User as iOS Client
+    participant API as FastAPI Backend
+    participant Worker as Background Task
+    participant Agro as AgroMonitoring API
+    participant DB as PostgreSQL DB
+
+    User-&gt;&gt;API: POST /api/fields (GeoJSON Polygon)
+    API-&gt;&gt;Agro: POST /polygons
+    Agro--&gt;&gt;API: Returns Polygon ID
+    API-&gt;&gt;DB: Save Field with Polygon ID
+    API--&gt;&gt;User: 201 Created (Field ID)
+    
+    API-&gt;&gt;Worker: Trigger sync_field_background &amp; run_ai_by_field_id
+    activate Worker
+    Worker-&gt;&gt;Agro: Fetch NDVI &amp; Weather
+    Agro--&gt;&gt;Worker: Return Statistics
+    Worker-&gt;&gt;DB: Update Field Profile
+    Worker-&gt;&gt;Worker: Generate Initial Field Insights
+    deactivate Worker
+</code></pre>
+<h2>8.2 AI Image Upload &amp; Diagnosis</h2>
+<p>This flow demonstrates the multi-modal AI capabilities, highlighting the Retrieval-Augmented Generation (RAG) and the strict safety guardrails.</p>
+<pre><code class="language-mermaid">sequenceDiagram
+    participant User as iOS Client
+    participant API as FastAPI Backend
+    participant Vertex as Vertex AI Search
+    participant Gemini as Google Gemini
+    
+    User-&gt;&gt;API: POST /chat (Image bytes + Text)
+    API-&gt;&gt;API: Sanitize, strip EXIF, and resize image
+    API-&gt;&gt;Vertex: Retrieve agricultural guidelines (RAG)
+    Vertex--&gt;&gt;API: Return grounded documents
+    API-&gt;&gt;Gemini: Send Prompt + Image + RAG Docs
+    Gemini--&gt;&gt;API: Return diagnostic JSON
+    API-&gt;&gt;API: Apply safety guardrails (Check pesticide terms)
+    API--&gt;&gt;User: Return safe, grounded chat response
+</code></pre>
+<h2>8.3 IoT Sensor Telemetry Ingestion</h2>
+<p>This flow shows how continuous physical ground data makes its way into the backend database.</p>
+<pre><code class="language-mermaid">sequenceDiagram
+    participant ESP32 as Physical IoT Node
+    participant Bridge as Python Serial Bridge
+    participant MQTT as Mosquitto Broker
+    participant API as FastAPI Aggregator
+    participant DB as TimescaleDB
+    
+    loop Every 30 seconds
+        ESP32-&gt;&gt;Bridge: USB Serial Telemetry (JSON)
+        Bridge-&gt;&gt;MQTT: Publish to agrivision/sensors/{id}
+        MQTT-&gt;&gt;API: Fast path enqueue reading
+    end
+    loop Background Async Queue (batch = 50)
+        API-&gt;&gt;DB: _db_writer_loop Batch Insert (Non-blocking)
+    end
+</code></pre>
+<h2>8.4 User Registration &amp; Authentication</h2>
+<p>This flow outlines the secure, token-based authentication mechanism using Firebase.</p>
+<pre><code class="language-mermaid">sequenceDiagram
+    participant User as iOS Client
+    participant Firebase as Firebase Auth
+    participant API as FastAPI Backend
+    
+    User-&gt;&gt;Firebase: Login with Email/Pass or Google
+    Firebase--&gt;&gt;User: Return JWT ID Token
+    User-&gt;&gt;API: Send secure request with Bearer Token
+    API-&gt;&gt;Firebase: Verify Token Cryptographic Signature
+    Firebase--&gt;&gt;API: Token Valid (Returns User UID)
+    API--&gt;&gt;User: 200 OK (Protected Data returned)
+</code></pre>
+<h2>8.5 Automated AI Reasoning Loop</h2>
+<p>This flow demonstrates the background scheduler that wakes up periodically to run AI evaluations across all fields.</p>
+<pre><code class="language-mermaid">sequenceDiagram
+    participant Scheduler as ai_reasoning_loop
+    participant DB as TimescaleDB
+    participant AI as Gemini AI Provider
+    
+    loop Every 5 minutes
+        Scheduler-&gt;&gt;DB: Fetch Active Fields
+        Scheduler-&gt;&gt;DB: Fetch Sensor Readings &amp; Satellite Data
+        Scheduler-&gt;&gt;AI: Send Fingerprinted Context
+        AI--&gt;&gt;Scheduler: Return Agronomic Insights
+        Scheduler-&gt;&gt;DB: Save FieldRecommendations
+    end
+</code></pre>
+<hr>
+<h1>9. Class Diagram</h1>
+<p>This hybrid class diagram bridges the gap between the iOS client architecture (MVVM-C) and the Python backend structure. It highlights how frontend <code>ViewModels</code> map to backend <code>Services</code> and database <code>Entities</code>.</p>
+<pre><code class="language-mermaid">classDiagram
+    %% iOS Client Classes
+    namespace iOS_Frontend {
+        class DashboardFeature {
+            &lt;&lt;ViewModel&gt;&gt;
+            +fetchFieldData()
+        }
+        class AIChatFeature {
+            &lt;&lt;ViewModel&gt;&gt;
+            +sendMessage()
+        }
+        class SensorIntegrationFeature {
+            &lt;&lt;ViewModel&gt;&gt;
+            +pairDevice()
+        }
+        class FieldsFeature {
+            &lt;&lt;ViewModel&gt;&gt;
+            +drawPolygon()
+        }
+    }
+    
+    %% Backend Services
+    namespace FastAPI_Backend_Services {
+        class AgromonitoringService {
+            +create_polygon(geojson)
+        }
+        class AIAdvisorService {
+            +chat_with_advisor(msg, images, context)
+        }
+        class MQTTService {
+            +_db_writer_loop()
+        }
+        class SchedulerService {
+            +ai_reasoning_loop()
+            +external_data_loop()
+        }
+    }
+    
+    %% DB Models
+    namespace Database_Entities {
+        class Field {
+            +UUID id
+            +String name
+            +JSON boundary
+        }
+        class SensorReading {
+            +DateTime time
+            +Float temperature
+            +Float moisture
+        }
+    }
+    
+    %% Relationships across the network boundary
+    DashboardFeature ..&gt; AgromonitoringService : HTTP REST JSON
+    AIChatFeature ..&gt; AIAdvisorService : HTTP REST JSON
+    
+    %% Backend internal relationships
+    AgromonitoringService --&gt; Field : Updates Profile
+    MQTTService --&gt; SensorReading : Inserts Telemetry
+    SchedulerService --&gt; AIAdvisorService : Triggers RAG
+    AIAdvisorService --&gt; Field : Reads Context
+</code></pre>
+<hr>
+<h1>10. Interface Design (Figma Screen Wireframe Specifications)</h1>
+<p>The AgriVision frontend is designed with a mobile-first philosophy. The user interface prioritizes high legibility out in the field (high contrast) and quick access to core metrics. The following specifications act as the blueprint for the Figma wireframes and the final iOS implementations.</p>
+<h2>10.1 Global Design System</h2>
+<ul>
+<li><strong>Typography:</strong> Modern, clean sans-serif (e.g., Apple San Francisco or Inter) to ensure readability of data-heavy metrics.</li>
+<li><strong>Color Palette:</strong><ul>
+<li><em>Primary:</em> Forest Green (Agriculture motif, success states).</li>
+<li><em>Secondary:</em> Deep Blue (Action buttons, links).</li>
+<li><em>Alerts:</em> Amber/Red (Sensor anomalies, high-risk pest warnings).</li>
+<li><em>Background:</em> Soft off-white/light gray (to reduce glare outdoors).</li>
+</ul>
+</li>
+<li><strong>Navigation:</strong> Bottom Tab Bar for quick switching between <code>Dashboard</code>, <code>Chat</code>, <code>Fields</code>, and <code>Settings</code>.</li>
+</ul>
+<hr>
+<h2>10.2 Screen Blueprint: User Login &amp; Onboarding</h2>
+<p><strong>Purpose:</strong> Secure entry point via Firebase Auth.
+<strong>Layout Structure (Top to Bottom):</strong></p>
+<ol>
+<li><strong>Header:</strong> Large AgriVision Logo and &quot;Welcome Back&quot; greeting.</li>
+<li><strong>Input Form:</strong> <ul>
+<li>Email Address text field (with icon).</li>
+<li>Password secure text field (with toggle visibility eye icon).</li>
+</ul>
+</li>
+<li><strong>Action Buttons:</strong><ul>
+<li>Solid Primary Button: &quot;Sign In&quot;.</li>
+<li>Outline Button: &quot;Continue with Google&quot;.</li>
+</ul>
+</li>
+<li><strong>Footer:</strong> &quot;Forgot Password?&quot; link and &quot;Create an Account&quot; toggle.</li>
+</ol>
+<hr>
+<h2>10.3 Screen Blueprint: Field Setup (Polygon Drawing)</h2>
+<p><strong>Purpose:</strong> Allow farmers to map their physical fields for satellite syncing.
+<strong>Layout Structure (Top to Bottom):</strong></p>
+<ol>
+<li><strong>Header Bar:</strong> &quot;Add New Field&quot;, Back Button, and &quot;Save&quot; button in the top right.</li>
+<li><strong>Map Canvas (Center/Full):</strong> Interactive Apple Map / Google Map taking up 70% of the screen.<ul>
+<li><em>Floating Action:</em> A floating crosshair target button to snap to the user&#39;s current GPS location.</li>
+<li><em>Overlay:</em> Polygon drawing nodes that the user drops on the map.</li>
+</ul>
+</li>
+<li><strong>Bottom Sheet (Slide Up):</strong><ul>
+<li>Text Field: &quot;Field Name&quot; (e.g., North Wheat Field).</li>
+<li>Dropdown Selection: &quot;Crop Type&quot; (Wheat, Rice, Sugarcane).</li>
+<li>Status Text: &quot;AgroMonitoring Sync Ready&quot;.</li>
+</ul>
+</li>
+</ol>
+<hr>
+<h2>10.4 Screen Blueprint: Main Dashboard</h2>
+<p><strong>Purpose:</strong> The central hub displaying synthesized data from satellites and IoT sensors.
+<strong>Layout Structure (Top to Bottom):</strong></p>
+<ol>
+<li><strong>Top Navigation:</strong> Field selector dropdown (if the user owns multiple fields) and Notification bell icon.</li>
+<li><strong>Hero Section (Satellite View):</strong> A horizontal card displaying the latest Sentinel-2 true-color or NDVI image of the selected field, overlaying the weather summary (Temperature, Rain Icon).</li>
+<li><strong>Telemetry Grid (IoT Sensors):</strong> A 2-column grid of data cards displaying live metrics from the ESP32 bridge:<ul>
+<li><em>Card 1:</em> Soil Moisture % (with an animated circular progress bar).</li>
+<li><em>Card 2:</em> Ground Temperature °C.</li>
+<li><em>Card 3:</em> NPK Nutrient Levels.</li>
+<li><em>Card 4:</em> pH Level.</li>
+</ul>
+</li>
+<li><strong>Action Banner:</strong> A highlighted banner (Amber if urgent) showing the latest AI Recommendation (e.g., &quot;Irrigation recommended in 2 hours&quot;).</li>
+</ol>
+<hr>
+<h2>10.5 Screen Blueprint: AI Chat Interface</h2>
+<p><strong>Purpose:</strong> Conversational UI for the farmer to get diagnostic help and ask agronomic questions.
+<strong>Layout Structure (Top to Bottom):</strong></p>
+<ol>
+<li><strong>Header:</strong> &quot;AI Agronomy Advisor&quot; title with an online status indicator (green dot).</li>
+<li><strong>Chat Scroll View (Main Body):</strong><ul>
+<li>User Message Bubbles (Aligned right, grey background).</li>
+<li>AI Response Bubbles (Aligned left, green background). Contains Markdown support for bold text and bullet points.</li>
+<li><em>Safety Disclaimers:</em> If an AI response mentions pesticides, a secondary red-tinted box appears below the bubble explicitly warning the user to verify with a local expert.</li>
+</ul>
+</li>
+<li><strong>Input Area (Bottom Pinned):</strong><ul>
+<li>Camera/Attachment Icon: To upload photos of diseased crops.</li>
+<li>Text Input Field: &quot;Type your question here...&quot;.</li>
+<li>Send Button (Paper airplane icon).</li>
+</ul>
+</li>
+</ol>
+<hr>
+<h2>10.6 Screen Blueprint: Settings &amp; Profile</h2>
+<p><strong>Purpose:</strong> Manage account preferences and hardware connections.
+<strong>Layout Structure (Top to Bottom):</strong></p>
+<ol>
+<li><strong>Profile Banner:</strong> User avatar, Display Name, and Email Address.</li>
+<li><strong>List View Categories:</strong><ul>
+<li><em>Section 1: Account</em> (Edit Profile, Change Password).</li>
+<li><em>Section 2: Hardware</em> (Manage IoT Devices, Check MQTT Connection Status).</li>
+<li><em>Section 3: Preferences</em> (Notification settings for push alerts).</li>
+</ul>
+</li>
+<li><strong>Danger Zone:</strong> Red &quot;Sign Out&quot; button at the very bottom.</li>
+</ol>
+<hr>
+

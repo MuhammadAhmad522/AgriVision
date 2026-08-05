@@ -16,12 +16,18 @@
 
 /* Begin PBXFileReference section */
 		E0F972EF2F1DFB5B00088DA1 /* AgriVision.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AgriVision.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		3A061A96E8314D789B8D2973 /* AgriVisionTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AgriVisionTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		E0F972F12F1DFB5B00088DA1 /* AgriVision */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = AgriVision;
+			sourceTree = "<group>";
+		};
+		A3B03A9C3638416BAE083232 /* AgriVisionTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = AgriVisionTests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -36,6 +42,13 @@
 				E07762A22F616FD500AC45B5 /* GoogleSignIn in Frameworks */,
 				E077629F2F61699100AC45B5 /* FirebaseCore in Frameworks */,
 				E077629B2F61698300AC45B5 /* FirebaseAuth in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D1966EFED28D4EC39755EFF3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -55,6 +68,7 @@
 				E0F972F12F1DFB5B00088DA1 /* AgriVision */,
 				E07762992F61698300AC45B5 /* Frameworks */,
 				E0F972F02F1DFB5B00088DA1 /* Products */,
+				A3B03A9C3638416BAE083232 /* AgriVisionTests */,
 			);
 			sourceTree = "<group>";
 		};
@@ -62,6 +76,7 @@
 			isa = PBXGroup;
 			children = (
 				E0F972EF2F1DFB5B00088DA1 /* AgriVision.app */,
+				3A061A96E8314D789B8D2973 /* AgriVisionTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -96,7 +111,37 @@
 			productReference = E0F972EF2F1DFB5B00088DA1 /* AgriVision.app */;
 			productType = "com.apple.product-type.application";
 		};
+		94D05244D103427FB7ACCF87 /* AgriVisionTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1810A8648D9142D7BACCC2EE /* Build configuration list for PBXNativeTarget "AgriVisionTests" */;
+			buildPhases = (
+				F0852989151449F89EB9A370 /* Sources */,
+				D1966EFED28D4EC39755EFF3 /* Frameworks */,
+				C8B69A5A15BF44F5987FDECA /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D596E869B1564C6DA12B46EC /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				A3B03A9C3638416BAE083232 /* AgriVisionTests */,
+			);
+			name = AgriVisionTests;
+			packageProductDependencies = (
+			);
+			productName = AgriVisionTests;
+			productReference = 3A061A96E8314D789B8D2973;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
+
+/* Begin PBXTargetDependency section */
+		D596E869B1564C6DA12B46EC /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E0F972EE2F1DFB5B00088DA1 /* AgriVision */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXProject section */
 		E0F972E72F1DFB5B00088DA1 /* Project object */ = {
@@ -108,6 +153,10 @@
 				TargetAttributes = {
 					E0F972EE2F1DFB5B00088DA1 = {
 						CreatedOnToolsVersion = 26.1;
+					};
+					94D05244D103427FB7ACCF87 = {
+						CreatedOnToolsVersion = 26.1;
+						TestTargetID = E0F972EE2F1DFB5B00088DA1;
 					};
 				};
 			};
@@ -130,6 +179,7 @@
 			projectRoot = "";
 			targets = (
 				E0F972EE2F1DFB5B00088DA1 /* AgriVision */,
+				94D05244D103427FB7ACCF87 /* AgriVisionTests */,
 			);
 		};
 /* End PBXProject section */
@@ -142,10 +192,24 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C8B69A5A15BF44F5987FDECA /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		E0F972EB2F1DFB5B00088DA1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F0852989151449F89EB9A370 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -181,6 +245,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -213,6 +278,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -229,6 +295,7 @@
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
+				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
@@ -293,6 +360,7 @@
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
+				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
@@ -340,6 +408,52 @@
 			};
 			name = Release;
 		};
+		AB39F069F431466A8A0B23F4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = SMK33563HK;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDevelopmentRegion = en;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ahmad.AgriVisionTests;
+				PRODUCT_NAME = AgriVisionTests;
+				SWIFT_VERSION = 5.0;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AgriVision.app/AgriVision";
+			};
+			name = Debug;
+		};
+		FEE99110CC3D4991B67E025B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = SMK33563HK;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDevelopmentRegion = en;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ahmad.AgriVisionTests;
+				PRODUCT_NAME = AgriVisionTests;
+				SWIFT_VERSION = 5.0;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AgriVision.app/AgriVision";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -357,6 +471,15 @@
 			buildConfigurations = (
 				E0F973032F1DFB5C00088DA1 /* Debug */,
 				E0F973042F1DFB5C00088DA1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		1810A8648D9142D7BACCC2EE /* Build configuration list for PBXNativeTarget "AgriVisionTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AB39F069F431466A8A0B23F4 /* Debug */,
+				FEE99110CC3D4991B67E025B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

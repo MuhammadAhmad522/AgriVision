@@ -1,26 +1,32 @@
+import asyncio
 import json
 import logging
 import threading
 import time
 from collections import defaultdict, deque
 from datetime import datetime, timezone
-from uuid import UUID
+from typing import Any
 
 import paho.mqtt.client as mqtt
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.database import SessionLocal
 from app.models.db_models import Sensor, SensorReading
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 MQTT_BROKER = settings.MQTT_BROKER
 MQTT_PORT = settings.MQTT_PORT
-# Topic pattern: agrivision/sensors/<device_id>/readings
 MQTT_TOPIC = "agrivision/sensors/+/readings"
+
 _device_events: dict[str, deque[float]] = defaultdict(deque)
 _device_events_lock = threading.Lock()
+
+_reading_queue: asyncio.Queue[dict[str, Any]] | None = None
+_event_loop: asyncio.AbstractEventLoop | None = None
+
+BATCH_SIZE = 50
 
 
 def _accept_device_message(device_id: str, limit: int = 120, window_seconds: int = 60) -> bool:
@@ -45,16 +51,10 @@ def on_connect(client, userdata, flags, reason_code, properties=None):
 
 def on_message(client, userdata, msg):
     """
-    Called when a sensor publishes a reading.
-    Expected payload (JSON):
-    {
-        "temperature": 25.4,
-        "moisture": 62.1,
-        "humidity": 55.0
-    }
+    Fast path: validate and enqueue reading. DB writes happen in the
+    background _db_writer_loop so the MQTT network thread is never blocked.
     """
     try:
-        # Extract device_id from topic: agrivision/sensors/<device_id>/readings
         topic_parts = msg.topic.split("/")
         if len(topic_parts) != 4:
             raise ValueError("Invalid MQTT topic")
@@ -75,7 +75,7 @@ def on_message(client, userdata, msg):
         allowed = reading_fields | {"device_id"}
         unexpected = set(payload) - allowed
         if unexpected:
-            raise ValueError(f"MQTT payload contains unsupported fields: {', '.join(sorted(unexpected))}")
+            logger.debug(f"MQTT payload contains additional fields: {', '.join(sorted(unexpected))}")
         payload_device_id = payload.get("device_id")
         if payload_device_id is not None and payload_device_id != device_id:
             raise ValueError("MQTT payload device ID does not match topic")
@@ -88,39 +88,72 @@ def on_message(client, userdata, msg):
                     raise ValueError(f"Reading {key} is outside the accepted range")
             values[key] = value
 
-        db: Session = SessionLocal()
-        try:
+        now = datetime.now(timezone.utc)
+        item = {"device_id": device_id, "values": values, "timestamp": now}
+        if _event_loop and _reading_queue:
+            _event_loop.call_soon_threadsafe(_reading_queue.put_nowait, item)
+        else:
+            logger.warning("MQTT: async consumer not ready — dropping reading")
+    except Exception as e:
+        logger.error(f"MQTT message processing error: {e}")
+
+
+def _write_batch(items: list[dict]) -> None:
+    """Write a batch of sensor readings to DB in a single transaction."""
+    db: Session = SessionLocal()
+    try:
+        for item in items:
+            device_id = item["device_id"]
             sensor = db.query(Sensor).filter(Sensor.device_id == device_id).first()
             if not sensor:
                 logger.info(f"MQTT: Auto-discovering new device '{device_id}'")
                 sensor = Sensor(
                     device_id=device_id,
                     sensor_type="esp32_multi_sensor",
-                    name=f"Autodiscovered {device_id}"
+                    name=f"Autodiscovered {device_id}",
                 )
                 db.add(sensor)
-                db.flush() # Ensure sensor has an ID
+                db.flush()
 
-            # Generic wide-schema ingestion: Map any supported field from payload to model
             reading = SensorReading(
                 sensor_id=sensor.id,
-                time=datetime.now(timezone.utc),
-                **values,
+                time=item["timestamp"],
+                **item["values"],
             )
             db.add(reading)
-            sensor.last_seen = datetime.now(timezone.utc)
-            db.commit()
-            logger.info(f"MQTT: Saved wide-schema reading from device '{device_id}'")
-        finally:
-            db.close()
+            sensor.last_seen = item["timestamp"]
+        db.commit()
+        logger.info(f"MQTT: Wrote batch of {len(items)} reading(s)")
+    except Exception:
+        db.rollback()
+        logger.exception("MQTT batch write failed — %d reading(s) lost", len(items))
+    finally:
+        db.close()
 
-    except Exception as e:
-        logger.error(f"MQTT message processing error: {e}")
+
+async def _db_writer_loop():
+    """Consume from the async queue and batch-write readings to the database."""
+    try:
+        while True:
+            item = await _reading_queue.get()
+            batch = [item]
+            for _ in range(BATCH_SIZE - 1):
+                if _reading_queue.empty():
+                    break
+                batch.append(_reading_queue.get_nowait())
+            await asyncio.to_thread(_write_batch, batch)
+    except asyncio.CancelledError:
+        remaining = []
+        while not _reading_queue.empty():
+            remaining.append(_reading_queue.get_nowait())
+        if remaining:
+            _write_batch(remaining)
 
 
-def start_mqtt_bridge():
-    """Start the MQTT client in a background thread."""
+def _start_mqtt_bridge():
+    """Start the MQTT client in a background thread (blocking)."""
     from paho.mqtt.enums import CallbackAPIVersion
+
     client = mqtt.Client(CallbackAPIVersion.VERSION2)
     client.on_connect = on_connect
     client.on_message = on_message
@@ -130,14 +163,18 @@ def start_mqtt_bridge():
     try:
         client.connect(MQTT_BROKER, MQTT_PORT, 60)
         logger.info(f"MQTT Bridge starting, connecting to '{MQTT_BROKER}:{MQTT_PORT}'...")
-        # loop_forever() blocks, so it must run in a thread
         client.loop_forever()
     except Exception as e:
         logger.error(f"MQTT Bridge could not connect: {e}")
 
 
-def run_in_background():
-    """Launch MQTT bridge in a daemon thread so it doesn't block FastAPI startup."""
-    thread = threading.Thread(target=start_mqtt_bridge, daemon=True)
+async def start_background_tasks():
+    """Initialise the async queue and launch the MQTT bridge + DB writer."""
+    global _reading_queue, _event_loop
+    _reading_queue = asyncio.Queue()
+    _event_loop = asyncio.get_running_loop()
+    thread = threading.Thread(target=_start_mqtt_bridge, daemon=True)
     thread.start()
     logger.info("MQTT Bridge thread started.")
+    consumer = asyncio.create_task(_db_writer_loop())
+    return consumer

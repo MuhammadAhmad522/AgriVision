@@ -83,10 +83,20 @@ class FieldWithSensorsCreate(FieldCreate):
     sensors: list[SensorCreate] = PydanticField(default_factory=list, max_length=20)
 
 
+class FieldIntervalOverrides(StrictModel):
+    weather_hours: Optional[Annotated[int, PydanticField(ge=1, le=720)]] = None
+    soil_hours: Optional[Annotated[int, PydanticField(ge=1, le=720)]] = None
+    uvi_hours: Optional[Annotated[int, PydanticField(ge=1, le=720)]] = None
+    satellite_hours: Optional[Annotated[int, PydanticField(ge=1, le=720)]] = None
+    ai_hours: Optional[Annotated[int, PydanticField(ge=1, le=720)]] = None
+    retention_days: Optional[Annotated[int, PydanticField(ge=1, le=365)]] = None
+
+
 class FieldUpdate(StrictModel):
     name: Optional[SafeName] = None
     crop_type: Optional[Annotated[str, PydanticField(max_length=80)]] = None
     expected_harvest_date: Optional[datetime] = None
+    interval_overrides: Optional[FieldIntervalOverrides] = None
 
     _clean_name = field_validator("name")(lambda value: clean_text(value) if value else value)
     _clean_crop = field_validator("crop_type")(lambda value: clean_text(value) if value else value)
@@ -111,6 +121,7 @@ class FieldResponse(BaseModel):
     agro_retryable: bool
     latest_ndvi: Optional[float] = None
     last_satellite_sync: Optional[datetime] = None
+    interval_overrides: Optional[dict[str, int]] = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -125,6 +136,37 @@ class SensorReadingDB(BaseModel):
     npk_n: Optional[float] = None
     npk_p: Optional[float] = None
     npk_k: Optional[float] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SensorReadingHourlyDB(BaseModel):
+    bucket: datetime
+    sensor_id: UUID
+    temperature_avg: Optional[float] = None
+    temperature_min: Optional[float] = None
+    temperature_max: Optional[float] = None
+    moisture_avg: Optional[float] = None
+    moisture_min: Optional[float] = None
+    moisture_max: Optional[float] = None
+    humidity_avg: Optional[float] = None
+    humidity_min: Optional[float] = None
+    humidity_max: Optional[float] = None
+    ph_avg: Optional[float] = None
+    ph_min: Optional[float] = None
+    ph_max: Optional[float] = None
+    ec_avg: Optional[float] = None
+    ec_min: Optional[float] = None
+    ec_max: Optional[float] = None
+    npk_n_avg: Optional[float] = None
+    npk_n_min: Optional[float] = None
+    npk_n_max: Optional[float] = None
+    npk_p_avg: Optional[float] = None
+    npk_p_min: Optional[float] = None
+    npk_p_max: Optional[float] = None
+    npk_k_avg: Optional[float] = None
+    npk_k_min: Optional[float] = None
+    npk_k_max: Optional[float] = None
+    reading_count: int
     model_config = ConfigDict(from_attributes=True)
 
 

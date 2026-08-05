@@ -158,7 +158,7 @@ async def _request(
                     async with httpx.AsyncClient(timeout=httpx.Timeout(20.0, connect=10.0), follow_redirects=True) as client:
                         response = await client.request(method, url, params=request_params, json=json_body)
                     status_code = response.status_code
-                    if status_code in (402, 403):
+                    if status_code in (401, 402, 403):
                         _log_request(endpoint, "denied", status_code, int((time.monotonic() - start) * 1000), field_id)
                         raise AgroEntitlementError("Endpoint is unavailable for this AgroMonitoring account", status_code, retryable=False)
                     if status_code == 429 or status_code >= 500:

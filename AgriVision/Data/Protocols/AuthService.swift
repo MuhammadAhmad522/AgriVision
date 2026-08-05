@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Firebase and SDK-specific errors are translated to this enum before reaching
 /// ViewModels so UI layers remain backend-agnostic.
-enum AgriVisionError: LocalizedError {
+enum AgriVisionError: LocalizedError, Equatable {
     case invalidInternalState // e.g. self is nil
     case userNotFound
     case wrongPassword

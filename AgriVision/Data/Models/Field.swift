@@ -6,7 +6,7 @@ import CoreLocation
  - `Identifiable`: Used for SwiftUI collections.
  - `Codable`: Used for network serialization.
  */
-struct Field: Identifiable, Codable {
+struct Field: Identifiable, Codable, Equatable {
     let id: UUID
     let ownerId: UUID
     let name: String
@@ -90,7 +90,7 @@ struct Field: Identifiable, Codable {
  A simple point representation for sending to the backend.
  Matches the Python `PointCoordinates` schema.
  */
-struct PointCoordinates: Codable {
+struct PointCoordinates: Codable, Equatable {
     let latitude: Double
     let longitude: Double
 

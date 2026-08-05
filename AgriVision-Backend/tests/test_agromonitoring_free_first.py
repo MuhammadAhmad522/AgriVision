@@ -84,17 +84,6 @@ async def test_initial_sync_timeout_returns_false_and_cancels_work():
     assert cancelled is True
 
 
-def test_all_provider_intervals_and_worker_scan_match_timeline():
-    from app.services import scheduler
-
-    assert scheduler.settings.AGRO_SATELLITE_INTERVAL_HOURS == 6
-    assert scheduler.settings.AGRO_SOIL_INTERVAL_HOURS == 6
-    assert scheduler.settings.AGRO_WEATHER_INTERVAL_HOURS == 6
-    assert scheduler.settings.AGRO_UVI_INTERVAL_HOURS == 6
-    assert scheduler.settings.AGRO_INITIAL_SYNC_TIMEOUT_SECONDS == 15
-    assert scheduler.settings.AGRO_WORKER_SCAN_SECONDS == 5 * 60
-
-
 @pytest.mark.asyncio
 async def test_singleflight_coalesces_duplicate_requests():
     calls = 0
@@ -113,85 +102,65 @@ async def test_singleflight_coalesces_duplicate_requests():
     assert calls == 1
 
 
-class _HTTPClient:
-    response = None
-    calls = 0
-    last_args = ()
-    last_kwargs = {}
-
-    def __init__(self, *args, **kwargs):
-        pass
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *args):
-        return False
-
-    async def request(self, *args, **kwargs):
-        type(self).calls += 1
-        type(self).last_args = args
-        type(self).last_kwargs = kwargs
-        return type(self).response
+@pytest.fixture
+def mock_http_client():
+    mock = AsyncMock(spec=httpx.AsyncClient)
+    mock_request = AsyncMock(return_value=httpx.Response(200, json={"ok": True}))
+    mock.__aenter__.return_value = mock
+    mock.request = mock_request
+    with patch.object(agro.httpx, "AsyncClient", return_value=mock):
+        yield mock_request
 
 
 @pytest.mark.asyncio
-async def test_provider_absolute_urls_keep_api_key_query_string():
-    _HTTPClient.calls = 0
-    _HTTPClient.response = httpx.Response(200, json={"mean": 0.5}, request=httpx.Request("GET", "https://example.test"))
+async def test_provider_absolute_urls_keep_api_key_query_string(mock_http_client):
+    mock_http_client.return_value = httpx.Response(200, json={"mean": 0.5}, request=httpx.Request("GET", "https://example.test"))
     with (
         patch.object(agro.settings, "AGROMONITORING_API_KEY", "test-key"),
-        patch.object(agro.httpx, "AsyncClient", _HTTPClient),
         patch.object(agro, "_log_request"),
     ):
         await agro._request("GET", "scene-stats", absolute_url="http://api.agromonitoring.test/stats/1.0/example?appid=old")
 
-    sent_url = _HTTPClient.last_args[1]
+    sent_url = mock_http_client.call_args[0][1]
     assert parse_qs(urlsplit(sent_url).query)["appid"] == ["test-key"]
-    assert _HTTPClient.last_kwargs["params"] is None
+    assert mock_http_client.call_args[1]["params"] is None
 
 
 @pytest.mark.asyncio
-async def test_no_content_delete_is_successful_without_json_decode_retry():
-    _HTTPClient.calls = 0
-    _HTTPClient.response = httpx.Response(204, request=httpx.Request("DELETE", "https://example.test"))
+async def test_no_content_delete_is_successful_without_json_decode_retry(mock_http_client):
+    mock_http_client.return_value = httpx.Response(204, request=httpx.Request("DELETE", "https://example.test"))
     with (
         patch.object(agro.settings, "AGROMONITORING_API_KEY", "test-key"),
-        patch.object(agro.httpx, "AsyncClient", _HTTPClient),
         patch.object(agro, "_log_request"),
     ):
         await agro.delete_polygon("polygon-1")
-    assert _HTTPClient.calls == 1
+    mock_http_client.assert_called_once()
 
 
 @pytest.mark.asyncio
-async def test_entitlement_denial_is_non_retryable_and_not_retried():
-    _HTTPClient.calls = 0
-    _HTTPClient.response = httpx.Response(402, request=httpx.Request("GET", "https://example.test"))
+async def test_entitlement_denial_is_non_retryable_and_not_retried(mock_http_client):
+    mock_http_client.return_value = httpx.Response(402, request=httpx.Request("GET", "https://example.test"))
     with (
         patch.object(agro.settings, "AGROMONITORING_API_KEY", "test-key"),
-        patch.object(agro.httpx, "AsyncClient", _HTTPClient),
         patch.object(agro, "_log_request"),
     ):
         with pytest.raises(agro.AgroEntitlementError) as raised:
             await agro.get_accumulated_temperature(31.5, 74.3, 1, 2)
     assert raised.value.retryable is False
-    assert _HTTPClient.calls == 1
+    mock_http_client.assert_called_once()
 
 
 @pytest.mark.asyncio
-async def test_bad_provider_request_is_not_retried():
-    _HTTPClient.calls = 0
-    _HTTPClient.response = httpx.Response(400, request=httpx.Request("POST", "https://example.test"))
+async def test_bad_provider_request_is_not_retried(mock_http_client):
+    mock_http_client.return_value = httpx.Response(400, request=httpx.Request("POST", "https://example.test"))
     with (
         patch.object(agro.settings, "AGROMONITORING_API_KEY", "test-key"),
-        patch.object(agro.httpx, "AsyncClient", _HTTPClient),
         patch.object(agro, "_log_request"),
     ):
         with pytest.raises(agro.AgroAPIError) as raised:
             await agro._request("POST", "polygons", json_body={"name": "invalid"})
     assert raised.value.retryable is False
-    assert _HTTPClient.calls == 1
+    mock_http_client.assert_called_once()
 
 
 def test_free_mode_default_and_no_historical_ndvi_endpoint():

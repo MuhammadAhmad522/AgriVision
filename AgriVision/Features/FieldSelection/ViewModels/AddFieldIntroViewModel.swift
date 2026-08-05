@@ -3,6 +3,7 @@ import Combine
 
 /// View Model for the AddFieldIntro Screen.
 /// Manages the state and business logic for the introductory screen where users can add their first field.
+@MainActor
 final class AddFieldIntroViewModel: ObservableObject {
     
     // MARK: - Published Properties

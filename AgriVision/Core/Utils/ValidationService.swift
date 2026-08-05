@@ -1,6 +1,6 @@
 import Foundation
 
-enum ValidationError: LocalizedError {
+enum ValidationError: LocalizedError, Equatable {
     case emptyField(String)
     case invalidEmail
     case passwordTooShort(min: Int)

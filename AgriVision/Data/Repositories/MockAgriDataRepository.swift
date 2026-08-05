@@ -8,10 +8,26 @@ import CoreLocation
  */
 class MockAgriDataRepository: AgriDataService {
     
+    var shouldFail: Bool = false
+    var failOnMethods: Set<String> = []
+
     private let mockCropType: String
     private let mockFieldID: UUID
     private let mockOwnerID: UUID
-    
+
+    enum MockError: Error, LocalizedError {
+        case simulatedError(String)
+        var errorDescription: String? {
+            switch self { case .simulatedError(let msg): return msg }
+        }
+    }
+
+    private func maybeThrow(_ method: String, _ file: String = #function) async throws {
+        if shouldFail || failOnMethods.contains(method) {
+            throw MockError.simulatedError("Simulated error in \(method)")
+        }
+    }
+
     init(
         mockCropType: String = "Wheat",
         mockFieldID: UUID = UUID(),
@@ -23,6 +39,7 @@ class MockAgriDataRepository: AgriDataService {
     }
 
     func bootstrapSession() async throws -> SessionBootstrap {
+        try await maybeThrow("bootstrapSession")
         let fields = try await fetchFields()
         return SessionBootstrap(
             user: BackendUser(id: mockOwnerID, firebaseUid: "mock-user", email: "mock@example.com"),
@@ -43,6 +60,7 @@ class MockAgriDataRepository: AgriDataService {
         expectedHarvestDate: Date?,
         sensors: [SensorConfig]?
     ) async throws -> Field {
+        try await maybeThrow("saveField")
         try? await Task.sleep(nanoseconds: 1 * 1_000_000_000)
         return Field(
             id: UUID(),
@@ -63,6 +81,7 @@ class MockAgriDataRepository: AgriDataService {
 
     /// Mock implementation for fetching fields.
     func fetchFields(includeArchived: Bool = false) async throws -> [Field] {
+        try await maybeThrow("fetchFields")
         // Return a mock field to populate the dashboard UI
         return [
             Field(
@@ -88,6 +107,7 @@ class MockAgriDataRepository: AgriDataService {
     
     /// Fetches mock sensor readings.
     func fetchSensorReadings(for fieldId: UUID) async throws -> [SensorReading] {
+        try await maybeThrow("fetchSensorReadings")
         return [
             SensorReading(
                 sensor_id: UUID(),
@@ -99,10 +119,14 @@ class MockAgriDataRepository: AgriDataService {
         ]
     }
 
-    func fetchSensors(for fieldId: UUID) async throws -> [FieldSensor] { [] }
+    func fetchSensors(for fieldId: UUID) async throws -> [FieldSensor] {
+        try await maybeThrow("fetchSensors")
+        return []
+    }
     
     /// Returns mock AI recommendations for UI Preview and testing.
     func fetchRecommendations(for fieldId: UUID) async throws -> [FieldRecommendation] {
+        try await maybeThrow("fetchRecommendations")
         return [
             FieldRecommendation(
                 id: UUID(), fieldId: fieldId, category: "Irrigation", priority: "high",
@@ -124,12 +148,15 @@ class MockAgriDataRepository: AgriDataService {
     
     /// Mock implementation for deleting a field.
     func deleteField(id: UUID) async throws {
-        // Mock a successful deletion
+        try await maybeThrow("deleteField")
     }
 
-    func refreshFieldData(for fieldId: UUID) async throws {}
+    func refreshFieldData(for fieldId: UUID) async throws {
+        try await maybeThrow("refreshFieldData")
+    }
 
     func fetchDashboard(for fieldId: UUID) async throws -> DashboardSnapshot {
+        try await maybeThrow("fetchDashboard")
         let fields = try await fetchFields()
         let field = fields[0]
         let weatherSoil = try await fetchWeatherSoil(for: fieldId)
@@ -153,10 +180,14 @@ class MockAgriDataRepository: AgriDataService {
         )
     }
 
-    func fetchSatelliteImage(for fieldId: UUID, kind: String) async throws -> Data { Data() }
+    func fetchSatelliteImage(for fieldId: UUID, kind: String) async throws -> Data {
+        try await maybeThrow("fetchSatelliteImage")
+        return Data()
+    }
     
     /// Provides feedback on an AI recommendation to improve future context.
     func updateRecommendationFeedback(for fieldId: UUID, recommendationId: UUID, status: String) async throws -> FieldRecommendation {
+        try await maybeThrow("updateRecommendationFeedback")
         return FieldRecommendation(
             id: recommendationId, fieldId: fieldId, category: "Mock", priority: "low",
             advice: "Feedback received", confidence: 1.0, status: status, ndviAtGeneration: nil, createdAt: Date()
@@ -164,26 +195,34 @@ class MockAgriDataRepository: AgriDataService {
     }
 
     func recordRecommendationOutcome(for fieldId: UUID, recommendationId: UUID, outcome: String, notes: String?) async throws -> FieldRecommendation {
-        FieldRecommendation(
+        try await maybeThrow("recordRecommendationOutcome")
+        return FieldRecommendation(
             id: recommendationId, fieldId: fieldId, category: "Mock", priority: "low",
             advice: "Outcome received", confidence: 1.0, status: "implemented", ndviAtGeneration: nil,
             createdAt: Date(), outcome: outcome, outcomeNotes: notes
         )
     }
 
-    func refreshRecommendations(for fieldId: UUID) async throws {}
+    func refreshRecommendations(for fieldId: UUID) async throws {
+        try await maybeThrow("refreshRecommendations")
+    }
     
     /// Fetches the conversational history for a field from the AI backend.
     func fetchChatHistory(for fieldId: UUID) async throws -> [ChatMessage] {
+        try await maybeThrow("fetchChatHistory")
         return [
             ChatMessage(id: UUID(), role: "model", content: "Hello! I am your AI Agronomist. How can I help you today?", createdAt: Date())
         ]
     }
 
-    func fetchChatAttachment(fieldId: UUID, attachmentId: UUID) async throws -> Data { Data() }
+    func fetchChatAttachment(fieldId: UUID, attachmentId: UUID) async throws -> Data {
+        try await maybeThrow("fetchChatAttachment")
+        return Data()
+    }
     
     /// Submits a new user message to the AI and returns the response.
     func sendChatMessage(for fieldId: UUID, message: String, images: [ChatImageUpload], idempotencyKey: String) async throws -> ChatTurn {
+        try await maybeThrow("sendChatMessage")
         try await Task.sleep(nanoseconds: 1 * 1_000_000_000)
         return ChatTurn(
             userMessage: ChatMessage(id: UUID(), role: "user", content: message, status: "completed", attachments: [], createdAt: Date()),
@@ -192,6 +231,7 @@ class MockAgriDataRepository: AgriDataService {
     }
     
     func verifySensorConnection(deviceId: String) async throws -> (isVerified: Bool, message: String) {
+        try await maybeThrow("verifySensorConnection")
         try? await Task.sleep(nanoseconds: 1 * 1_000_000_000)
         
         // Demo Logic: 'ESP' codes succeed, others fail
@@ -203,15 +243,19 @@ class MockAgriDataRepository: AgriDataService {
     }
 
     func pairSensor(deviceId: String) async throws -> (isPaired: Bool, message: String) {
+        try await maybeThrow("pairSensor")
         let verification = try await verifySensorConnection(deviceId: deviceId)
         return (verification.isVerified, verification.isVerified ? "Sensor paired and ready to assign to a field." : verification.message)
     }
 
 
-    func assignSensor(_ sensor: SensorConfig, to fieldId: UUID) async throws {}
+    func assignSensor(_ sensor: SensorConfig, to fieldId: UUID) async throws {
+        try await maybeThrow("assignSensor")
+    }
     
     /// Fetches mock satellite soil data and weather forecast for a field.
     func fetchWeatherSoil(for fieldId: UUID) async throws -> FieldWeatherSoil {
+        try await maybeThrow("fetchWeatherSoil")
         return FieldWeatherSoil(
             fieldId: fieldId,
             soil: FieldWeatherSoil.SoilData(

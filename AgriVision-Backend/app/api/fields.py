@@ -4,6 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Response, status
 from geoalchemy2.functions import ST_AsGeoJSON
+from pydantic import BaseModel
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
@@ -217,6 +218,8 @@ def get_field_sensors(
 def update_field(field_id: UUID, update: FieldUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     field = owned_field(db, current_user, field_id, include_archived=False)
     for key, value in update.model_dump(exclude_unset=True).items():
+        if isinstance(value, BaseModel):
+            value = value.model_dump(exclude_none=True)
         setattr(field, key, value)
     if field.plantation_date and field.expected_harvest_date and field.expected_harvest_date <= field.plantation_date:
         raise APIError(422, "invalid_harvest_date", "Expected harvest date must be after plantation date.")

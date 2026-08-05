@@ -94,8 +94,8 @@ class FieldDetailsViewModel: ObservableObject {
             errorMessage = "Please enter a field name."
             ToastMessageAutoDismiss.schedule(
                 expectedMessage: errorMessage ?? "",
-                currentMessage: { self.errorMessage },
-                clearMessage: { self.errorMessage = nil }
+                currentMessage: { [weak self] in self?.errorMessage },
+                clearMessage: { [weak self] in self?.errorMessage = nil }
             )
             return
         }
@@ -107,8 +107,8 @@ class FieldDetailsViewModel: ObservableObject {
                 : "Field area cannot exceed 3000 hectares. Draw a smaller boundary."
             ToastMessageAutoDismiss.schedule(
                 expectedMessage: errorMessage ?? "",
-                currentMessage: { self.errorMessage },
-                clearMessage: { self.errorMessage = nil }
+                currentMessage: { [weak self] in self?.errorMessage },
+                clearMessage: { [weak self] in self?.errorMessage = nil }
             )
             return
         }
@@ -153,11 +153,11 @@ class FieldDetailsViewModel: ObservableObject {
             } catch {
                 isLoading = false
                 errorMessage = error.userFacingMessage
-                ToastMessageAutoDismiss.schedule(
-                    expectedMessage: errorMessage ?? "",
-                    currentMessage: { self.errorMessage },
-                    clearMessage: { self.errorMessage = nil }
-                )
+                    ToastMessageAutoDismiss.schedule(
+                        expectedMessage: errorMessage ?? "",
+                        currentMessage: { [weak self] in self?.errorMessage },
+                        clearMessage: { [weak self] in self?.errorMessage = nil }
+                    )
             }
         }
     }

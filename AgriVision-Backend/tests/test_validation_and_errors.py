@@ -5,9 +5,12 @@ import pytest
 from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import ValidationError
 
+from fastapi.testclient import TestClient
+
 from app.core.auth import get_current_user
 from app.core.config import settings
 from app.core.errors import APIError, error_payload
+from app.main import app
 from app.schemas.pydantic_schemas import ChatMessageRequest, FieldWithSensorsCreate, RecommendationOutcome
 from app.services.ai_advisor_service import (
     _apply_safety_policy,
@@ -179,3 +182,18 @@ async def test_authentication_timeout_is_retryable():
     assert raised.value.status_code == 503
     assert raised.value.code == "authentication_unavailable"
     assert raised.value.retryable is True
+
+
+def test_oversized_payload_and_untrusted_request_id_are_handled_safely():
+    client = TestClient(app)
+    try:
+        response = client.post(
+            "/",
+            headers={"Content-Length": "1048577", "X-Request-ID": "invalid request id"},
+        )
+        assert response.status_code == 413
+        assert response.json()["error"]["code"] == "payload_too_large"
+        assert response.headers["X-Request-ID"] != "invalid request id"
+        assert response.json()["error"]["request_id"] == response.headers["X-Request-ID"]
+    finally:
+        client.close()

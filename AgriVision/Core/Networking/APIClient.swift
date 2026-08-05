@@ -23,7 +23,7 @@ struct BackendAPIError: LocalizedError {
     var errorDescription: String? { message }
 }
 
-private struct ErrorEnvelope: Decodable {
+struct ErrorEnvelope: Decodable {
     let error: ErrorBody
 
     struct ErrorBody: Decodable {
@@ -175,7 +175,7 @@ private extension Data {
     }
 }
 
-private enum APIDateCoding {
+enum APIDateCoding {
     static let fractional: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]

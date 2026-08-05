@@ -1,35 +1,47 @@
+import os
 import serial
+import serial.tools.list_ports
 import json
 import paho.mqtt.client as mqtt
 import time
 import sys
 
 # --- Configuration ---
-# Match the port found earlier in the conversation
-SERIAL_PORT = '/dev/cu.usbserial-A5069RR4' 
-BAUD_RATE = 115200
+DEFAULT_SERIAL_PORT = os.environ.get("SERIAL_PORT", "/dev/cu.usbserial-A5069RR4")
+BAUD_RATE = int(os.environ.get("BAUD_RATE", 115200))
 
 # Local MQTT Broker (running in Docker)
-MQTT_BROKER = "localhost"
-MQTT_PORT = 1883
+MQTT_BROKER = os.environ.get("MQTT_BROKER", "localhost")
+MQTT_PORT = int(os.environ.get("MQTT_PORT", 1883))
+
+def find_serial_port():
+    if os.environ.get("SERIAL_PORT") == "mock" or "--mock" in sys.argv:
+        return "mock"
+    if os.path.exists(DEFAULT_SERIAL_PORT) and "usb" in DEFAULT_SERIAL_PORT.lower():
+        return DEFAULT_SERIAL_PORT
+    ports = list(serial.tools.list_ports.comports())
+    for p in ports:
+        dev_lower = p.device.lower()
+        desc_lower = (p.description or "").lower()
+        if any(ignore in dev_lower for ignore in ["debug-console", "bluetooth", "wavepro", "ca-6928"]):
+            continue
+        if any(keyword in dev_lower or keyword in desc_lower for keyword in ["usbserial", "usbmodem", "ch340", "cp210", "uart", "ftdi", "usb"]):
+            print(f"🔍 Auto-detected USB serial device: {p.device} ({p.description})")
+            return p.device
+    return None
 
 def start_bridge():
+    port = find_serial_port()
     print(f"🚀 AgriVision Serial-to-MQTT Bridge starting...")
-    print(f"🔌 Monitoring Port: {SERIAL_PORT} @ {BAUD_RATE} baud")
 
-    ser = None
-    client = None
-    mqtt_loop_started = False
-
-    try:
-        # Keep ESP32 reset/boot pins inactive when the USB serial port opens.
-        ser = serial.Serial(port=None, baudrate=BAUD_RATE, timeout=1)
-        ser.dtr = False
-        ser.rts = False
-        ser.port = SERIAL_PORT
-        ser.open()
-    except Exception as e:
-        print(f"❌ Error: Could not open serial port {SERIAL_PORT}. {e}")
+    if port is None:
+        print("❌ Error: No physical USB serial port detected!")
+        print("   Troubleshooting steps:")
+        print("   1. Ensure your ESP32 board is plugged directly into a Mac USB port.")
+        print("   2. Verify your micro-USB / USB-C cable is a DATA cable (not power-only).")
+        print("   3. Install the CH340 / CP210x USB driver for macOS if needed.")
+        print("   4. To test without physical hardware, run:")
+        print("      python3 scripts/serial_to_mqtt_bridge.py --mock")
         sys.exit(1)
 
     client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
@@ -37,12 +49,52 @@ def start_bridge():
         client.connect(MQTT_BROKER, MQTT_PORT, 60)
         print(f"✅ Connected to MQTT Broker at {MQTT_BROKER}:{MQTT_PORT}")
     except Exception as e:
-        print(f"❌ Error: Could not connect to MQTT broker. {e}")
-        ser.close()
+        print(f"❌ Error: Could not connect to MQTT broker at {MQTT_BROKER}:{MQTT_PORT}. {e}")
         sys.exit(1)
 
     client.loop_start()
-    mqtt_loop_started = True
+
+    if port == "mock":
+        print("🧪 RUNNING IN MOCK SIMULATOR MODE (Generating sensor telemetry every 3s)...")
+        print("📡 Press Ctrl+C to stop.\n")
+        import random
+        device_id = os.environ.get("DEVICE_ID", "ESP32_FIELD_NODE_1")
+        topic = f"agrivision/sensors/{device_id}/readings"
+        try:
+            while True:
+                payload = {
+                    "device_id": device_id,
+                    "temperature": round(random.uniform(24.0, 32.0), 1),
+                    "moisture": round(random.uniform(35.0, 55.0), 1),
+                    "humidity": round(random.uniform(50.0, 70.0), 1),
+                    "ph": round(random.uniform(6.2, 7.2), 1),
+                    "ec": round(random.uniform(1.0, 1.8), 2),
+                    "npk_n": round(random.uniform(110.0, 160.0), 1),
+                    "npk_p": round(random.uniform(30.0, 60.0), 1),
+                    "npk_k": round(random.uniform(150.0, 200.0), 1),
+                }
+                line = json.dumps(payload)
+                client.publish(topic, line)
+                print(f"📥 [MOCK SENSOR] 📤 MQTT Out: {topic} -> {line}")
+                time.sleep(3.0)
+        except KeyboardInterrupt:
+            print("\n🛑 Mock Bridge shutting down...")
+        finally:
+            client.disconnect()
+            sys.exit(0)
+
+    print(f"🔌 Monitoring Serial Port: {port} @ {BAUD_RATE} baud")
+    ser = None
+    try:
+        ser = serial.Serial(port=None, baudrate=BAUD_RATE, timeout=1)
+        ser.dtr = False
+        ser.rts = False
+        ser.port = port
+        ser.open()
+    except Exception as e:
+        print(f"❌ Error: Could not open serial port {port}. {e}")
+        client.disconnect()
+        sys.exit(1)
 
     print("📡 Waiting for ESP32 data (JSON format)...")
     
@@ -56,21 +108,12 @@ def start_bridge():
                 print(f"📥 Serial In: {line}")
                 
                 try:
-                    # Validate JSON
                     data = json.loads(line)
-                    
-                    # If the ESP32 doesn't provide a device_id in the JSON, 
-                    # we use a default or extract from config.
-                    # Best practice: ESP32 should send its ID.
                     device_id = data.get("device_id", "ESP32_FIELD_NODE_1")
                     topic = f"agrivision/sensors/{device_id}/readings"
-                    
-                    # Forward to MQTT
                     client.publish(topic, line)
                     print(f"📤 MQTT Out: {topic} -> {line}")
-                    
                 except json.JSONDecodeError:
-                    # Ignore non-JSON lines (boot logs, debug info, etc.)
                     pass
             
             time.sleep(0.1)

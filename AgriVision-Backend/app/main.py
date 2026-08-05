@@ -14,11 +14,11 @@ from fastapi.responses import JSONResponse
 from firebase_admin import credentials
 from sqlalchemy import text
 
-from app.api import chat, fields, recommendations, satellite, sensors, session
+from app.api import chat, export, fields, recommendations, satellite, sensors, session
 from app.core.config import settings
 from app.core.errors import APIError, error_payload
 from app.database import engine
-from app.services.mqtt_service import run_in_background
+from app.services.mqtt_service import start_background_tasks
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -71,10 +71,10 @@ async def lifespan(app: FastAPI):
             logger.warning("Database is not ready; retrying (%s/5)", attempt + 1)
             await asyncio.sleep(3)
 
-    run_in_background()
-    from app.services.scheduler import start_ai_reasoning_worker, start_satellite_sync_worker
+    from app.services.scheduler import start_ai_reasoning_worker, start_satellite_sync_worker, _aggregation_loop
 
-    tasks = [start_satellite_sync_worker(), start_ai_reasoning_worker()]
+    mqtt_consumer = await start_background_tasks()
+    tasks = [start_satellite_sync_worker(), start_ai_reasoning_worker(), asyncio.create_task(_aggregation_loop()), mqtt_consumer]
     yield
     for task in tasks:
         task.cancel()
@@ -137,7 +137,7 @@ async def unhandled_error_handler(request: Request, exc: Exception):
     return JSONResponse(status_code=500, content=error_payload(error, request.state.request_id))
 
 
-for router in (session.router, fields.router, sensors.router, recommendations.router, chat.router, satellite.router):
+for router in (session.router, fields.router, sensors.router, recommendations.router, chat.router, satellite.router, export.router):
     app.include_router(router)
 
 

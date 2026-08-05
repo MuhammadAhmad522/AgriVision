@@ -35,18 +35,18 @@ class Settings(BaseSettings):
     AGRO_INITIAL_SYNC_TIMEOUT_SECONDS: int = 15
     AGRO_WORKER_SCAN_SECONDS: int = 5 * 60
     AGRO_MAX_CONCURRENCY: int = 2
-    AGRO_MEDIA_ROOT: str = "/app/media/agro"
+    AGRO_MEDIA_ROOT: str = "./media/agro"
 
     GOOGLE_API_KEY: str = ""  # Compatibility fallback for paid Gemini Developer API only.
     GOOGLE_CLOUD_PROJECT: str = ""
     GOOGLE_CLOUD_LOCATION: str = "global"
     GOOGLE_GENAI_USE_VERTEXAI: bool = True
-    GOOGLE_AI_MODEL: str = "gemini-3.5-flash"
+    GOOGLE_AI_MODEL: str = "gemini-2.0-flash"
     VERTEX_SEARCH_DATASTORE: str = ""
     AI_PROMPT_VERSION: str = "agrivision-punjab-v2"
     AI_POLICY_VERSION: str = "guarded-advisory-v1"
     AI_PROVIDER_TIMEOUT_SECONDS: float = Field(default=45.0, gt=0, le=120)
-    CHAT_MEDIA_ROOT: str = "/app/media/chat"
+    CHAT_MEDIA_ROOT: str = "./media/chat"
     CHAT_GCS_BUCKET: str = ""
     CHAT_MAX_IMAGES: int = 3
     CHAT_MAX_IMAGE_BYTES: int = 10 * 1024 * 1024

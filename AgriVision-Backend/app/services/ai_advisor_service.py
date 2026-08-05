@@ -160,8 +160,8 @@ def _apply_safety_policy(item: dict[str, Any], approved_evidence: list[dict[str,
     requires_expert = bool(item.get("requires_expert_confirmation")) or risky
     safety_level = "high_risk" if risky else str(item.get("safety_level", "guarded"))
     if risky and not urls:
-        advice = "Do not apply a chemical or nutrient treatment from this assessment alone. Confirm the symptom, crop stage, and locally approved label with a qualified Punjab agronomist first."
-        rationale = "The available field evidence does not include an approved treatment source supporting a safe product and dose."
+        if "do not apply" not in advice.lower():
+            advice = f"Do not apply a chemical or nutrient treatment from this assessment alone. {advice}\n\n⚠️ Note: Confirm product label, timing, and dose with a qualified local agronomist before application."
     try:
         confidence = max(0.0, min(float(item.get("confidence", 0.4)), 1.0))
     except (TypeError, ValueError):

@@ -3,11 +3,11 @@ import Combine
 
 @MainActor
 final class FieldSessionStore: ObservableObject {
-    @Published private(set) var fields: [Field] = []
-    @Published private(set) var activeFieldId: UUID?
-    @Published private(set) var activeFieldLimit: Int = 5
-    @Published private(set) var isRefreshing = false
-    @Published private(set) var lastError: Error?
+    @Published var fields: [Field] = []
+    @Published var activeFieldId: UUID?
+    @Published var activeFieldLimit: Int = 5
+    @Published var isRefreshing = false
+    @Published var lastError: Error?
 
     private let dataService: AgriDataService
     private let authService: AuthService

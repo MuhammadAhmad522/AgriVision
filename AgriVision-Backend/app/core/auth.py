@@ -23,6 +23,16 @@ async def get_current_user(
     if credentials is None or credentials.scheme.lower() != "bearer":
         raise APIError(401, "authentication_required", "Please sign in to continue.")
 
+    if settings.ENVIRONMENT == "development" and credentials.credentials.startswith("MOCK_"):
+        uid = f"dev-user-{credentials.credentials.lower()}"
+        user = db.query(User).filter(User.firebase_uid == uid).first()
+        if user is None:
+            user = User(firebase_uid=uid, email="dev.farmer@agrivision.local")
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+        return user
+
     try:
         firebase_admin.get_app()
     except ValueError as exc:

@@ -1,8 +1,15 @@
 import Foundation
 
 struct APIConstants {
-    /// Simulator/local-Mac default. A physical device must use the Mac's LAN address.
-    static let baseURL = URL(string: "http://localhost:8000")!
+    /// Base URL for backend services. Defaults to localhost:8000 for iOS Simulator,
+    /// or reads from UserDefaults key "agrivision_backend_url" for physical device testing.
+    static var baseURL: URL {
+        if let customURLString = UserDefaults.standard.string(forKey: "agrivision_backend_url"),
+           let url = URL(string: customURLString) {
+            return url
+        }
+        return URL(string: "http://localhost:8000")!
+    }
 
     struct Endpoints {
         static let bootstrap = "api/session/bootstrap"

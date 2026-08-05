@@ -55,98 +55,130 @@ private struct RecommendationRow: View {
 
     var priorityColor: Color {
         switch recommendation.priority {
-        case "high":   return .red
-        case "medium": return .orange
+        case "high":   return Color.red
+        case "medium": return Color.orange
         default:       return Color.teal
         }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Header row: icon, category, priority badge
-            HStack(alignment: .center, spacing: 10) {
-                // Icon circle
-                ZStack {
-                    Circle()
-                        .fill(priorityColor.opacity(0.12))
-                        .frame(width: 38, height: 38)
-                    Text(recommendation.icon)
-                        .font(.system(size: 18))
+        HStack(alignment: .top, spacing: 0) {
+            // Left priority border bar
+            RoundedRectangle(cornerRadius: 2)
+                .fill(priorityColor)
+                .frame(width: 4)
+                .padding(.vertical, 2)
+                .padding(.trailing, 10)
+
+            VStack(alignment: .leading, spacing: 8) {
+                // Header row: icon, category, priority badge
+                HStack(alignment: .center, spacing: 10) {
+                    // Icon circle
+                    ZStack {
+                        Circle()
+                            .fill(priorityColor.opacity(0.12))
+                            .frame(width: 36, height: 36)
+                        Text(recommendation.icon)
+                            .font(.system(size: 17))
+                    }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(recommendation.category)
+                            .font(.subheadline.bold())
+                            .foregroundColor(AppColors.charcoalGreen)
+
+                        // Confidence bar
+                        if let confidence = recommendation.confidence {
+                            HStack(spacing: 4) {
+                                GeometryReader { geo in
+                                    ZStack(alignment: .leading) {
+                                        Capsule()
+                                            .fill(Color.gray.opacity(0.15))
+                                        Capsule()
+                                            .fill(LinearGradient(
+                                                colors: [priorityColor.opacity(0.6), priorityColor],
+                                                startPoint: .leading,
+                                                endPoint: .trailing
+                                            ))
+                                            .frame(width: geo.size.width * confidence)
+                                    }
+                                }
+                                .frame(height: 4)
+
+                                Text("\(Int(confidence * 100))%")
+                                    .font(.caption2.bold())
+                                    .foregroundColor(priorityColor)
+                                    .frame(width: 32, alignment: .trailing)
+                            }
+                        }
+                    }
+
+                    Spacer()
+
+                    // Priority badge
+                    Text(recommendation.priority.uppercased())
+                        .font(.system(size: 9, weight: .heavy))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(priorityColor.opacity(0.15))
+                        .foregroundColor(priorityColor)
+                        .clipShape(Capsule())
+                        .overlay(Capsule().stroke(priorityColor.opacity(0.3), lineWidth: 0.5))
                 }
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(recommendation.category)
-                        .font(.subheadline.bold())
-                        .foregroundColor(AppColors.charcoalGreen)
+                // Advice text — expandable
+                Button(action: { withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) { isExpanded.toggle() } }) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(alignment: .top, spacing: 6) {
+                            Text(recommendation.advice)
+                                .font(.subheadline)
+                                .foregroundColor(AppColors.charcoalGreen.opacity(0.85))
+                                .lineLimit(isExpanded ? nil : 3)
+                                .multilineTextAlignment(.leading)
+                            Spacer()
+                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(AppColors.limeGreen)
+                        }
 
-                    // Confidence bar
-                    if let confidence = recommendation.confidence {
-                        HStack(spacing: 4) {
-                            GeometryReader { geo in
-                                ZStack(alignment: .leading) {
-                                    Capsule()
-                                        .fill(Color.gray.opacity(0.15))
-                                    Capsule()
-                                        .fill(LinearGradient(
-                                            colors: [priorityColor.opacity(0.6), priorityColor],
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        ))
-                                        .frame(width: geo.size.width * confidence)
-                                }
+                        if recommendation.requiresExpertConfirmation {
+                            HStack(spacing: 4) {
+                                Image(systemName: "person.badge.shield.checkmark")
+                                    .font(.caption2)
+                                Text("Agronomist Confirmation Advised")
+                                    .font(.caption2.bold())
                             }
-                            .frame(height: 4)
-
-                            Text("\(Int(confidence * 100))%")
-                                .font(.caption2)
-                                .foregroundColor(AppColors.charcoalGreen.opacity(0.5))
-                                .frame(width: 28, alignment: .trailing)
+                            .foregroundColor(.orange)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.orange.opacity(0.1))
+                            .cornerRadius(4)
                         }
                     }
                 }
+                .buttonStyle(.plain)
 
-                Spacer()
-
-                // Priority badge
-                Text(recommendation.priority.uppercased())
-                    .font(.system(size: 9, weight: .heavy))
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3)
-                    .background(priorityColor.opacity(0.15))
-                    .foregroundColor(priorityColor)
-                    .clipShape(Capsule())
-                    .overlay(Capsule().stroke(priorityColor.opacity(0.3), lineWidth: 0.5))
-            }
-
-            // Advice text — tapped to expand
-            Button(action: { withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) { isExpanded.toggle() } }) {
-                HStack(alignment: .top, spacing: 6) {
-                    Text(recommendation.advice)
-                        .font(.caption)
-                        .foregroundColor(AppColors.charcoalGreen.opacity(0.75))
-                        .lineLimit(isExpanded ? nil : 2)
-                        .multilineTextAlignment(.leading)
-                    Spacer()
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(AppColors.limeGreen)
-                }
-            }
-            .buttonStyle(.plain)
-            if isExpanded {
-                if let rationale = recommendation.rationale {
-                    Text(rationale).font(.caption2).foregroundStyle(.secondary)
-                }
-                if recommendation.requiresExpertConfirmation {
-                    Label("Confirm with a qualified local agronomist before treatment or dosage decisions.", systemImage: "person.badge.shield.checkmark")
-                        .font(.caption2.bold()).foregroundStyle(.orange)
-                }
-                if let reason = recommendation.confidenceReason {
-                    Text(reason).font(.caption2).foregroundStyle(.secondary)
+                if isExpanded {
+                    VStack(alignment: .leading, spacing: 6) {
+                        if let rationale = recommendation.rationale, !rationale.isEmpty {
+                            Text("Rationale:")
+                                .font(.caption2.bold())
+                                .foregroundColor(AppColors.charcoalGreen.opacity(0.6))
+                            Text(rationale)
+                                .font(.caption2)
+                                .foregroundColor(AppColors.charcoalGreen.opacity(0.7))
+                        }
+                        if let reason = recommendation.confidenceReason, !reason.isEmpty {
+                            Text("Evidence Basis: \(reason)")
+                                .font(.caption2.italic())
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.top, 2)
                 }
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
     }
 }
 

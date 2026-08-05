@@ -93,6 +93,6 @@ final class AIChatViewModel: ObservableObject {
 
     private func presentError(_ message: String) {
         errorMessage = message
-        ToastMessageAutoDismiss.schedule(expectedMessage: message, currentMessage: { self.errorMessage }, clearMessage: { self.errorMessage = nil })
+        ToastMessageAutoDismiss.schedule(expectedMessage: message, currentMessage: { [weak self] in self?.errorMessage }, clearMessage: { [weak self] in self?.errorMessage = nil })
     }
 }

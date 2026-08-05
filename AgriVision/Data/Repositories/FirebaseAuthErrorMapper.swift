@@ -22,10 +22,9 @@ enum FirebaseAuthErrorMapper {
             case .requiresRecentLogin: return .unknown("For your security, please sign in again and retry.")
             case .tooManyRequests: return .tooManyRequests
             case .networkError: return .networkUnavailable
-            case .operationNotAllowed:
-                return .operationFailed
-            case .internalError:
-                return .operationFailed
+            case .userTokenExpired: return .unknown("Your session has expired. Please sign in again.")
+            case .operationNotAllowed: return .unknown("This authentication method is currently disabled.")
+            case .internalError: return .operationFailed
             default:
                 break
             }

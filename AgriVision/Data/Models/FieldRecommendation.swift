@@ -2,7 +2,7 @@ import Foundation
 
 /// Represents a single AI-generated agronomic recommendation.
 /// Populated by the backend's Gemini-powered AI Advisor Worker.
-struct FieldRecommendation: Codable, Identifiable {
+struct FieldRecommendation: Codable, Identifiable, Equatable {
     let id: UUID
     let fieldId: UUID
     let category: String
@@ -70,7 +70,7 @@ struct FieldRecommendation: Codable, Identifiable {
     }
 }
 
-struct RecommendationEvidence: Codable, Identifiable {
+struct RecommendationEvidence: Codable, Identifiable, Equatable {
     var id: String { url }
     let url: String
     let approved: Bool?

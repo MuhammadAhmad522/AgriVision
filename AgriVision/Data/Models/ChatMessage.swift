@@ -1,6 +1,6 @@
 import Foundation
 
-struct ChatAttachment: Codable, Identifiable {
+struct ChatAttachment: Codable, Identifiable, Equatable {
     let id: UUID
     let mimeType: String
     let byteSize: Int
@@ -15,7 +15,7 @@ struct ChatAttachment: Codable, Identifiable {
     }
 }
 
-struct ChatMessage: Codable, Identifiable {
+struct ChatMessage: Codable, Identifiable, Equatable {
     let id: UUID
     let role: String
     let content: String
@@ -48,7 +48,7 @@ struct ChatTurn: Codable {
     }
 }
 
-struct ChatImageUpload: Identifiable {
+struct ChatImageUpload: Identifiable, Equatable {
     let id: UUID
     let data: Data
     let filename: String

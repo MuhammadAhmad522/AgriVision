@@ -11,6 +11,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.orm import relationship
@@ -54,6 +55,7 @@ class Field(Base):
     agro_retryable = Column(Boolean, nullable=False, default=True)
     latest_ndvi = Column(Float)
     last_satellite_sync = Column(DateTime(timezone=True))
+    interval_overrides = Column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
 
     owner = relationship("User", back_populates="fields")
     # Child rows are removed by the database. passive_deletes prevents SQLAlchemy from
@@ -275,6 +277,38 @@ class FieldDeletionJob(Base):
     next_attempt_at = Column(DateTime(timezone=True), index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     completed_at = Column(DateTime(timezone=True))
+
+
+class SensorReadingHourly(Base):
+    __tablename__ = "sensor_readings_hourly"
+
+    bucket = Column(DateTime(timezone=True), primary_key=True)
+    sensor_id = Column(PG_UUID(as_uuid=True), ForeignKey("sensors.id", ondelete="CASCADE"), primary_key=True)
+    temperature_avg = Column(Float)
+    temperature_min = Column(Float)
+    temperature_max = Column(Float)
+    moisture_avg = Column(Float)
+    moisture_min = Column(Float)
+    moisture_max = Column(Float)
+    humidity_avg = Column(Float)
+    humidity_min = Column(Float)
+    humidity_max = Column(Float)
+    ph_avg = Column(Float)
+    ph_min = Column(Float)
+    ph_max = Column(Float)
+    ec_avg = Column(Float)
+    ec_min = Column(Float)
+    ec_max = Column(Float)
+    npk_n_avg = Column(Float)
+    npk_n_min = Column(Float)
+    npk_n_max = Column(Float)
+    npk_p_avg = Column(Float)
+    npk_p_min = Column(Float)
+    npk_p_max = Column(Float)
+    npk_k_avg = Column(Float)
+    npk_k_min = Column(Float)
+    npk_k_max = Column(Float)
+    reading_count = Column(Integer, nullable=False)
 
 
 class AgronomyKnowledgeDocument(Base):

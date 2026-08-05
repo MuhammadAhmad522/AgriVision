@@ -5,8 +5,8 @@ import Foundation
 final class SettingsViewModel: ObservableObject {
     @Published private(set) var fields: [Field] = []
     @Published private(set) var activeFieldId: UUID?
-    @Published private(set) var sensors: [FieldSensor] = []
-    @Published private(set) var sensorStatus = "not_configured"
+    @Published var sensors: [FieldSensor] = []
+    @Published var sensorStatus = "not_configured"
     @Published private(set) var satelliteStatus = "pending"
     @Published private(set) var profileName: String
     @Published private(set) var accountEmail: String
