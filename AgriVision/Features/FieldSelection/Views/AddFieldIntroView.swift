@@ -103,10 +103,10 @@ struct AddFieldIntroView: View {
                         // Email User - Last Name Initial
                         ZStack {
                             Circle()
-                                .fill(AppColors.limeGreen) // Use a brand color bg
+                                .fill(Theme.Colors.primaryLight) // Use a brand color bg
                             
                             Text(viewModel.profileInitial)
-                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                                .textStyle(.bodyStrong)
                                 .foregroundColor(.white)
                         }
                         .frame(width: 40, height: 40)
@@ -120,13 +120,13 @@ struct AddFieldIntroView: View {
                 // Text Group
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Hi, \(viewModel.userName)")
-                        .font(.system(size: 36, weight: .bold)) // Enlarged from 30
-                        .foregroundColor(AppColors.charcoalGreen)
+                        .textStyle(.title1) // Enlarged from 30
+                        .foregroundColor(Theme.Colors.primary)
                         .shadow(color: Color.black.opacity(0.25), radius: 10, x: 0, y: 4)
                     
                     Text("Lets Setup Your\nFarm Dashboard")
-                        .font(.system(size: 36, weight: .bold)) // Enlarged from 30
-                        .foregroundColor(AppColors.charcoalGreen)
+                        .textStyle(.title1) // Enlarged from 30
+                        .foregroundColor(Theme.Colors.primary)
                         .shadow(color: Color.black.opacity(0.25), radius: 10, x: 0, y: 4)
                         .lineLimit(2)
                 }
@@ -140,12 +140,12 @@ struct AddFieldIntroView: View {
                     viewModel.addFieldAction()
                 }) {
                     Text("Add Your First Field")
-                        .font(.system(size: 16, weight: .bold))
+                        .textStyle(.bodyStrong)
                         .foregroundColor(.white)
                         .frame(width: 326 * wRatio, height: 60)
                         .background(
                             LinearGradient(
-                                gradient: Gradient(colors: [AppColors.limeGreen, AppColors.mediumGreen]),
+                                gradient: Gradient(colors: [Theme.Colors.primaryLight, Theme.Colors.primaryMedium]),
                                 startPoint: .top,
                                 endPoint: .bottom
                             )
@@ -157,8 +157,8 @@ struct AddFieldIntroView: View {
                 
                 // Bottom Text
                 Text("Get started managing your crops in minutes")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(AppColors.charcoalGreen)
+                    .textStyle(.captionStrong)
+                    .foregroundColor(Theme.Colors.primary)
                     .multilineTextAlignment(.center)
                     .frame(width: 248 * wRatio, height: 32)
                     .shadow(color: Color.black.opacity(0.25), radius: 10, x: 0, y: 4)

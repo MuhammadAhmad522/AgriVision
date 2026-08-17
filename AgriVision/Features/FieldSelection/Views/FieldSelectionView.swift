@@ -32,13 +32,13 @@ struct FieldSelectionView: View {
                             VStack(spacing: 0) {
                                 HStack(spacing: 12) {
                                     Image(systemName: "magnifyingglass")
-                                        .foregroundColor(AppColors.charcoalGreen)
-                                        .font(.system(size: 16))
+                                        .foregroundColor(Theme.Colors.primary)
+                                        .textStyle(.body)
                                     
                                     TextField("Search location...", text: $viewModel.searchQuery)
-                                        .font(.system(size: 16))
-                                        .foregroundColor(AppColors.charcoalGreen)
-                                        .accentColor(AppColors.mediumGreen)
+                                        .textStyle(.body)
+                                        .foregroundColor(Theme.Colors.primary)
+                                        .accentColor(Theme.Colors.primaryMedium)
                                     
                                     Button(action: {
                                         withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
@@ -48,8 +48,8 @@ struct FieldSelectionView: View {
                                         }
                                     }) {
                                         Image(systemName: "xmark.circle.fill")
-                                            .foregroundColor(AppColors.charcoalGreen.opacity(0.6))
-                                            .font(.system(size: 20))
+                                            .foregroundColor(Theme.Colors.primary.opacity(0.6))
+                                            .textStyle(.body)
                                     }
                                 }
                                 .padding(10)
@@ -74,12 +74,12 @@ struct FieldSelectionView: View {
                                                 }) {
                                                     VStack(alignment: .leading, spacing: 4) {
                                                         Text(result.title)
-                                                            .font(.system(size: 14, weight: .semibold))
-                                                            .foregroundColor(AppColors.charcoalGreen)
+                                                            .textStyle(.captionStrong)
+                                                            .foregroundColor(Theme.Colors.primary)
                                                         
                                                         Text(result.subtitle)
-                                                            .font(.system(size: 12))
-                                                            .foregroundColor(AppColors.charcoalGreen.opacity(0.8))
+                                                            .textStyle(.caption)
+                                                            .foregroundColor(Theme.Colors.primary.opacity(0.8))
                                                     }
                                                     .padding(.vertical, 10)
                                                     .padding(.horizontal, 16)
@@ -88,7 +88,7 @@ struct FieldSelectionView: View {
                                                 }
                                                 
                                                 Divider()
-                                                    .background(AppColors.charcoalGreen.opacity(0.1))
+                                                    .background(Theme.Colors.primary.opacity(0.1))
                                             }
                                         }
                                         .padding(.vertical, 8)
@@ -123,13 +123,13 @@ struct FieldSelectionView: View {
                                             .resizable()
                                             .frame(width: 12, height: 12)
                                             .padding(5)
-                                            .background(AppColors.charcoalGreen)
+                                            .background(Theme.Colors.primary)
                                             .foregroundColor(.white)
                                             .clipShape(Circle())
                                         
                                         Text(viewModel.locationName)
-                                            .font(.system(size: 13, weight: .semibold))
-                                            .foregroundColor(AppColors.charcoalGreen)
+                                            .textStyle(.captionStrong)
+                                            .foregroundColor(Theme.Colors.primary)
                                             .lineLimit(1)
                                     }
                                     .padding(.horizontal, 8)
@@ -161,9 +161,9 @@ struct FieldSelectionView: View {
                                     .overlay(Circle().stroke(Color.white, lineWidth: 2))
                                 } else {
                                     ZStack {
-                                        Circle().fill(AppColors.limeGreen)
+                                        Circle().fill(Theme.Colors.primaryLight)
                                         Text(viewModel.profileInitial)
-                                            .font(.system(size: 16, weight: .bold))
+                                            .textStyle(.bodyStrong)
                                             .foregroundColor(.white)
                                     }
                                     .frame(width: 36, height: 36)
@@ -219,7 +219,7 @@ struct FieldSelectionView: View {
                             ZStack {
                                 Circle()
                                     .fill(LinearGradient(
-                                        colors: [AppColors.limeGreen, AppColors.mediumGreen],
+                                        colors: [Theme.Colors.primaryLight, Theme.Colors.primaryMedium],
                                         startPoint: .top,
                                         endPoint: .bottom
                                     ))
@@ -227,7 +227,7 @@ struct FieldSelectionView: View {
                                     .shadow(color: .black.opacity(0.25), radius: 4, x: 0, y: 4)
                                 
                                 Image(systemName: "location.north.circle.fill")
-                                    .font(.system(size: 24))
+                                    .textStyle(.title2)
                                     .foregroundColor(.white)
                             }
                         }
@@ -241,8 +241,8 @@ struct FieldSelectionView: View {
                         Spacer().frame(height: 24)
                         
                         Text("Draw Your Field Boundry")
-                            .font(.system(size: 20, weight: .bold)) // Reduced size
-                            .foregroundColor(AppColors.charcoalGreen)
+                            .textStyle(.bodyStrong) // Reduced size
+                            .foregroundColor(Theme.Colors.primary)
                             .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 2)
                         
                         Spacer().frame(height: 16)
@@ -250,12 +250,12 @@ struct FieldSelectionView: View {
                         // Confirm Button
                         Button(action: { viewModel.confirmField() }) {
                             Text("Confirm Field")
-                                .font(.system(size: 18, weight: .bold)) // Reduced size
-                                .foregroundColor(AppColors.cream)
+                                .textStyle(.bodyStrong) // Reduced size
+                                .foregroundColor(Theme.Colors.background)
                                 .frame(width: 300, height: 50) // Reduced size
                                 .background(
                                     LinearGradient(
-                                        colors: [AppColors.limeGreen, AppColors.mediumGreen],
+                                        colors: [Theme.Colors.primaryLight, Theme.Colors.primaryMedium],
                                         startPoint: .top,
                                         endPoint: .bottom
                                     )
@@ -267,8 +267,8 @@ struct FieldSelectionView: View {
                         Spacer().frame(height: 16)
                         
                         Text("Tap on the map to add points")
-                            .font(.system(size: 14, weight: .semibold)) // Reduced size
-                            .foregroundColor(AppColors.charcoalGreen.opacity(0.8))
+                            .textStyle(.captionStrong) // Reduced size
+                            .foregroundColor(Theme.Colors.primary.opacity(0.8))
                         
                         Spacer()
                     }
@@ -478,14 +478,14 @@ struct RepresentableMap: UIViewRepresentable {
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             if let polygon = overlay as? MKPolygon {
                 let renderer = MKPolygonRenderer(polygon: polygon)
-                renderer.fillColor = UIColor(AppColors.warningOrange).withAlphaComponent(0.2)
-                renderer.strokeColor = UIColor(AppColors.warningOrange)
+                renderer.fillColor = UIColor(Theme.Colors.warning).withAlphaComponent(0.2)
+                renderer.strokeColor = UIColor(Theme.Colors.warning)
                 renderer.lineWidth = 3
                 renderer.lineDashPattern = [10, 5]
                 return renderer
             } else if let polyline = overlay as? MKPolyline {
                 let renderer = MKPolylineRenderer(polyline: polyline)
-                renderer.strokeColor = UIColor(AppColors.warningOrange)
+                renderer.strokeColor = UIColor(Theme.Colors.warning)
                 renderer.lineWidth = 3
                 renderer.lineDashPattern = [10, 5]
                 return renderer
@@ -544,7 +544,7 @@ struct ToolButton: View {
                     // Main Toggle Button Style (Matches Location Button)
                     Circle()
                         .fill(LinearGradient(
-                            colors: [AppColors.limeGreen, AppColors.mediumGreen],
+                            colors: [Theme.Colors.primaryLight, Theme.Colors.primaryMedium],
                             startPoint: .top,
                             endPoint: .bottom
                         ))
@@ -552,7 +552,7 @@ struct ToolButton: View {
                         .shadow(color: .black.opacity(0.25), radius: 4, x: 0, y: 4)
                     
                     Image(systemName: icon)
-                        .font(.system(size: 22, weight: .bold))
+                        .textStyle(.title2)
                         .foregroundColor(.white)
                         .rotationEffect(.degrees(isActive ? 90 : 0))
                 } else {
@@ -564,7 +564,7 @@ struct ToolButton: View {
                         Color.white.opacity(0.6)
                             .blendMode(.overlay)
                         
-                        AppColors.cream.opacity(0.3) // Tint to match theme
+                        Theme.Colors.background.opacity(0.3) // Tint to match theme
                     }
                     .clipShape(Circle())
                     .frame(width: 50, height: 50)
@@ -574,8 +574,8 @@ struct ToolButton: View {
                     )
                     
                     Image(systemName: icon)
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(AppColors.mediumGreen)
+                        .textStyle(.bodyStrong)
+                        .foregroundColor(Theme.Colors.primaryMedium)
                 }
             }
             .frame(width: 50, height: 50)

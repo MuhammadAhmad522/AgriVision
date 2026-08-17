@@ -145,9 +145,7 @@ def test_get_attachment_with_valid_attachment(client, mock_db):
 
     with patch("app.api.chat.owned_field"):
         mock_query = MagicMock()
-        mock_filtered = MagicMock()
-        mock_query.filter.return_value = mock_filtered
-        mock_filtered.first.return_value = attachment
+        mock_query.join.return_value.filter.return_value.first.return_value = attachment
 
         def side_effect(model):
             if model == ChatAttachment:

@@ -20,15 +20,15 @@ struct AIAdvisorCard: View {
             } else if recommendations.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: "brain.head.profile")
-                        .font(.system(size: 36))
-                        .foregroundColor(AppColors.mediumGreen.opacity(0.5))
+                        .textStyle(.title1)
+                        .foregroundColor(Theme.Colors.primaryMedium.opacity(0.5))
                     Text("AI is analyzing your field data…")
-                        .font(.subheadline)
-                        .foregroundColor(AppColors.charcoalGreen.opacity(0.5))
+                        .textStyle(.body)
+                        .foregroundColor(Theme.Colors.primary.opacity(0.5))
                     Text("Recommendations will appear after the next satellite sync.")
-                        .font(.caption)
+                        .textStyle(.caption)
                         .multilineTextAlignment(.center)
-                        .foregroundColor(AppColors.charcoalGreen.opacity(0.4))
+                        .foregroundColor(Theme.Colors.primary.opacity(0.4))
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
@@ -38,7 +38,7 @@ struct AIAdvisorCard: View {
                         RecommendationRow(recommendation: rec)
                         if index < recommendations.count - 1 {
                             Divider()
-                                .background(AppColors.limeGreen.opacity(0.2))
+                                .background(Theme.Colors.primaryLight.opacity(0.2))
                         }
                     }
                 }
@@ -79,13 +79,13 @@ private struct RecommendationRow: View {
                             .fill(priorityColor.opacity(0.12))
                             .frame(width: 36, height: 36)
                         Text(recommendation.icon)
-                            .font(.system(size: 17))
+                            .textStyle(.body)
                     }
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(recommendation.category)
-                            .font(.subheadline.bold())
-                            .foregroundColor(AppColors.charcoalGreen)
+                            .textStyle(.bodyStrong)
+                            .foregroundColor(Theme.Colors.primary)
 
                         // Confidence bar
                         if let confidence = recommendation.confidence {
@@ -117,7 +117,7 @@ private struct RecommendationRow: View {
 
                     // Priority badge
                     Text(recommendation.priority.uppercased())
-                        .font(.system(size: 9, weight: .heavy))
+                        .textStyle(.caption)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
                         .background(priorityColor.opacity(0.15))
@@ -131,20 +131,20 @@ private struct RecommendationRow: View {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(alignment: .top, spacing: 6) {
                             Text(recommendation.advice)
-                                .font(.subheadline)
-                                .foregroundColor(AppColors.charcoalGreen.opacity(0.85))
+                                .textStyle(.body)
+                                .foregroundColor(Theme.Colors.primary.opacity(0.85))
                                 .lineLimit(isExpanded ? nil : 3)
                                 .multilineTextAlignment(.leading)
                             Spacer()
                             Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundColor(AppColors.limeGreen)
+                                .textStyle(.captionStrong)
+                                .foregroundColor(Theme.Colors.primaryLight)
                         }
 
                         if recommendation.requiresExpertConfirmation {
                             HStack(spacing: 4) {
                                 Image(systemName: "person.badge.shield.checkmark")
-                                    .font(.caption2)
+                                    .textStyle(.caption)
                                 Text("Agronomist Confirmation Advised")
                                     .font(.caption2.bold())
                             }
@@ -163,10 +163,10 @@ private struct RecommendationRow: View {
                         if let rationale = recommendation.rationale, !rationale.isEmpty {
                             Text("Rationale:")
                                 .font(.caption2.bold())
-                                .foregroundColor(AppColors.charcoalGreen.opacity(0.6))
+                                .foregroundColor(Theme.Colors.primary.opacity(0.6))
                             Text(rationale)
-                                .font(.caption2)
-                                .foregroundColor(AppColors.charcoalGreen.opacity(0.7))
+                                .textStyle(.caption)
+                                .foregroundColor(Theme.Colors.primary.opacity(0.7))
                         }
                         if let reason = recommendation.confidenceReason, !reason.isEmpty {
                             Text("Evidence Basis: \(reason)")

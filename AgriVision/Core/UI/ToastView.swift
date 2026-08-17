@@ -6,7 +6,7 @@ enum ToastType {
     
     var color: Color {
         switch self {
-        case .success: return AppColors.limeGreen
+        case .success: return Theme.Colors.primaryLight
         case .error: return .red
         }
     }
@@ -30,7 +30,7 @@ struct ToastView: View {
                 .foregroundColor(type.color) // Icon takes the color
             
             Text(message)
-                .font(.subheadline)
+                .textStyle(.body)
                 .fontWeight(.medium)
                 .multilineTextAlignment(.leading)
                 .foregroundColor(.white)

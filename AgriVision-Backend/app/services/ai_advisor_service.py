@@ -353,7 +353,7 @@ class GeminiAIProvider(AIProvider):
     async def chat(self, message: str, context: dict[str, Any], images: list[Any] | None = None) -> str:
         crop = str((context.get("field") or {}).get("crop_type") or "").lower()
         knowledge = await self.knowledge.retrieve(crop, message)
-        parts = [types.Part.from_text(text="FIELD_EVIDENCE=" + _safe_context(context) + "\nAPPROVED_KNOWLEDGE=" + _safe_context(knowledge, 20000) + "\nFARMER_QUESTION=" + message[:2000])]
+        parts = [types.Part.from_text(text="FIELD_EVIDENCE=" + _safe_context(context) + "\nAPPROVED_KNOWLEDGE=" + _safe_context(knowledge, 20000) + "\nFARMER_QUESTION=" + message[:2000] + "\n\nIMPORTANT INSTRUCTION: You are chatting directly with the farmer. Reply to FARMER_QUESTION in friendly, conversational plain text. Do NOT output JSON and do NOT use Markdown formatting (no asterisks, hash symbols, or lists).")]
         for image in images or []:
             parts.append(types.Part.from_bytes(data=image.data, mime_type=image.mime_type))
         try:

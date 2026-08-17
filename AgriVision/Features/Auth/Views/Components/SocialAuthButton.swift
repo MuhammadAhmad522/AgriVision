@@ -19,11 +19,11 @@ struct SocialAuthButton: View {
                 Image(systemName: systemImage ?? "g.circle.fill")
                     .resizable()
                     .frame(width: 24, height: 24)
-                    .foregroundColor(AppColors.charcoalGreen) // Use theme color
+                    .foregroundColor(Theme.Colors.primary) // Use theme color
 
                 Text(title)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(AppColors.charcoalGreen)
+                    .textStyle(.bodyStrong)
+                    .foregroundColor(Theme.Colors.primary)
             }
             .frame(width: UIConstants.Auth.formWidth, height: 50)
             .background(
@@ -47,5 +47,5 @@ struct SocialAuthButton: View {
         print("Google login tapped")
     }
     .padding()
-    .background(Color.authCream)
+    .background(Theme.Colors.background)
 }

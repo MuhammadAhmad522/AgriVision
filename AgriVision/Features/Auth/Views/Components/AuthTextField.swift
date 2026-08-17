@@ -13,17 +13,17 @@ struct AuthTextField: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(AppColors.charcoalGreen)
+                .textStyle(.captionStrong)
+                .foregroundColor(Theme.Colors.primary)
                 .padding(.leading, 4)
             
             HStack {
                 if isSecure && !isPasswordVisible {
-                    SecureField("", text: $text, prompt: Text(placeholder).foregroundColor(.authPlaceholder))
+                    SecureField("", text: $text, prompt: Text(placeholder).foregroundColor(Theme.Colors.textSecondary))
                         .keyboardType(keyboardType)
                         .textInputAutocapitalization(autoCapitalization)
                 } else {
-                    TextField("", text: $text, prompt: Text(placeholder).foregroundColor(.authPlaceholder))
+                    TextField("", text: $text, prompt: Text(placeholder).foregroundColor(Theme.Colors.textSecondary))
                         .keyboardType(keyboardType)
                         .textInputAutocapitalization(autoCapitalization)
                 }
@@ -33,7 +33,7 @@ struct AuthTextField: View {
                         isPasswordVisible.toggle()
                     }) {
                         Image(systemName: isPasswordVisible ? "eye.slash" : "eye")
-                            .foregroundColor(AppColors.charcoalGreen.opacity(0.6))
+                            .foregroundColor(Theme.Colors.primary.opacity(0.6))
                             .frame(width: 20, height: 20)
                     }
                 }

@@ -20,10 +20,21 @@ def run_migrations_offline():
         context.run_migrations()
 
 
+def include_object(object, name, type_, reflected, compare_to):
+    if type_ == "table" and reflected and name not in target_metadata.tables:
+        return False
+    return True
+
+
 def run_migrations_online():
     connectable = engine_from_config(config.get_section(config.config_ini_section), prefix="sqlalchemy.", poolclass=pool.NullPool)
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
+        context.configure(
+            connection=connection, 
+            target_metadata=target_metadata, 
+            compare_type=True,
+            include_object=include_object,
+        )
         with context.begin_transaction():
             context.run_migrations()
 

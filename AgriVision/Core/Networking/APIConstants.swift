@@ -8,7 +8,7 @@ struct APIConstants {
            let url = URL(string: customURLString) {
             return url
         }
-        return URL(string: "http://localhost:8000")!
+        return URL(string: "http://127.0.0.1:8000")!
     }
 
     struct Endpoints {

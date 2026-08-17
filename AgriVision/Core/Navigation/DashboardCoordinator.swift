@@ -177,6 +177,10 @@ final class DashboardCoordinator: Coordinator {
             hostingController?.dismiss(animated: true)
         }
         
-        navigationController.present(hostingController, animated: true)
+        var presenter: UIViewController = navigationController
+        while let presented = presenter.presentedViewController {
+            presenter = presented
+        }
+        presenter.present(hostingController, animated: true)
     }
 }

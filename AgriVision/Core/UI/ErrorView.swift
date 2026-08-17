@@ -8,30 +8,30 @@ struct ErrorView: View {
     
     var body: some View {
         ZStack {
-            AppColors.cream
+            Theme.Colors.background
                 .ignoresSafeArea()
             
             VStack(spacing: 24) {
                 // Animated Error Icon
                 ZStack {
                     Circle()
-                        .fill(AppColors.warningOrange.opacity(0.1))
+                        .fill(Theme.Colors.warning.opacity(0.1))
                         .frame(width: 100, height: 100)
                     
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 44, weight: .bold))
-                        .foregroundColor(AppColors.warningOrange)
+                        .textStyle(.display)
+                        .foregroundColor(Theme.Colors.warning)
                 }
                 .padding(.top, 40)
                 
                 VStack(spacing: 12) {
                     Text("Connection Issue")
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundColor(AppColors.charcoalGreen)
+                        .textStyle(.title2)
+                        .foregroundColor(Theme.Colors.primary)
                     
                     Text(message)
-                        .font(.system(size: 16))
-                        .foregroundColor(AppColors.charcoalGreen.opacity(0.7))
+                        .textStyle(.body)
+                        .foregroundColor(Theme.Colors.primary.opacity(0.7))
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 40)
                 }
@@ -42,27 +42,27 @@ struct ErrorView: View {
                 // Retry Button
                 Button(action: onRetry) {
                     Text("Retry")
-                        .font(.system(size: 18, weight: .bold))
+                        .textStyle(.bodyStrong)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .frame(height: 56)
                         .background(
                             LinearGradient(
-                                colors: [AppColors.mediumGreen, AppColors.limeGreen],
+                                colors: [Theme.Colors.primaryMedium, Theme.Colors.primaryLight],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
                         )
                         .cornerRadius(16)
-                        .shadow(color: AppColors.mediumGreen.opacity(0.3), radius: 10, x: 0, y: 5)
+                        .shadow(color: Theme.Colors.primaryMedium.opacity(0.3), radius: 10, x: 0, y: 5)
                 }
                 .padding(.horizontal, 40)
                 
                 // Secondary Dismiss/Cancel Option
                 Button(action: { /* Optional: Navigate back */ }) {
                     Text("Go Back")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(AppColors.charcoalGreen.opacity(0.6))
+                        .textStyle(.bodyStrong)
+                        .foregroundColor(Theme.Colors.primary.opacity(0.6))
                 }
                 .padding(.bottom, 40)
             }

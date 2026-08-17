@@ -18,6 +18,7 @@ from app.models.db_models import (
     Field,
     FieldDeletionJob,
     FieldObservation,
+    FieldProviderLink,
     FieldRecommendation,
     ProviderCapability,
     SatelliteScene,
@@ -148,24 +149,30 @@ def _store_derived_accumulations(db: Session, field_id: UUID) -> None:
 
 
 async def _register_polygon(field: Field, db: Session) -> None:
-    if field.agromonitory_poly_id or field.agro_status == "unsupported":
+    link = db.query(FieldProviderLink).filter(FieldProviderLink.field_id == field.id, FieldProviderLink.provider == "agromonitoring").first()
+    if link is None:
+        link = FieldProviderLink(field_id=field.id, provider="agromonitoring", sync_status="pending")
+        db.add(link)
+    
+    if link.external_id or link.sync_status == "unsupported":
         return
+
     raw = db.query(ST_AsGeoJSON(Field.boundary)).filter(Field.id == field.id).scalar()
     if not raw:
-        field.agro_status = "unavailable"
-        field.agro_error = "Stored field boundary is unavailable."
-        field.agro_retryable = False
+        link.sync_status = "unavailable"
+        link.sync_error = "Stored field boundary is unavailable."
+        link.retryable = False
         return
     try:
         polygon_id = await create_polygon(field.name, {"type": "Feature", "properties": {}, "geometry": json.loads(raw)}, field.id)
-        field.agromonitory_poly_id = polygon_id
-        field.agro_status = "pending"
-        field.agro_error = None
-        field.agro_retryable = True
+        link.external_id = polygon_id
+        link.sync_status = "pending"
+        link.sync_error = None
+        link.retryable = True
     except AgroAPIError as exc:
-        field.agro_status = "unavailable"
-        field.agro_error = str(exc)
-        field.agro_retryable = exc.retryable
+        link.sync_status = "unavailable"
+        link.sync_error = str(exc)
+        link.retryable = exc.retryable
 
 
 def _sync_state_name(metric: str) -> str:
@@ -214,28 +221,35 @@ async def _sync_satellite(field: Field, db: Session, *, force: bool = False) -> 
     sat_hours = _override(field, "satellite_hours") or settings.AGRO_SATELLITE_INTERVAL_HOURS
     if not force and not _source_is_due(db, field.id, "satellite_search", sat_hours):
         return None
-    scene_data = await search_latest_scene(field.agromonitory_poly_id, field.id)
+    link = db.query(FieldProviderLink).filter(FieldProviderLink.field_id == field.id, FieldProviderLink.provider == "agromonitoring").first()
+    if not link or not link.external_id:
+        return None
+        
+    scene_data = await search_latest_scene(link.external_id, field.id)
     _add_observation(db, field.id, "agromonitoring", "satellite_search", {"found": scene_data is not None}, sat_hours)
-    field.last_satellite_sync = _utcnow()
+    link.last_sync_at = _utcnow()
     if scene_data is None:
-        field.agro_status = "pending"
-        field.agro_error = "No satellite scene is available in the latest 14-day window."
-        field.agro_retryable = True
-        return ("pending", 200, field.agro_error)
+        link.sync_status = "pending"
+        link.sync_error = "No satellite scene is available in the latest 14-day window."
+        link.retryable = True
+        return ("pending", 200, link.sync_error)
     provider_scene_id = f"{scene_data.get('dt')}:{scene_data.get('type', 'unknown')}:{scene_data.get('dc', '')}"
     existing = db.query(SatelliteScene).filter(SatelliteScene.field_id == field.id, SatelliteScene.provider_scene_id == provider_scene_id).first()
     if existing:
-        field.agro_status = "available"
-        field.agro_error = None
-        field.agro_retryable = True
+        link.sync_status = "available"
+        link.sync_error = None
+        link.retryable = True
         return ("available", 200, None)
 
     statistics = {}
+    ndvi_mean = None
     for index in ("ndvi", "evi", "evi2"):
         stats = await get_index_statistics(scene_data, index, field.id)
         if stats:
             statistics[index] = stats
             mean = stats.get("mean")
+            if index == "ndvi":
+                ndvi_mean = mean
             _add_observation(db, field.id, "agromonitoring", index, stats, sat_hours * 2, value=float(mean) if mean is not None else None, observed_at=datetime.fromtimestamp(scene_data["dt"], timezone.utc))
     ndvi_path, truecolor_path = await asyncio.gather(
         cache_scene_image(scene_data, "ndvi", field.id),
@@ -254,12 +268,11 @@ async def _sync_satellite(field: Field, db: Session, *, force: bool = False) -> 
         truecolor_image_path=truecolor_path,
     )
     db.add(scene)
-    ndvi_mean = (statistics.get("ndvi") or {}).get("mean")
     if ndvi_mean is not None:
         field.latest_ndvi = float(ndvi_mean)
-    field.agro_status = "available"
-    field.agro_error = None
-    field.agro_retryable = True
+    link.sync_status = "available"
+    link.sync_error = None
+    link.retryable = True
     return ("available", 200, None)
 
 
@@ -267,7 +280,10 @@ async def _sync_soil(field: Field, db: Session, *, force: bool = False) -> tuple
     soil_hours = _override(field, "soil_hours") or settings.AGRO_SOIL_INTERVAL_HOURS
     if not force and not _source_is_due(db, field.id, "soil_current", soil_hours):
         return None
-    soil = await get_soil_data(field.agromonitory_poly_id, field.id)
+    link = db.query(FieldProviderLink).filter(FieldProviderLink.field_id == field.id, FieldProviderLink.provider == "agromonitoring").first()
+    if not link or not link.external_id:
+        return None
+    soil = await get_soil_data(link.external_id, field.id)
     observed = datetime.fromtimestamp(soil["observed_at"], timezone.utc) if soil.get("observed_at") else _utcnow()
     _add_observation(db, field.id, "agromonitoring", "soil_current", soil, soil_hours, value=soil.get("moisture"), unit="m3/m3", observed_at=observed)
     return ("available", 200, None)
@@ -287,12 +303,15 @@ async def _sync_uvi(field: Field, db: Session, *, force: bool = False) -> tuple[
     uvi_hours = _override(field, "uvi_hours") or settings.AGRO_UVI_INTERVAL_HOURS
     if not force and not _source_is_due(db, field.id, "uvi_current", uvi_hours):
         return None
-    uvi = await get_current_uvi(field.agromonitory_poly_id, field.id)
+    link = db.query(FieldProviderLink).filter(FieldProviderLink.field_id == field.id, FieldProviderLink.provider == "agromonitoring").first()
+    if not link or not link.external_id:
+        return None
+    uvi = await get_current_uvi(link.external_id, field.id)
     payload = uvi if isinstance(uvi, dict) else {"values": uvi}
     _add_observation(db, field.id, "agromonitoring", "uvi_current", payload, uvi_hours, value=payload.get("uvi"), unit="index")
     if not settings.AGRO_FREE_MODE:
         try:
-            forecast = await get_forecast_uvi(field.agromonitory_poly_id, field.id)
+            forecast = await get_forecast_uvi(link.external_id, field.id)
             forecast_payload = forecast if isinstance(forecast, dict) else {"values": forecast}
             _add_observation(db, field.id, "agromonitoring", "uvi_forecast", forecast_payload, uvi_hours)
             _set_capability(db, field.id, "uvi_forecast", "supported", 200)
@@ -337,21 +356,26 @@ async def _ensure_polygon(field_id: UUID) -> bool:
         if not _acquire_source_lock(db, field_id, "polygon"):
             return False
         field = db.query(Field).filter(Field.id == field_id, Field.status == "active").first()
-        if field is None or field.agro_status == "unsupported":
+        field = db.query(Field).filter(Field.id == field_id, Field.status == "active").first()
+        if field is None:
+            return False
+        link = db.query(FieldProviderLink).filter(FieldProviderLink.field_id == field_id, FieldProviderLink.provider == "agromonitoring").first()
+        if link and link.sync_status == "unsupported":
             return False
         await _register_polygon(field, db)
         db.commit()
-        return bool(field.agromonitory_poly_id)
+        link = db.query(FieldProviderLink).filter(FieldProviderLink.field_id == field_id, FieldProviderLink.provider == "agromonitoring").first()
+        return bool(link and link.external_id)
     except asyncio.CancelledError:
         db.rollback()
         raise
     except Exception:
         db.rollback()
-        field = db.query(Field).filter(Field.id == field_id).first()
-        if field:
-            field.agro_status = "unavailable"
-            field.agro_error = "AgroMonitoring polygon registration failed."
-            field.agro_retryable = True
+        link = db.query(FieldProviderLink).filter(FieldProviderLink.field_id == field_id, FieldProviderLink.provider == "agromonitoring").first()
+        if link:
+            link.sync_status = "unavailable"
+            link.sync_error = "AgroMonitoring polygon registration failed."
+            link.retryable = True
             db.commit()
         logger.exception("AgroMonitoring polygon registration failed field_id=%s", field_id)
         return False
@@ -365,7 +389,10 @@ async def _run_source(field_id: UUID, metric: str, handler, *, force: bool = Fal
         if not _acquire_source_lock(db, field_id, metric):
             return
         field = db.query(Field).filter(Field.id == field_id, Field.status == "active").first()
-        if field is None or not field.agromonitory_poly_id:
+        if field is None:
+            return
+        link = db.query(FieldProviderLink).filter(FieldProviderLink.field_id == field_id, FieldProviderLink.provider == "agromonitoring").first()
+        if not link or not link.external_id:
             return
         result = await handler(field, db, force=force)
         if result is None:
@@ -380,38 +407,38 @@ async def _run_source(field_id: UUID, metric: str, handler, *, force: bool = Fal
         raise
     except AgroEntitlementError as exc:
         db.rollback()
-        field = db.query(Field).filter(Field.id == field_id).first()
-        if field:
+        link = db.query(FieldProviderLink).filter(FieldProviderLink.field_id == field_id, FieldProviderLink.provider == "agromonitoring").first()
+        if link:
             if satellite:
-                field.agro_status = "unsupported"
-                field.agro_error = str(exc)
-                field.agro_retryable = False
-                field.last_satellite_sync = _utcnow()
+                link.sync_status = "unsupported"
+                link.sync_error = str(exc)
+                link.retryable = False
+                link.last_sync_at = _utcnow()
             else:
                 _set_source_state(db, field_id, metric, "unsupported", exc.status_code, str(exc))
             db.commit()
     except AgroAPIError as exc:
         db.rollback()
-        field = db.query(Field).filter(Field.id == field_id).first()
-        if field:
+        link = db.query(FieldProviderLink).filter(FieldProviderLink.field_id == field_id, FieldProviderLink.provider == "agromonitoring").first()
+        if link:
             if satellite:
-                field.agro_status = "unavailable"
-                field.agro_error = str(exc)
-                field.agro_retryable = exc.retryable
-                field.last_satellite_sync = _utcnow()
+                link.sync_status = "unavailable"
+                link.sync_error = str(exc)
+                link.retryable = exc.retryable
+                link.last_sync_at = _utcnow()
             else:
                 _set_source_state(db, field_id, metric, "unavailable", exc.status_code, str(exc))
             db.commit()
     except Exception:
         db.rollback()
-        field = db.query(Field).filter(Field.id == field_id).first()
-        if field:
+        link = db.query(FieldProviderLink).filter(FieldProviderLink.field_id == field_id, FieldProviderLink.provider == "agromonitoring").first()
+        if link:
             detail = "AgroMonitoring data refresh failed."
             if satellite:
-                field.agro_status = "unavailable"
-                field.agro_error = detail
-                field.agro_retryable = True
-                field.last_satellite_sync = _utcnow()
+                link.sync_status = "unavailable"
+                link.sync_error = detail
+                link.retryable = True
+                link.last_sync_at = _utcnow()
             else:
                 _set_source_state(db, field_id, metric, "unavailable", None, detail)
             db.commit()
@@ -706,7 +733,6 @@ async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) ->
                 rationale=item.get("rationale"),
                 confidence=item["confidence"],
                 confidence_reason=item.get("confidence_reason"),
-                evidence=item.get("evidence", []),
                 safety_level=item.get("safety_level", "guarded"),
                 requires_expert_confirmation=item.get("requires_expert_confirmation", False),
                 ndvi_at_generation=field.latest_ndvi,

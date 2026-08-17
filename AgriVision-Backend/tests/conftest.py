@@ -1,9 +1,22 @@
+import os
 from uuid import uuid4
+
+# Explicitly isolate test executions to the test database, never touching development data
+_DEFAULT_TEST_DB = "postgresql://admin:password@localhost:5432/agrivision_test"
+os.environ["DATABASE_URL"] = os.getenv("TEST_DATABASE_URL", _DEFAULT_TEST_DB)
+os.environ["ENVIRONMENT"] = "testing"
 
 import pytest
 
-from app.database import SessionLocal
+from app.database import SessionLocal, engine, Base
 from app.models.db_models import User
+import app.models.db_models  # noqa: F401
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _ensure_test_database_schema():
+    """Ensure all database tables exist on the dedicated test database before tests run."""
+    Base.metadata.create_all(bind=engine)
 
 
 @pytest.fixture(autouse=True)

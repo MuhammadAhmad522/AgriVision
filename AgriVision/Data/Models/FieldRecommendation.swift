@@ -71,7 +71,9 @@ struct FieldRecommendation: Codable, Identifiable, Equatable {
 }
 
 struct RecommendationEvidence: Codable, Identifiable, Equatable {
-    var id: String { url }
-    let url: String
+    var id: String { url ?? metric ?? UUID().uuidString }
+    let url: String?
     let approved: Bool?
+    let metric: String?
+    let value: Double?
 }

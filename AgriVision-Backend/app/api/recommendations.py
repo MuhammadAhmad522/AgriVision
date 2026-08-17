@@ -82,21 +82,23 @@ def record_outcome(
     return recommendation
 
 
-async def _run_ai_background(field_id: UUID) -> None:
-    from app.services.scheduler import run_ai_by_field_id
-
-    await run_ai_by_field_id(field_id, force=True)
-
-
-@router.post("/api/fields/{field_id}/recommendations", status_code=status.HTTP_202_ACCEPTED)
-@router.post("/api/fields/{field_id}/recommendations/refresh/", status_code=status.HTTP_202_ACCEPTED, include_in_schema=False)
-async def trigger_refresh(
+@router.post("/api/fields/{field_id}/recommendations", response_model=list[RecommendationResponse])
+@router.post("/api/fields/{field_id}/recommendations/refresh/", response_model=list[RecommendationResponse], include_in_schema=False)
+def trigger_refresh(
     field_id: UUID,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     owned_field(db, current_user, field_id, include_archived=False)
-    await rate_limiter.check(f"ai-refresh:{current_user.firebase_uid}:{field_id}", 4, 3600)
-    background_tasks.add_task(_run_ai_background, field_id)
-    return {"status": "accepted", "message": "AI analysis queued."}
+    from app.services.scheduler import run_ai_by_field_id
+
+    background_tasks.add_task(run_ai_by_field_id, field_id, force=True)
+    return (
+        db.query(FieldRecommendation)
+        .filter(FieldRecommendation.field_id == field_id, FieldRecommendation.status != "superseded")
+        .order_by(FieldRecommendation.created_at.desc())
+        .limit(20)
+        .all()
+    )
+

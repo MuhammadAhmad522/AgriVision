@@ -14,7 +14,7 @@ struct AIChatView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                LinearGradient(colors: [AppColors.cream, AppColors.limeGreen.opacity(0.22)], startPoint: .top, endPoint: .bottom)
+                LinearGradient(colors: [Theme.Colors.background, Theme.Colors.primaryLight.opacity(0.22)], startPoint: .top, endPoint: .bottom)
                     .ignoresSafeArea()
                 VStack(spacing: 0) {
                     messageList
@@ -23,12 +23,14 @@ struct AIChatView: View {
             }
             .navigationTitle("AI Field Advisor · Beta")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(AppColors.mediumGreen, for: .navigationBar)
+            .toolbarBackground(Theme.Colors.primaryMedium, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Close", action: viewModel.dismiss).foregroundStyle(.white)
+                if viewModel.onDismiss != nil {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Close", action: viewModel.dismiss).foregroundStyle(.white)
+                    }
                 }
             }
             .overlay(alignment: .top) {
@@ -57,10 +59,10 @@ struct AIChatView: View {
                 LazyVStack(spacing: 14) {
                     if viewModel.messages.isEmpty && !viewModel.isLoading {
                         VStack(spacing: 12) {
-                            Image(systemName: "leaf.circle.fill").font(.system(size: 52)).foregroundStyle(AppColors.mediumGreen)
-                            Text("Ask about this field").font(.title3.bold()).foregroundStyle(AppColors.charcoalGreen)
+                            Image(systemName: "leaf.circle.fill").textStyle(.display).foregroundStyle(Theme.Colors.primaryMedium)
+                            Text("Ask about this field").font(.title3.bold()).foregroundStyle(Theme.Colors.primary)
                             Text("Share a crop photo or question. Advice is evidence-based but should be confirmed before chemical or dosage decisions.")
-                                .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                                .textStyle(.body).foregroundStyle(.secondary).multilineTextAlignment(.center)
                         }
                         .padding(28)
                     }
@@ -70,8 +72,8 @@ struct AIChatView: View {
                     }
                     if viewModel.isLoading {
                         HStack(spacing: 8) {
-                            ProgressView().tint(AppColors.mediumGreen)
-                            Text("Reviewing field evidence…").font(.caption).foregroundStyle(.secondary)
+                            ProgressView().tint(Theme.Colors.primaryMedium)
+                            Text("Reviewing field evidence…").textStyle(.caption).foregroundStyle(.secondary)
                             Spacer()
                         }
                         .padding(.horizontal)
@@ -113,7 +115,10 @@ struct AIChatView: View {
                     Button { showCamera = true } label: { Label("Camera", systemImage: "camera") }
                         .disabled(!UIImagePickerController.isSourceTypeAvailable(.camera))
                 } label: {
-                    Image(systemName: "plus.circle.fill").font(.title2).foregroundStyle(AppColors.mediumGreen)
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 36))
+                        .foregroundStyle(Theme.Colors.primaryMedium)
+                        .frame(width: 42, height: 42)
                 }
                 .disabled(viewModel.isLoading || viewModel.selectedImages.count >= 3)
 
@@ -121,12 +126,12 @@ struct AIChatView: View {
                     .lineLimit(1...5)
                     .padding(.horizontal, 14).padding(.vertical, 10)
                     .background(.white.opacity(0.9), in: RoundedRectangle(cornerRadius: 18))
-                    .overlay(RoundedRectangle(cornerRadius: 18).stroke(AppColors.limeGreen.opacity(0.7)))
+                    .overlay(RoundedRectangle(cornerRadius: 18).stroke(Theme.Colors.primaryLight.opacity(0.7)))
                     .disabled(viewModel.isLoading)
 
                 Button { Task { await viewModel.sendMessage() } } label: {
                     Image(systemName: "paperplane.fill").foregroundStyle(.white).frame(width: 42, height: 42)
-                        .background(viewModel.canSend ? AppColors.mediumGreen : .gray, in: Circle())
+                        .background(viewModel.canSend ? Theme.Colors.primaryMedium : .gray, in: Circle())
                 }
                 .disabled(!viewModel.canSend)
             }
@@ -168,12 +173,12 @@ private struct ChatBubble: View {
                 if !message.content.isEmpty {
                     Text(message.content).font(.body).textSelection(.enabled)
                 }
-                Text(message.createdAt.formatted(date: .omitted, time: .shortened)).font(.caption2).opacity(0.7)
+                Text(message.createdAt.formatted(date: .omitted, time: .shortened)).textStyle(.caption).opacity(0.7)
             }
             .padding(12)
-            .foregroundStyle(message.role == "user" ? .white : AppColors.charcoalGreen)
-            .background(message.role == "user" ? AppColors.mediumGreen : Color.white.opacity(0.88), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 18).stroke(message.role == "user" ? Color.clear : AppColors.limeGreen.opacity(0.45)))
+            .foregroundStyle(message.role == "user" ? .white : Theme.Colors.primary)
+            .background(message.role == "user" ? Theme.Colors.primaryMedium : Color.white.opacity(0.88), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 18).stroke(message.role == "user" ? Color.clear : Theme.Colors.primaryLight.opacity(0.45)))
             if message.role != "user" { Spacer(minLength: 48) }
         }
     }

@@ -1,10 +1,10 @@
 import hashlib
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, Header, Query, Response, UploadFile
-from sqlalchemy import text
+from sqlalchemy import case, text
 from sqlalchemy.orm import Session
 
 from app.api.fields import owned_field
@@ -30,7 +30,7 @@ def _thread_for_field(db: Session, field_id: UUID) -> AIChatThread:
     return thread
 
 
-def _message_response(db: Session, message: AIChatMessage) -> dict:
+def _message_response(db: Session, message: AIChatMessage, field_id: UUID) -> dict:
     attachments = db.query(ChatAttachment).filter(ChatAttachment.message_id == message.id).order_by(ChatAttachment.created_at.asc()).all()
     return {
         "id": message.id,
@@ -45,16 +45,16 @@ def _message_response(db: Session, message: AIChatMessage) -> dict:
                 "byte_size": item.byte_size,
                 "width": item.width,
                 "height": item.height,
-                "url": f"/api/fields/{message.field_id}/chat/attachments/{item.id}",
+                "url": f"/api/fields/{field_id}/chat/attachments/{item.id}",
             }
             for item in attachments
         ],
     }
 
 
-def _existing_turn(db: Session, field_id: UUID, key: str) -> dict | None:
+def _existing_turn(db: Session, thread_id: UUID, key: str, field_id: UUID) -> dict | None:
     user_message = db.query(AIChatMessage).filter(
-        AIChatMessage.field_id == field_id,
+        AIChatMessage.thread_id == thread_id,
         AIChatMessage.role == "user",
         AIChatMessage.idempotency_key == key,
     ).first()
@@ -63,7 +63,7 @@ def _existing_turn(db: Session, field_id: UUID, key: str) -> dict | None:
     assistant = db.query(AIChatMessage).filter(AIChatMessage.reply_to_message_id == user_message.id).first()
     if assistant is None:
         raise APIError(409, "chat_turn_incomplete", "This chat turn is still being processed.", retryable=True)
-    return {"user_message": _message_response(db, user_message), "assistant_message": _message_response(db, assistant)}
+    return {"user_message": _message_response(db, user_message, field_id), "assistant_message": _message_response(db, assistant, field_id)}
 
 
 def _lock_turn(db: Session, field_id: UUID, key: str) -> None:
@@ -90,12 +90,20 @@ def get_history(
     current_user: User = Depends(get_current_user),
 ):
     owned_field(db, current_user, field_id)
-    query = db.query(AIChatMessage).filter(AIChatMessage.field_id == field_id)
+    thread = _thread_for_field(db, field_id)
+    query = db.query(AIChatMessage).filter(AIChatMessage.thread_id == thread.id)
     if before:
         query = query.filter(AIChatMessage.created_at < before)
-    messages = query.order_by(AIChatMessage.created_at.desc()).limit(limit).all()
+    messages = (
+        query.order_by(
+            AIChatMessage.created_at.desc(),
+            case((AIChatMessage.role == "model", 0), else_=1),
+        )
+        .limit(limit)
+        .all()
+    )
     messages.reverse()
-    return [_message_response(db, message) for message in messages]
+    return [_message_response(db, message, field_id) for message in messages]
 
 
 @router.get("/attachments/{attachment_id}")
@@ -106,7 +114,10 @@ def get_attachment(
     current_user: User = Depends(get_current_user),
 ):
     owned_field(db, current_user, field_id)
-    attachment = db.query(ChatAttachment).filter(ChatAttachment.id == attachment_id, ChatAttachment.field_id == field_id).first()
+    attachment = db.query(ChatAttachment).join(AIChatMessage).filter(
+        ChatAttachment.id == attachment_id,
+        AIChatMessage.thread_id == _thread_for_field(db, field_id).id
+    ).first()
     if attachment is None:
         raise APIError(404, "attachment_not_found", "Attachment not found.")
     content = get_chat_media_storage().read(attachment.storage_key)
@@ -125,8 +136,10 @@ async def post_message(
     field = owned_field(db, current_user, field_id, include_archived=False)
     if not re.fullmatch(r"[A-Za-z0-9._:-]{8,100}", idempotency_key):
         raise APIError(422, "invalid_idempotency_key", "The chat request identifier is invalid.")
+    
+    thread = _thread_for_field(db, field_id)
     _lock_turn(db, field_id, idempotency_key)
-    existing = _existing_turn(db, field_id, idempotency_key)
+    existing = _existing_turn(db, thread.id, idempotency_key, field_id)
     if existing:
         return existing
 
@@ -144,11 +157,13 @@ async def post_message(
 
     await rate_limiter.check(f"chat:{current_user.firebase_uid}:{field_id}", 20, 3600)
     sanitized: list[SanitizedImage] = [await sanitize_upload(upload) for upload in uploads]
-    thread = _thread_for_field(db, field_id)
     history = (
         db.query(AIChatMessage)
-        .filter(AIChatMessage.field_id == field_id)
-        .order_by(AIChatMessage.created_at.desc())
+        .filter(AIChatMessage.thread_id == thread.id)
+        .order_by(
+            AIChatMessage.created_at.desc(),
+            case((AIChatMessage.role == "model", 0), else_=1),
+        )
         .limit(20)
         .all()
     )
@@ -181,7 +196,7 @@ async def post_message(
             for item in observations
         ],
         "recommendations": [
-            {"category": item.category, "advice": item.advice, "feedback": item.status, "evidence": item.evidence}
+            {"category": item.category, "advice": item.advice, "feedback": item.status}
             for item in recommendations
         ],
         "rolling_summary": thread.rolling_summary,
@@ -194,13 +209,14 @@ async def post_message(
     storage = get_chat_media_storage()
     stored_keys: list[str] = []
     try:
+        now = datetime.now(timezone.utc)
         user_message = AIChatMessage(
-            field_id=field_id,
             thread_id=thread.id,
             role="user",
             content=normalized,
             idempotency_key=idempotency_key,
             status="completed",
+            created_at=now,
         )
         db.add(user_message)
         db.flush()
@@ -208,7 +224,6 @@ async def post_message(
             key = storage.put(field_id, image)
             stored_keys.append(key)
             db.add(ChatAttachment(
-                field_id=field_id,
                 message_id=user_message.id,
                 storage_key=key,
                 mime_type=image.mime_type,
@@ -216,14 +231,15 @@ async def post_message(
                 width=image.width,
                 height=image.height,
                 sha256=image.sha256,
+                created_at=now,
             ))
         assistant = AIChatMessage(
-            field_id=field_id,
             thread_id=thread.id,
             reply_to_message_id=user_message.id,
             role="model",
             content=response_text,
             status="completed",
+            created_at=now + timedelta(microseconds=1000),
         )
         db.add(assistant)
         _update_rolling_summary(thread, normalized, response_text)
@@ -231,7 +247,7 @@ async def post_message(
         db.commit()
         db.refresh(user_message)
         db.refresh(assistant)
-        return {"user_message": _message_response(db, user_message), "assistant_message": _message_response(db, assistant)}
+        return {"user_message": _message_response(db, user_message, field_id), "assistant_message": _message_response(db, assistant, field_id)}
     except Exception:
         db.rollback()
         for key in stored_keys:

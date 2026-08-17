@@ -17,7 +17,7 @@ struct SettingsView: View {
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [Color(.systemBackground), AppColors.limeGreen.opacity(0.18)],
+                colors: [Theme.Colors.background, Theme.Colors.primary.opacity(0.18)],
                 startPoint: .top,
                 endPoint: .bottom
             )
@@ -64,6 +64,9 @@ struct SettingsView: View {
         } message: {
             Text("This cannot be undone. The field, assigned sensors and readings, satellite imagery, recommendations, chats, and attached photos will be removed.")
         }
+        .onChange(of: themePreference) { _ in
+            ThemeManager.shared.applyTheme()
+        }
     }
 
     private var settingsHeader: some View {
@@ -97,8 +100,8 @@ struct SettingsView: View {
         .foregroundStyle(.white)
         .padding(.horizontal, 8)
         .frame(height: 64)
-        .background(AppColors.mediumGreen)
-        .background(AppColors.mediumGreen.ignoresSafeArea(edges: .top))
+        .background(Theme.Colors.primary)
+        .background(Theme.Colors.primary.ignoresSafeArea(edges: .top))
     }
 
     private var profileSection: some View {
@@ -106,19 +109,19 @@ struct SettingsView: View {
             Button { showEditProfile = true } label: {
                 HStack(spacing: 14) {
                     ZStack {
-                        Circle().fill(AppColors.mediumGreen.opacity(0.14))
+                        Circle().fill(Theme.Colors.primary.opacity(0.14))
                         Text(String(viewModel.accountName.prefix(1)).uppercased())
-                            .font(.title3.bold())
-                            .foregroundStyle(AppColors.mediumGreen)
+                            .textStyle(.title3)
+                            .foregroundStyle(Theme.Colors.primary)
                     }
                     .frame(width: 48, height: 48)
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(viewModel.accountName).font(.headline).foregroundStyle(.primary)
-                        Text(viewModel.accountEmail).font(.caption).foregroundStyle(.secondary)
+                        Text(viewModel.accountName).textStyle(.bodyStrong).foregroundStyle(Theme.Colors.textPrimary)
+                        Text(viewModel.accountEmail).textStyle(.caption).foregroundStyle(Theme.Colors.textSecondary)
                     }
                     Spacer()
-                    Image(systemName: "pencil").foregroundStyle(AppColors.mediumGreen)
+                    Image(systemName: "pencil").foregroundStyle(Theme.Colors.primary)
                 }
             }
             .buttonStyle(.plain)
@@ -163,8 +166,17 @@ struct SettingsView: View {
         }
     }
 
+    @AppStorage("appThemePreference") private var themePreference: String = "System"
+    
     private var preferencesSection: some View {
-        Section("Dashboard") {
+        Section("Preferences") {
+            Picker("Theme", selection: $themePreference) {
+                Text("System").tag("System")
+                Text("Light").tag("Light")
+                Text("Dark").tag("Dark")
+            }
+            .pickerStyle(.menu)
+            
             Picker("Auto-refresh", selection: Binding(
                 get: { viewModel.refreshInterval },
                 set: viewModel.setRefreshInterval
@@ -270,116 +282,9 @@ struct SettingsView: View {
     }
 }
 
-private struct SettingsInfoRow: View {
-    let icon: String
-    let label: String
-    let value: String
 
-    var body: some View {
-        HStack {
-            Label(label, systemImage: icon)
-            Spacer()
-            Text(value).foregroundStyle(.secondary).multilineTextAlignment(.trailing)
-        }
-    }
-}
 
-private struct StatusPill: View {
-    let status: String
 
-    private var color: Color {
-        switch status {
-        case "available": return .green
-        case "pending", "stale": return .orange
-        case "not_configured": return .secondary
-        default: return .red
-        }
-    }
-
-    var body: some View {
-        Text(status.replacingOccurrences(of: "_", with: " ").capitalized)
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(color)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(color.opacity(0.12), in: Capsule())
-    }
-}
-
-private struct EditProfileSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var name: String
-    let isSaving: Bool
-    let onSave: (String) async -> Bool
-
-    init(initialName: String, isSaving: Bool, onSave: @escaping (String) async -> Bool) {
-        _name = State(initialValue: initialName)
-        self.isSaving = isSaving
-        self.onSave = onSave
-    }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Profile") {
-                    TextField("Display name", text: $name).textInputAutocapitalization(.words)
-                }
-                Section {
-                    Text("This name is stored in Firebase Authentication and shown throughout AgriVision.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-            }
-            .navigationTitle("Edit Profile")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        Task { if await onSave(name) { dismiss() } }
-                    }
-                    .disabled(isSaving)
-                }
-            }
-        }
-        .presentationDetents([.medium])
-    }
-}
-
-private struct SensorPairingSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var name = ""
-    @State private var code = ""
-    let fieldName: String
-    let isPairing: Bool
-    let onPair: (String, String) async -> Bool
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Assign to \(fieldName)") {
-                    TextField("Sensor name", text: $name)
-                    TextField("ESP32 pairing code", text: $code)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                }
-                Section {
-                    Text("The sensor must be powered on and reporting to MQTT before it can be paired.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-            }
-            .navigationTitle("Pair Sensor")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Pair") {
-                        Task { if await onPair(code, name) { dismiss() } }
-                    }
-                    .disabled(isPairing)
-                }
-            }
-        }
-        .presentationDetents([.medium])
-    }
-}
 
 #Preview {
     SettingsView(

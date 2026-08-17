@@ -2,21 +2,20 @@ import SwiftUI
 
 /// A reusable container that applies the app's signature "Liquid Glass" styling.
 /// Used for grouping content in Dashboard, Settings, and other list-like views.
-struct GlassCard<Content: View>: View {
+public struct GlassCard<Content: View>: View {
     var title: String?
     let content: Content
     
-    init(title: String? = nil, @ViewBuilder content: () -> Content) {
+    public init(title: String? = nil, @ViewBuilder content: () -> Content) {
         self.title = title
         self.content = content()
     }
     
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+    public var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.small) {
             if let title = title {
                 Text(title)
-                    .font(.headline)
-                    .foregroundColor(AppColors.charcoalGreen.opacity(0.8))
+                    .textStyle(.title3)
                     .padding(.leading, 4)
             }
             
@@ -27,25 +26,25 @@ struct GlassCard<Content: View>: View {
             .background(
                 ZStack {
                     VisualEffectBlur(blurStyle: .systemUltraThinMaterial)
-                    Color.white.opacity(0.6)
+                    Theme.Gradients.glassOverlay
                 }
             )
-            .cornerRadius(20)
+            .cornerRadius(Theme.Radius.large)
             .overlay(
-                RoundedRectangle(cornerRadius: 20)
-                    .stroke(Color.white.opacity(0.8), lineWidth: 1)
+                RoundedRectangle(cornerRadius: Theme.Radius.large)
+                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
             )
-            .shadow(color: AppColors.mediumGreen.opacity(0.1), radius: 10, x: 0, y: 5)
+            .shadow(color: Theme.Shadows.soft, radius: 10, x: 0, y: 5)
         }
     }
 }
 
 #Preview {
     ZStack {
-        Color(AppColors.cream).ignoresSafeArea()
+        Theme.Colors.background.ignoresSafeArea()
         GlassCard(title: "Preview Card") {
             Text("This is content inside a glass card.")
-                .foregroundColor(AppColors.charcoalGreen)
+                .textStyle(.body)
         }
         .padding()
     }

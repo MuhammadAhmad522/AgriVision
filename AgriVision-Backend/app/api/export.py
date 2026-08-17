@@ -14,6 +14,7 @@ from app.core.auth import get_current_user
 from app.database import get_db
 from app.models.db_models import (
     AIChatMessage,
+    AIChatThread,
     FieldObservation,
     FieldRecommendation,
     SatelliteScene,
@@ -231,7 +232,8 @@ def export_chat(
     owned_field(db, current_user, field_id)
     rows = (
         db.query(AIChatMessage)
-        .filter(AIChatMessage.field_id == field_id)
+        .join(AIChatThread, AIChatMessage.thread_id == AIChatThread.id)
+        .filter(AIChatThread.field_id == field_id)
         .order_by(AIChatMessage.created_at.desc())
         .limit(limit)
         .all()

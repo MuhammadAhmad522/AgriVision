@@ -34,9 +34,16 @@ CREATE TABLE IF NOT EXISTS fields (
     status TEXT NOT NULL DEFAULT 'active', archived_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    agromonitory_poly_id TEXT, agro_status TEXT NOT NULL DEFAULT 'pending',
-    agro_error TEXT, agro_retryable INTEGER NOT NULL DEFAULT 1,
-    latest_ndvi REAL, last_satellite_sync TIMESTAMP
+    latest_ndvi REAL
+);
+CREATE TABLE IF NOT EXISTS field_provider_links (
+    id TEXT PRIMARY KEY, field_id TEXT NOT NULL REFERENCES fields(id) ON DELETE CASCADE,
+    provider TEXT NOT NULL, external_id TEXT,
+    sync_status TEXT NOT NULL DEFAULT 'pending', sync_error TEXT,
+    retryable INTEGER NOT NULL DEFAULT 1, last_sync_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    UNIQUE(field_id, provider)
 );
 CREATE TABLE IF NOT EXISTS satellite_scenes (
     id TEXT PRIMARY KEY, field_id TEXT NOT NULL REFERENCES fields(id),
@@ -116,14 +123,14 @@ def _clean_data():
         with SessionLocal() as db:
             for t in ("sensor_readings", "sensors", "field_recommendations", "ai_analysis_runs",
                        "provider_capabilities", "field_observations", "satellite_scenes",
-                       "fields", "users"):
+                       "field_provider_links", "fields", "users"):
                 db.execute(text(f"DELETE FROM {t}"))
             db.commit()
     else:
         with SessionLocal() as db:
             for t in ("sensor_readings", "sensors", "field_recommendations", "ai_analysis_runs",
                        "provider_capabilities", "field_observations", "satellite_scenes",
-                       "fields", "users"):
+                       "field_provider_links", "fields", "users"):
                 db.execute(text(f"DELETE FROM {t} CASCADE"))
             db.commit()
 
@@ -138,13 +145,17 @@ def _make_field_in_db(db, **overrides):
         poly_id = overrides.pop("agromonitory_poly_id", "test-polygon")
         status = overrides.pop("agro_status", "pending")
         db.execute(
-            text("""INSERT INTO fields (id, owner_id, name, crop_type, boundary, area_ha,
-                     agromonitory_poly_id, agro_status)
-                     VALUES (:id, :oid, :name, :crop, :boundary, :area, :poly, :status)"""),
+            text("""INSERT INTO fields (id, owner_id, name, crop_type, boundary, area_ha)
+                     VALUES (:id, :oid, :name, :crop, :boundary, :area)"""),
             {"id": field_id.hex, "oid": user.id.hex, "name": overrides.pop("name", "Sync Test Field"),
              "crop": overrides.pop("crop_type", "Wheat"),
              "boundary": "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))",
-             "area": 100.0, "poly": poly_id, "status": status},
+             "area": 100.0},
+        )
+        db.execute(
+            text("""INSERT INTO field_provider_links (id, field_id, provider, external_id, sync_status)
+                     VALUES (:id, :fid, :provider, :ext, :status)"""),
+            {"id": uuid.uuid4().hex, "fid": field_id.hex, "provider": "agromonitoring", "ext": poly_id, "status": status}
         )
         db.commit()
         return field_id, user.id
@@ -159,10 +170,17 @@ def _make_field_in_db(db, **overrides):
         crop_type=overrides.pop("crop_type", "Wheat"),
         boundary=WKTElement("POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))", srid=4326),
         area_ha=100.0,
-        agromonitory_poly_id=poly_id,
-        agro_status=overrides.pop("agro_status", "pending"),
     )
     db.add(field)
+    db.flush()
+    from app.models.db_models import FieldProviderLink
+    link = FieldProviderLink(
+        field_id=field.id,
+        provider="agromonitoring",
+        external_id=poly_id,
+        sync_status=overrides.pop("agro_status", "pending")
+    )
+    db.add(link)
     db.flush()
     return field.id, user.id
 
@@ -171,13 +189,22 @@ def _make_simple_field(**overrides):
     from app.models.db_models import Field
     field_id = uuid.UUID(overrides.pop("id", uuid.uuid4().hex) if "id" in overrides else uuid.uuid4().hex)
     uid = uuid.UUID(overrides.pop("owner_id", uuid.uuid4().hex) if "owner_id" in overrides else uuid.uuid4().hex)
-    return Field(
+    field = Field(
         id=field_id, owner_id=uid, name="Sync Test Field",
         crop_type="Wheat", area_ha=100.0,
-        agromonitory_poly_id=overrides.get("agromonitory_poly_id", "test-polygon"),
-        agro_status=overrides.get("agro_status", "pending"), agro_retryable=True,
         status="active",
     )
+    from app.models.db_models import FieldProviderLink
+    field.provider_links = [
+        FieldProviderLink(
+            field_id=field_id,
+            provider="agromonitoring",
+            external_id=overrides.get("agromonitory_poly_id", "test-polygon"),
+            sync_status=overrides.get("agro_status", "pending"),
+            retryable=True,
+        )
+    ]
+    return field
 
 
 def _row(db, table, field_id):
@@ -260,7 +287,8 @@ async def test_sync_satellite_new_scene():
             stats = json.loads(stats)
         assert stats == {"ndvi": mock_stats["ndvi"]}
         assert field.latest_ndvi == 0.45
-        assert field.agro_status == "available"
+        link = _row(db, "field_provider_links", field_id)
+        assert link.sync_status == "available"
     finally:
         db.close()
 
@@ -293,7 +321,8 @@ async def test_sync_satellite_duplicate_scene():
 
         assert result == ("available", 200, None)
         assert _count(db, "satellite_scenes", field_id) == 1
-        assert field.agro_status == "available"
+        link = _row(db, "field_provider_links", field_id)
+        assert link.sync_status == "available"
     finally:
         db.close()
 
@@ -312,8 +341,9 @@ async def test_sync_satellite_no_scene():
 
         assert result == ("pending", 200, "No satellite scene is available in the latest 14-day window.")
         assert _count(db, "satellite_scenes", field_id) == 0
-        assert field.agro_status == "pending"
-        assert "No satellite scene" in field.agro_error
+        link = _row(db, "field_provider_links", field_id)
+        assert link.sync_status == "pending"
+        assert "No satellite scene" in link.sync_error
     finally:
         db.close()
 

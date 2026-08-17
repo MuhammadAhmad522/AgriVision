@@ -20,8 +20,8 @@ struct FieldsView: View {
             Map(position: $cameraPosition, interactionModes: [.pan, .zoom]) {
                 if boundary.count >= 3 {
                     MapPolygon(coordinates: boundary)
-                        .foregroundStyle(AppColors.limeGreen.opacity(0.38))
-                        .stroke(AppColors.charcoalGreen, lineWidth: 2)
+                        .foregroundStyle(Theme.Colors.primaryLight.opacity(0.38))
+                        .stroke(Theme.Colors.primary, lineWidth: 2)
                 }
                 if let center {
                     Annotation("Field center", coordinate: center) {
@@ -43,7 +43,7 @@ struct FieldsView: View {
                     Button(action: onAddField) {
                         Image(systemName: "plus").font(.title2.bold()).frame(width: 52, height: 52)
                     }
-                    .buttonStyle(.borderedProminent).buttonBorderShape(.circle).tint(AppColors.mediumGreen)
+                    .buttonStyle(.borderedProminent).buttonBorderShape(.circle).tint(Theme.Colors.primaryMedium)
                     .disabled(fieldStore.hasReachedLimit)
                     .accessibilityLabel(fieldStore.hasReachedLimit ? "Five-field limit reached" : "Add field")
                     Spacer()
@@ -52,7 +52,7 @@ struct FieldsView: View {
                     } label: {
                         Image(systemName: "location.fill").font(.title2).frame(width: 52, height: 52)
                     }
-                    .buttonStyle(.borderedProminent).buttonBorderShape(.circle).tint(AppColors.mediumGreen)
+                    .buttonStyle(.borderedProminent).buttonBorderShape(.circle).tint(Theme.Colors.primaryMedium)
                 }
                 .padding(.horizontal, 26)
                 .padding(.bottom, 12)
@@ -70,12 +70,13 @@ struct FieldsView: View {
     private var header: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(activeField?.name ?? "No active field").font(.headline)
+                Text(activeField?.name ?? "No active field").textStyle(.bodyStrong)
                 Text(fieldStore.fields.isEmpty ? "Register your first field" : "Field \(currentIndex + 1) of \(fieldStore.fields.count)")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .textStyle(.caption).foregroundStyle(.secondary)
             }
             .padding(.horizontal, 18).padding(.vertical, 10)
-            .background(.ultraThinMaterial, in: Capsule())
+            .background(Theme.Colors.creamColor, in: Capsule())
+            .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
             Spacer()
             avatar
         }
@@ -86,7 +87,7 @@ struct FieldsView: View {
             AsyncImage(url: profileImageURL) { image in image.resizable().scaledToFill() } placeholder: { ProgressView() }
                 .frame(width: 46, height: 46).clipShape(Circle())
         } else {
-            Circle().fill(AppColors.mediumGreen).frame(width: 46, height: 46)
+            Circle().fill(Theme.Colors.primaryMedium).frame(width: 46, height: 46)
                 .overlay(Text(profileInitial.isEmpty ? "U" : profileInitial).foregroundStyle(.white).bold())
         }
     }
@@ -103,7 +104,7 @@ struct FieldsView: View {
                 Spacer()
                 VStack(spacing: 3) {
                     Text(activeField?.name ?? "No field selected").font(.title3.bold())
-                    Text(coordinateDescription).font(.caption).foregroundStyle(.secondary)
+                    Text(coordinateDescription).textStyle(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 Button(action: fieldStore.selectNext) {
@@ -120,7 +121,7 @@ struct FieldsView: View {
                         fact("Area", field.areaHa.map { String(format: "%.2f ha", $0) } ?? "Unavailable")
                         fact("Crop", field.cropType ?? "Not set")
                         fact("Sensors", hasLiveSnapshot ? "\(sensorCount)" : (isLoadingSnapshot ? "Loading…" : "Unavailable"))
-                        fact("Satellite", hasLiveSnapshot ? (satellite?.status.capitalized ?? field.agroStatus.capitalized) : field.agroStatus.capitalized)
+                        fact("Satellite", hasLiveSnapshot ? (satellite?.status.capitalized ?? field.agroStatus?.capitalized ?? "Pending") : (field.agroStatus?.capitalized ?? "Pending"))
                         fact("NDVI", field.ndviScore.map { String(format: "%.2f", $0) } ?? "Pending")
                     }
                     if hasLiveSnapshot, let satelliteImageData, let image = UIImage(data: satelliteImageData) {
@@ -129,20 +130,20 @@ struct FieldsView: View {
                             .scaledToFill()
                             .frame(width: 78, height: 78)
                             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: 14).stroke(AppColors.limeGreen.opacity(0.65)))
+                            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.Colors.primaryLight.opacity(0.65)))
                             .accessibilityLabel("Latest cached NDVI image")
                     }
                 }
-                if let message = field.agroError { Text(message).font(.caption).foregroundStyle(.orange) }
+                if let message = field.agroError { Text(message).textStyle(.caption).foregroundStyle(.orange) }
             } else {
                 Text("Use the plus button to register a field.").foregroundStyle(.secondary)
             }
             if fieldStore.hasReachedLimit {
                 Text("Five fields reached. Delete one before adding another.")
-                    .font(.caption).foregroundStyle(.orange)
+                    .textStyle(.caption).foregroundStyle(.orange)
             }
         }
-        .foregroundStyle(AppColors.charcoalGreen)
+        .foregroundStyle(Theme.Colors.primary)
         .padding(18)
         .frame(maxWidth: .infinity)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 28))
@@ -150,7 +151,7 @@ struct FieldsView: View {
     }
 
     private func fact(_ label: String, _ value: String) -> some View {
-        HStack { Text(label).fontWeight(.semibold); Spacer(); Text(value) }.font(.subheadline)
+        HStack { Text(label).fontWeight(.semibold); Spacer(); Text(value) }.textStyle(.body)
     }
 
     private var activeField: Field? { fieldStore.activeField }

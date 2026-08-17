@@ -30,8 +30,8 @@ struct FieldDetailsView: View {
                 ScrollView {
                     VStack(spacing: 20) {
                         Text("New Field Details")
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundColor(AppColors.charcoalGreen)
+                            .textStyle(.title2)
+                            .foregroundColor(Theme.Colors.primary)
                             .padding(.top, 40)
                             .padding(.bottom, 10)
                         
@@ -88,8 +88,8 @@ struct FieldDetailsView: View {
                         .padding(.bottom, viewModel.isLoading ? 0 : 40)
                         if viewModel.isLoading {
                             Text("Preparing dashboard data…")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(AppColors.charcoalGreen.opacity(0.75))
+                                .textStyle(.captionStrong)
+                                .foregroundColor(Theme.Colors.primary.opacity(0.75))
                                 .multilineTextAlignment(.center)
                                 .padding(.bottom, 40)
                         }
@@ -136,8 +136,8 @@ struct FieldDetailsView: View {
                 dismiss()
             }) {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(AppColors.mediumGreen)
+                    .textStyle(.title2)
+                    .foregroundColor(Theme.Colors.primaryMedium)
             }
             
             Spacer()
@@ -167,10 +167,10 @@ struct FieldDetailsView: View {
                 // Email User - Last Name Initial
                 ZStack {
                     Circle()
-                        .fill(AppColors.limeGreen)
+                        .fill(Theme.Colors.primaryLight)
                     
                     Text(viewModel.profileInitial)
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .textStyle(.bodyStrong)
                         .foregroundColor(.white)
                 }
                 .frame(width: 40, height: 40)
@@ -194,22 +194,22 @@ struct FieldSelectionBox: View {
         Button(action: action) {
             HStack {
                 Text(value.isEmpty ? placeholder : value)
-                    .font(.system(size: 18))
-                    .foregroundColor(AppColors.mediumGreen)
+                    .textStyle(.body)
+                    .foregroundColor(Theme.Colors.primaryMedium)
                 
                 Spacer()
                 
                 Image(systemName: icon)
-                    .foregroundColor(AppColors.mediumGreen)
-                    .font(.system(size: 20))
+                    .foregroundColor(Theme.Colors.primaryMedium)
+                    .textStyle(.body)
             }
             .padding(.horizontal, 16)
             .frame(width: 366, height: 60)
-            .background(AppColors.cream)
+            .background(Theme.Colors.background)
             .cornerRadius(15)
             .overlay(
                 RoundedRectangle(cornerRadius: 15)
-                    .stroke(AppColors.limeGreen, lineWidth: 1)
+                    .stroke(Theme.Colors.primaryLight, lineWidth: 1)
             )
         }
     }
@@ -224,27 +224,27 @@ struct FieldToggleBox: View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text(label)
-                    .font(.system(size: 18))
-                    .foregroundColor(AppColors.charcoalGreen)
+                    .textStyle(.body)
+                    .foregroundColor(Theme.Colors.primary)
                 
                 Text(description)
-                    .font(.system(size: 12))
-                    .foregroundColor(AppColors.mediumGreen)
+                    .textStyle(.caption)
+                    .foregroundColor(Theme.Colors.primaryMedium)
             }
             
             Spacer()
             
             Toggle("", isOn: $isOn)
-                .toggleStyle(SwitchToggleStyle(tint: AppColors.mediumGreen))
+                .toggleStyle(SwitchToggleStyle(tint: Theme.Colors.primaryMedium))
                 .labelsHidden()
         }
         .padding(.horizontal, 16)
         .frame(width: 366, height: 84)
-        .background(AppColors.cream)
+        .background(Theme.Colors.background)
         .cornerRadius(15)
         .overlay(
             RoundedRectangle(cornerRadius: 15)
-                .stroke(AppColors.limeGreen, lineWidth: 1)
+                .stroke(Theme.Colors.primaryLight, lineWidth: 1)
         )
     }
 }
@@ -255,15 +255,15 @@ struct FieldTextFieldBox: View {
     
     var body: some View {
         TextField(placeholder, text: $text)
-            .font(.system(size: 18))
-            .foregroundColor(AppColors.mediumGreen)
+            .textStyle(.body)
+            .foregroundColor(Theme.Colors.primaryMedium)
             .padding(.horizontal, 16)
             .frame(width: 366, height: 60)
-            .background(AppColors.cream)
+            .background(Theme.Colors.background)
             .cornerRadius(15)
             .overlay(
                 RoundedRectangle(cornerRadius: 15)
-                    .stroke(AppColors.limeGreen, lineWidth: 1)
+                    .stroke(Theme.Colors.primaryLight, lineWidth: 1)
             )
     }
 }
@@ -278,16 +278,16 @@ struct FieldSubmitButton: View {
             ZStack {
                 if isLoading {
                     ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: AppColors.cream))
+                        .progressViewStyle(CircularProgressViewStyle(tint: Theme.Colors.background))
                 } else {
                     Text(title)
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(AppColors.cream)
+                        .textStyle(.bodyStrong)
+                        .foregroundColor(Theme.Colors.background)
                 }
             }
             .frame(width: 326, height: 60)
             .background(
-                LinearGradient(gradient: Gradient(colors: [AppColors.limeGreen, AppColors.mediumGreen]), startPoint: .top, endPoint: .bottom)
+                LinearGradient(gradient: Gradient(colors: [Theme.Colors.primaryLight, Theme.Colors.primaryMedium]), startPoint: .top, endPoint: .bottom)
             )
             .cornerRadius(32)
             .shadow(color: Color.black.opacity(0.25), radius: 0, x: 0, y: 4)
@@ -304,8 +304,8 @@ struct CropSelectionSheet: View {
     var body: some View {
         VStack(spacing: 20) {
             Text("Select Crop Type")
-                .font(.headline)
-                .foregroundColor(AppColors.charcoalGreen)
+                .textStyle(.bodyStrong)
+                .foregroundColor(Theme.Colors.primary)
                 .padding(.top)
             
             List {
@@ -316,11 +316,11 @@ struct CropSelectionSheet: View {
                     }) {
                         HStack {
                             Text(option)
-                                .foregroundColor(AppColors.charcoalGreen)
+                                .foregroundColor(Theme.Colors.primary)
                             Spacer()
                             if selection == option {
                                 Image(systemName: "checkmark")
-                                    .foregroundColor(AppColors.mediumGreen)
+                                    .foregroundColor(Theme.Colors.primaryMedium)
                             }
                         }
                     }
@@ -340,13 +340,13 @@ struct DateSelectionSheet: View {
         VStack(spacing: 0) {
             HStack {
                 Text(title)
-                    .font(.headline)
+                    .textStyle(.bodyStrong)
                 Spacer()
                 Button("Done") { dismiss() }
                     .fontWeight(.bold)
             }
             .padding()
-            .foregroundColor(AppColors.charcoalGreen)
+            .foregroundColor(Theme.Colors.primary)
             
             DatePicker("", selection: $selection, displayedComponents: .date)
                 .datePickerStyle(.wheel)
@@ -354,7 +354,7 @@ struct DateSelectionSheet: View {
             
             Spacer()
         }
-        .background(AppColors.cream.opacity(0.5))
+        .background(Theme.Colors.background.opacity(0.5))
     }
 }
 

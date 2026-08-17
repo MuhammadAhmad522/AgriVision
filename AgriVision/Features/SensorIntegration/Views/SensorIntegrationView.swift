@@ -22,36 +22,36 @@ struct SensorIntegrationView: View {
                 ScrollView {
                     VStack(spacing: 20) {
                         Text("Sensor Integration")
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundColor(AppColors.charcoalGreen)
+                            .textStyle(.title2)
+                            .foregroundColor(Theme.Colors.primary)
                             .padding(.top, 28)
                         
                         // 1. QR Scanner Area
                         VStack(spacing: 12) {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 24)
-                                    .stroke(AppColors.mediumGreen.opacity(0.5), lineWidth: 2)
+                                    .stroke(Theme.Colors.primaryMedium.opacity(0.5), lineWidth: 2)
                                     .background(
                                         RoundedRectangle(cornerRadius: 24)
                                             .fill(Color.white.opacity(0.2))
                                     )
                                 
                                 Image(systemName: "qrcode.viewfinder")
-                                    .font(.system(size: 84))
-                                    .foregroundColor(AppColors.charcoalGreen)
+                                    .textStyle(.display)
+                                    .foregroundColor(Theme.Colors.primary)
                             }
                             .frame(width: 280, height: 140)
                             
                             Text("Scan ESP32 QR Code")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(AppColors.charcoalGreen.opacity(0.8))
+                                .textStyle(.caption)
+                                .foregroundColor(Theme.Colors.primary.opacity(0.8))
                         }
                         
                         // 2. Divider
                         HStack {
                             Rectangle().frame(height: 1).foregroundColor(Color.black.opacity(0.1))
                             Text("or enter pairing code manually")
-                                .font(.system(size: 12))
+                                .textStyle(.caption)
                                 .foregroundColor(Color.black.opacity(0.4))
                                 .padding(.horizontal, 8)
                                 .frame(maxWidth: 170)
@@ -82,7 +82,7 @@ struct SensorIntegrationView: View {
                                     Image(systemName: "checkmark.circle.fill")
                                         .foregroundColor(.green)
                                     Text(viewModel.verificationMessage ?? "Sensor Paired")
-                                        .font(.system(size: 14, weight: .medium))
+                                        .textStyle(.caption)
                                         .foregroundColor(.green)
                                 }
                                 .padding(.top, -8)
@@ -97,11 +97,11 @@ struct SensorIntegrationView: View {
                                                 .scaleEffect(0.8)
                                         }
                                         Text(viewModel.isVerifying ? "Pairing..." : "Pair Sensor")
-                                            .font(.system(size: 14, weight: .semibold))
+                                            .textStyle(.captionStrong)
                                     }
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 12)
-                                    .background(AppColors.charcoalGreen)
+                                    .background(Theme.Colors.primary)
                                     .foregroundColor(.white)
                                     .cornerRadius(12)
                                 }
@@ -109,7 +109,7 @@ struct SensorIntegrationView: View {
                             }
                             
                             Text("Power on the device and start its MQTT connection, then pair it to this account. It will be assigned to this field when setup completes.")
-                                .font(.system(size: 12))
+                                .textStyle(.caption)
                                 .foregroundColor(Color.black.opacity(0.5))
                                 .multilineTextAlignment(.center)
                                 .padding(.horizontal, 10)
@@ -127,8 +127,8 @@ struct SensorIntegrationView: View {
                         .padding(.bottom, viewModel.isLoading ? 0 : 12)
                         if viewModel.isLoading {
                             Text("Preparing dashboard data…")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(AppColors.charcoalGreen.opacity(0.75))
+                                .textStyle(.captionStrong)
+                                .foregroundColor(Theme.Colors.primary.opacity(0.75))
                                 .multilineTextAlignment(.center)
                                 .padding(.bottom, 12)
                         }
@@ -167,8 +167,8 @@ struct SensorIntegrationView: View {
                 dismiss()
             }) {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(AppColors.mediumGreen)
+                    .textStyle(.title2)
+                    .foregroundColor(Theme.Colors.primaryMedium)
             }
             
             Spacer()
@@ -198,10 +198,10 @@ struct SensorIntegrationView: View {
                 // Email User - Last Name Initial
                 ZStack {
                     Circle()
-                        .fill(AppColors.limeGreen)
+                        .fill(Theme.Colors.primaryLight)
                     
                     Text(viewModel.profileInitial)
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .textStyle(.bodyStrong)
                         .foregroundColor(.white)
                 }
                 .frame(width: 40, height: 40)
@@ -222,8 +222,8 @@ struct SensorTypeSelectionSheet: View {
     var body: some View {
         VStack(spacing: 20) {
             Text("Select Sensor Type")
-                .font(.headline)
-                .foregroundColor(AppColors.charcoalGreen)
+                .textStyle(.bodyStrong)
+                .foregroundColor(Theme.Colors.primary)
                 .padding(.top)
             
             List {
@@ -234,11 +234,11 @@ struct SensorTypeSelectionSheet: View {
                     }) {
                         HStack {
                             Text(option)
-                                .foregroundColor(AppColors.charcoalGreen)
+                                .foregroundColor(Theme.Colors.primary)
                             Spacer()
                             if selection == option {
                                 Image(systemName: "checkmark")
-                                    .foregroundColor(AppColors.mediumGreen)
+                                    .foregroundColor(Theme.Colors.primaryMedium)
                             }
                         }
                     }

@@ -33,6 +33,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         window.frame = windowScene.coordinateSpace.bounds
         self.window = window
         
+        ThemeManager.shared.applyTheme()
+        
         // 3. Build concrete service implementations at the composition root and inject them.
         //    This is the only place in the runtime app where concrete service implementations
         //    are chosen; everywhere else depends on protocols (Dependency Inversion Principle).

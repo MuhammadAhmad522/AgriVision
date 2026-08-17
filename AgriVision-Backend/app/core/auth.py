@@ -74,13 +74,21 @@ async def get_current_user(
         raise APIError(401, "invalid_token", "Your session is invalid or expired.")
 
     user = db.query(User).filter(User.firebase_uid == uid).first()
+    email = decoded.get("email")
+    if user is None and email:
+        user = db.query(User).filter(User.email == email).first()
+        if user is not None:
+            user.firebase_uid = uid
+            db.commit()
+            db.refresh(user)
+
     if user is None:
-        user = User(firebase_uid=uid, email=decoded.get("email"))
+        user = User(firebase_uid=uid, email=email)
         db.add(user)
         db.commit()
         db.refresh(user)
-    elif decoded.get("email") and user.email != decoded.get("email"):
-        user.email = decoded.get("email")
+    elif email and user.email != email:
+        user.email = email
         db.commit()
         db.refresh(user)
     return user

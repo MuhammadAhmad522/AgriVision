@@ -11,7 +11,7 @@ struct SplashView: View {
     var body: some View {
         ZStack {
             // Cream background as requested by the user for a clean, premium look.
-            AppColors.cream
+            Theme.Colors.background
                 .ignoresSafeArea()
             
             VStack {
@@ -22,7 +22,7 @@ struct SplashView: View {
                     .frame(width: 180, height: 180)
                     .scaleEffect(scale)
                     .opacity(isVisible ? 1 : 0)
-                    .shadow(color: AppColors.mediumGreen.opacity(0.1), radius: 20, x: 0, y: 10)
+                    .shadow(color: Theme.Colors.primaryMedium.opacity(0.1), radius: 20, x: 0, y: 10)
             }
         }
         .onAppear {

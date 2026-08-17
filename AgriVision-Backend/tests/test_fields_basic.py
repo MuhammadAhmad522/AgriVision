@@ -33,8 +33,7 @@ def _make_field_response(field_id, user_id, name="Test Field"):
         status="active",
         created_at=now,
         updated_at=now,
-        agro_status="available",
-        agro_retryable=True,
+        crop_type="Rice",
     )
 
 
@@ -156,8 +155,8 @@ def test_data_refresh_with_api_key_configured(client):
     field = MagicMock()
     field.id = field_id
     field.owner_id = user.id
-    field.agro_status = "available"
-
+    
+    field.name = "Updated by sync"
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_current_user] = lambda: user
 

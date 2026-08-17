@@ -13,23 +13,23 @@ struct VerifyEmailView: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: 80, height: 80)
-                .foregroundColor(AppColors.authGreen)
+                .foregroundColor(Theme.Colors.primary)
                 .padding(.top, 40)
             
             Text("Verify your Email")
-                .font(.title2)
-                .fontWeight(.bold)
-                .foregroundColor(AppColors.charcoalGreen)
+                .textStyle(.title2)
+                .foregroundColor(Theme.Colors.primary)
             
             Text("We have sent a verification email to your address. Please click the link in the email to activate your account.")
+                .textStyle(.body)
                 .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
+                .foregroundColor(Theme.Colors.textSecondary)
                 .padding(.horizontal)
             
             if let message = viewModel.message {
                 Text(message)
-                    .font(.caption)
-                    .foregroundColor(viewModel.isVerified ? AppColors.mediumGreen : .orange)
+                    .textStyle(.caption)
+                    .foregroundColor(viewModel.isVerified ? Theme.Colors.success : Theme.Colors.warning)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
             }
@@ -45,14 +45,14 @@ struct VerifyEmailView: View {
                 Button("Resend Email") {
                     viewModel.resendVerificationEmail()
                 }
-                .font(.subheadline)
-                .foregroundColor(AppColors.authGreen)
+                .textStyle(.bodyStrong)
+                .foregroundColor(Theme.Colors.primary)
             }
             
             Spacer()
         }
         .padding()
-        .background(Color.authCream.ignoresSafeArea())
+        .background(Theme.Colors.background.ignoresSafeArea())
     }
 }
 

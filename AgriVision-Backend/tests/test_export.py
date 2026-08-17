@@ -321,7 +321,7 @@ def test_export_chat(client):
     )
 
     db = _mock_db()
-    db.query.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = [msg]
+    db.query.return_value.join.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = [msg]
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_current_user] = lambda: user
 
@@ -339,7 +339,7 @@ def test_export_empty_results(client):
     user = _mock_user()
     field_id = uuid4()
     db = _mock_db()
-    db.query.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = []
+    db.query.return_value.join.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = []
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_current_user] = lambda: user
 

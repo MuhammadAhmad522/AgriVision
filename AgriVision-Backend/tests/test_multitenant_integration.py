@@ -19,7 +19,9 @@ from app.models.db_models import (
     AIChatThread,
     ChatAttachment,
     Field,
+    FieldDeletionJob,
     FieldObservation,
+    FieldProviderLink,
     FieldRecommendation,
     ProviderCache,
     ProviderCapability,
@@ -130,7 +132,7 @@ async def test_provider_source_failure_does_not_rollback_successful_source():
         db = SessionLocal()
         try:
             field = db.query(Field).filter(Field.id == field_id).first()
-            field.agromonitory_poly_id = "test-polygon"
+            db.add(FieldProviderLink(field_id=field_id, provider="agromonitoring", external_id="test-polygon", sync_status="available"))
             field_uuid = field.id
             db.commit()
         finally:
@@ -306,7 +308,7 @@ def test_sensor_cannot_be_reassigned_across_tenants():
             json={"device_id": device_id, "name": "Test probe", "sensor_type": "soil"},
         )
         assert assigned.status_code == 200
-        assert assigned.json()["field_id"] == first.json()["id"]
+        assert assigned.json()["field_id"] == first.json()['id']
         listed = client.get(f"/api/fields/{first.json()['id']}/sensors")
         assert listed.status_code == 200
         assert [sensor["device_id"] for sensor in listed.json()] == [device_id]
@@ -370,9 +372,11 @@ def test_two_fields_for_same_owner_return_only_their_own_dashboard_data():
             first_field = db.query(Field).filter(Field.id == first_id).first()
             second_field = db.query(Field).filter(Field.id == second_id).first()
             first_field.latest_ndvi = 0.21
-            first_field.agro_status = "available"
+            db.add(FieldProviderLink(field_id=first_field.id, provider="agromonitoring", external_id="test-poly-id", sync_status="available"))
+            db.flush()
             second_field.latest_ndvi = 0.79
-            second_field.agro_status = "available"
+            db.add(FieldProviderLink(field_id=second_field.id, provider="agromonitoring", external_id="test-poly-id2", sync_status="available"))
+            db.flush()
 
             first_sensor = Sensor(
                 owner_id=tenant.id,
@@ -488,10 +492,10 @@ def test_permanent_delete_cascades_all_field_owned_database_data():
             thread = AIChatThread(field_id=field_id)
             db.add(thread)
             db.flush()
-            message = AIChatMessage(field_id=field_id, thread_id=thread.id, role="user", content="Photo", idempotency_key=f"test-{uuid4()}")
+            message = AIChatMessage(thread_id=thread.id, role="user", content="Photo", idempotency_key=f"test-{uuid4()}")
             db.add(message)
             db.flush()
-            db.add(ChatAttachment(field_id=field_id, message_id=message.id, storage_key=f"{field_id}/test.jpg", mime_type="image/jpeg", byte_size=1, width=1, height=1, sha256="0" * 64))
+            db.add(ChatAttachment(message_id=message.id, storage_key=f"{field_id}/test.jpg", mime_type="image/jpeg", byte_size=1, width=1, height=1, sha256="0" * 64))
             db.add(ProviderCapability(provider="agromonitoring", capability="uvi", field_id=field_id, status="unsupported"))
             db.add(ProviderRequestLog(provider="agromonitoring", endpoint="test", field_id=field_id, outcome="success"))
             db.add(ProviderCache(cache_key=str(uuid4()).replace("-", ""), provider="agromonitoring", endpoint="test", field_id=field_id, response_payload={"ok": True}, expires_at=now + timedelta(hours=1)))
@@ -506,8 +510,10 @@ def test_permanent_delete_cascades_all_field_owned_database_data():
             assert db.query(Field).filter(Field.id == field_id).count() == 0
             assert db.query(Sensor).filter(Sensor.id == sensor_id).count() == 0
             assert db.query(SensorReading).filter(SensorReading.sensor_id == sensor_id).count() == 0
-            for model in (FieldObservation, SatelliteScene, AIAnalysisRun, FieldRecommendation, AIChatThread, AIChatMessage, ChatAttachment, ProviderCapability, ProviderRequestLog, ProviderCache):
+            for model in (FieldObservation, SatelliteScene, AIAnalysisRun, FieldRecommendation, AIChatThread, ProviderCapability, ProviderRequestLog, ProviderCache):
                 assert db.query(model).filter(model.field_id == field_id).count() == 0
+            assert db.query(AIChatMessage).join(AIChatThread, AIChatMessage.thread_id == AIChatThread.id).filter(AIChatThread.field_id == field_id).count() == 0
+            assert db.query(ChatAttachment).join(AIChatMessage, ChatAttachment.message_id == AIChatMessage.id).join(AIChatThread, AIChatMessage.thread_id == AIChatThread.id).filter(AIChatThread.field_id == field_id).count() == 0
         finally:
             db.close()
     finally:
@@ -586,8 +592,8 @@ def test_ai_failure_does_not_persist_hidden_chat_messages():
         assert response.status_code == 503
         db = SessionLocal()
         try:
-            assert db.query(AIChatMessage).filter(AIChatMessage.field_id == field_id).count() == 0
-            assert db.query(ChatAttachment).filter(ChatAttachment.field_id == field_id).count() == 0
+            assert db.query(AIChatMessage).join(AIChatThread, AIChatMessage.thread_id == AIChatThread.id).filter(AIChatThread.field_id == field_id).count() == 0
+            assert db.query(ChatAttachment).join(AIChatMessage, ChatAttachment.message_id == AIChatMessage.id).join(AIChatThread, AIChatMessage.thread_id == AIChatThread.id).filter(AIChatThread.field_id == field_id).count() == 0
         finally:
             db.close()
         assert client.delete(f"/api/fields/{field_id}").status_code == 204

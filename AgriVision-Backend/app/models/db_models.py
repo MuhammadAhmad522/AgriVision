@@ -48,23 +48,35 @@ class Field(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
-    # Keep the legacy database spelling for compatibility; expose a correctly named API field.
-    agromonitory_poly_id = Column(String(64))
-    agro_status = Column(String(24), nullable=False, default="pending")
-    agro_error = Column(String(500))
-    agro_retryable = Column(Boolean, nullable=False, default=True)
     latest_ndvi = Column(Float)
-    last_satellite_sync = Column(DateTime(timezone=True))
     interval_overrides = Column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
 
     owner = relationship("User", back_populates="fields")
+    provider_links = relationship("FieldProviderLink", back_populates="field", passive_deletes=True)
     # Child rows are removed by the database. passive_deletes prevents SQLAlchemy from
     # trying to null non-nullable foreign keys before the ON DELETE CASCADE executes.
     sensors = relationship("Sensor", back_populates="field", passive_deletes=True)
     recommendations = relationship("FieldRecommendation", back_populates="field", order_by="desc(FieldRecommendation.created_at)", passive_deletes=True)
     observations = relationship("FieldObservation", back_populates="field", order_by="desc(FieldObservation.observed_at)", passive_deletes=True)
     satellite_scenes = relationship("SatelliteScene", back_populates="field", order_by="desc(SatelliteScene.acquired_at)", passive_deletes=True)
-    chat_attachments = relationship("ChatAttachment", back_populates="field", passive_deletes=True)
+
+
+class FieldProviderLink(Base):
+    __tablename__ = "field_provider_links"
+    __table_args__ = (UniqueConstraint("field_id", "provider", name="uq_field_provider_link"),)
+
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    field_id = Column(PG_UUID(as_uuid=True), ForeignKey("fields.id", ondelete="CASCADE"), index=True, nullable=False)
+    provider = Column(String(40), nullable=False)
+    external_id = Column(String(160), index=True)
+    sync_status = Column(String(24), nullable=False, default="pending")
+    sync_error = Column(String(500))
+    retryable = Column(Boolean, nullable=False, default=True)
+    last_sync_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    field = relationship("Field", back_populates="provider_links")
 
 
 class Sensor(Base):
@@ -166,7 +178,6 @@ class FieldRecommendation(Base):
     rationale = Column(Text)
     confidence = Column(Float)
     confidence_reason = Column(String(500))
-    evidence = Column(JSONB)
     safety_level = Column(String(20), nullable=False, default="guarded")
     requires_expert_confirmation = Column(Boolean, nullable=False, default=False)
     status = Column(String(20), nullable=False, default="pending")
@@ -194,11 +205,9 @@ class AIChatThread(Base):
 
 class AIChatMessage(Base):
     __tablename__ = "ai_chat_messages"
-    __table_args__ = (UniqueConstraint("field_id", "idempotency_key", name="uq_chat_message_field_idempotency"),)
 
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    field_id = Column(PG_UUID(as_uuid=True), ForeignKey("fields.id", ondelete="CASCADE"), index=True, nullable=False)
-    thread_id = Column(PG_UUID(as_uuid=True), ForeignKey("ai_chat_threads.id", ondelete="CASCADE"), index=True)
+    thread_id = Column(PG_UUID(as_uuid=True), ForeignKey("ai_chat_threads.id", ondelete="CASCADE"), index=True, nullable=False)
     reply_to_message_id = Column(PG_UUID(as_uuid=True), ForeignKey("ai_chat_messages.id", ondelete="CASCADE"), index=True)
     role = Column(String(20), nullable=False)
     content = Column(Text, nullable=False)
@@ -211,7 +220,6 @@ class ChatAttachment(Base):
     __tablename__ = "chat_attachments"
 
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    field_id = Column(PG_UUID(as_uuid=True), ForeignKey("fields.id", ondelete="CASCADE"), index=True, nullable=False)
     message_id = Column(PG_UUID(as_uuid=True), ForeignKey("ai_chat_messages.id", ondelete="CASCADE"), index=True, nullable=False)
     storage_key = Column(String(500), unique=True, nullable=False)
     mime_type = Column(String(50), nullable=False)
@@ -220,8 +228,6 @@ class ChatAttachment(Base):
     height = Column(Integer, nullable=False)
     sha256 = Column(String(64), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
-    field = relationship("Field", back_populates="chat_attachments")
 
 
 class ProviderCapability(Base):

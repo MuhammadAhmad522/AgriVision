@@ -15,7 +15,7 @@ struct BackgroundWave: View {
             
             // A gradient color from light green to medium green.
             let gradient = LinearGradient(
-                colors: [AppColors.limeGreen, AppColors.mediumGreen],
+                colors: [Theme.Colors.primaryLight, Theme.Colors.primaryMedium],
                 startPoint: .leading,
                 endPoint: .trailing
             )
@@ -96,7 +96,7 @@ struct WaveBackground: View {
             
             ZStack {
                 // The base cream color that covers the whole screen.
-                AppColors.cream
+                Theme.Colors.background
                     .ignoresSafeArea()
                 
                 // The actual thick wave moving behind our content.

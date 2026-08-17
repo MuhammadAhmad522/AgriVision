@@ -9,8 +9,8 @@ struct BackendConnectionView: View {
     var body: some View {
         VStack(spacing: 22) {
             Image(systemName: "server.rack")
-                .font(.system(size: 52))
-                .foregroundStyle(AppColors.mediumGreen)
+                .textStyle(.display)
+                .foregroundStyle(Theme.Colors.primaryMedium)
             Text("Connecting to AgriVision")
                 .font(.title2.bold())
             Text(message)
@@ -21,7 +21,7 @@ struct BackendConnectionView: View {
                 else { Text("Retry").frame(maxWidth: .infinity) }
             }
             .buttonStyle(.borderedProminent)
-            .tint(AppColors.mediumGreen)
+            .tint(Theme.Colors.primaryMedium)
             .disabled(isRetrying)
             Button("Sign Out", role: .destructive, action: onSignOut)
         }

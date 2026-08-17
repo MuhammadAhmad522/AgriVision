@@ -36,7 +36,7 @@ def _seed_sensor_data():
         field = Field(
             id=uuid.uuid4(), owner_id=user.id, name="Aggr Field",
             boundary="POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))", area_ha=2.0,
-            status="active", agro_status="pending", crop_type="Wheat",
+            status="active", crop_type="Wheat",
         )
         db.add(field)
         db.flush()

@@ -24,9 +24,9 @@ struct Field: Identifiable, Codable, Equatable {
     var archivedAt: Date? = nil
     var updatedAt: Date? = nil
     var agromonitoringPolygonId: String? = nil
-    var agroStatus: String = "pending"
+    var agroStatus: String? = nil
     var agroError: String? = nil
-    var agroRetryable: Bool = true
+    var agroRetryable: Bool? = nil
     
     // Satellite Data
     let ndviScore: Double?

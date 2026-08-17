@@ -115,12 +115,7 @@ class FieldResponse(BaseModel):
     crop_type: Optional[str] = None
     plantation_date: Optional[datetime] = None
     expected_harvest_date: Optional[datetime] = None
-    agromonitoring_polygon_id: Optional[str] = None
-    agro_status: str
-    agro_error: Optional[str] = None
-    agro_retryable: bool
     latest_ndvi: Optional[float] = None
-    last_satellite_sync: Optional[datetime] = None
     interval_overrides: Optional[dict[str, int]] = None
     model_config = ConfigDict(from_attributes=True)
 

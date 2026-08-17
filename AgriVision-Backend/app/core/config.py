@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     GOOGLE_CLOUD_PROJECT: str = ""
     GOOGLE_CLOUD_LOCATION: str = "global"
     GOOGLE_GENAI_USE_VERTEXAI: bool = True
-    GOOGLE_AI_MODEL: str = "gemini-2.0-flash"
+    GOOGLE_AI_MODEL: str = "gemini-3.7-flash"
     VERTEX_SEARCH_DATASTORE: str = ""
     AI_PROMPT_VERSION: str = "agrivision-punjab-v2"
     AI_POLICY_VERSION: str = "guarded-advisory-v1"

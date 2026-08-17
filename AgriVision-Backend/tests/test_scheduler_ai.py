@@ -34,9 +34,7 @@ CREATE TABLE IF NOT EXISTS fields (
     status TEXT NOT NULL DEFAULT 'active', archived_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    agromonitory_poly_id TEXT, agro_status TEXT NOT NULL DEFAULT 'pending',
-    agro_error TEXT, agro_retryable INTEGER NOT NULL DEFAULT 1,
-    latest_ndvi REAL, last_satellite_sync TIMESTAMP
+    latest_ndvi REAL
 );
 CREATE TABLE IF NOT EXISTS field_observations (
     id TEXT PRIMARY KEY, field_id TEXT NOT NULL REFERENCES fields(id),
@@ -68,7 +66,7 @@ CREATE TABLE IF NOT EXISTS field_recommendations (
     id TEXT PRIMARY KEY, field_id TEXT NOT NULL REFERENCES fields(id),
     analysis_run_id TEXT, category TEXT NOT NULL,
     priority TEXT NOT NULL DEFAULT 'medium', advice TEXT NOT NULL,
-    rationale TEXT, confidence REAL, confidence_reason TEXT, evidence TEXT,
+    rationale TEXT, confidence REAL, confidence_reason TEXT,
     safety_level TEXT NOT NULL DEFAULT 'guarded',
     requires_expert_confirmation INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'pending', ndvi_at_generation REAL,
@@ -113,8 +111,6 @@ def _make_field(field_id, **overrides):
         boundary="POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))",
         area_ha=100.0,
         status="active",
-        agro_status="pending",
-        agro_retryable=True,
     )
 
 
@@ -132,8 +128,6 @@ def _seed_field_and_data(db, **overrides):
         boundary="POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))",
         area_ha=100.0,
         status="active",
-        agro_status="pending",
-        agro_retryable=True,
     )
     db.add(field)
     db.flush()

@@ -26,7 +26,7 @@ final class DashboardViewModel: ObservableObject {
     @Published var profileInitial = "U"
 
     let fieldSessionStore: FieldSessionStore
-    private let dataService: AgriDataService
+    let dataService: AgriDataService
     private let authService: AuthService
     private let preferencesService: PreferencesService
     private var cancellables: Set<AnyCancellable> = []
@@ -179,7 +179,8 @@ final class DashboardViewModel: ObservableObject {
             advisorMessage = "AI is reviewing the latest field evidence."
             try await dataService.refreshRecommendations(for: fieldID)
             guard fieldID == fieldSessionStore.activeFieldId else { return }
-            successMessage = "AI analysis started. Recommendations will appear automatically."
+            await refreshData()
+            successMessage = "Advice updated with latest insights."
             ToastMessageAutoDismiss.schedule(expectedMessage: successMessage ?? "", currentMessage: { [weak self] in self?.successMessage }, clearMessage: { [weak self] in self?.successMessage = nil })
         } catch {
             guard fieldID == fieldSessionStore.activeFieldId else { return }

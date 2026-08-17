@@ -14,6 +14,7 @@ services:
       - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/home/postgres/pgdata/data
+      - ./scripts/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
     networks:
       - agrivision_net
     healthcheck:
@@ -83,7 +84,7 @@ services:
       - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT:-}
       - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-global}
       - GOOGLE_GENAI_USE_VERTEXAI=${GOOGLE_GENAI_USE_VERTEXAI:-true}
-      - GOOGLE_AI_MODEL=${GOOGLE_AI_MODEL:-gemini-3.5-flash}
+      - GOOGLE_AI_MODEL=${GOOGLE_AI_MODEL:-gemini-3.7-flash}
       - VERTEX_SEARCH_DATASTORE=${VERTEX_SEARCH_DATASTORE:-}
       - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-}
       - AI_PROVIDER_TIMEOUT_SECONDS=${AI_PROVIDER_TIMEOUT_SECONDS:-45}

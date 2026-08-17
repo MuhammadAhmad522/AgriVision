@@ -17,6 +17,7 @@ from app.models.db_models import (
     AIAnalysisRun,
     Field,
     FieldDeletionJob,
+    FieldProviderLink,
     FieldObservation,
     FieldRecommendation,
     ProviderCapability,
@@ -38,6 +39,9 @@ def _coordinates_to_wkt(coordinates) -> str:
 
 
 def field_to_response(field: Field, db: Session) -> FieldResponse:
+    from app.models.db_models import FieldProviderLink
+    link = db.query(FieldProviderLink).filter(FieldProviderLink.field_id == field.id, FieldProviderLink.provider == "agromonitoring").first()
+    
     raw = db.query(ST_AsGeoJSON(Field.boundary)).filter(Field.id == field.id).scalar()
     coordinates: list[dict[str, float]] = []
     if raw:
@@ -59,12 +63,12 @@ def field_to_response(field: Field, db: Session) -> FieldResponse:
         crop_type=field.crop_type,
         plantation_date=field.plantation_date,
         expected_harvest_date=field.expected_harvest_date,
-        agromonitoring_polygon_id=field.agromonitory_poly_id,
-        agro_status=field.agro_status,
-        agro_error=field.agro_error,
-        agro_retryable=field.agro_retryable,
+        agromonitoring_polygon_id=link.external_id if link else None,
+        agro_status=link.sync_status if link else ("pending" if settings.AGROMONITORING_API_KEY.strip() else "not_configured"),
+        agro_error=link.sync_error if link else (None if settings.AGROMONITORING_API_KEY.strip() else "Satellite data is not connected yet."),
+        agro_retryable=link.retryable if link else bool(settings.AGROMONITORING_API_KEY.strip()),
         latest_ndvi=field.latest_ndvi,
-        last_satellite_sync=field.last_satellite_sync,
+        last_satellite_sync=link.last_sync_at if link else None,
     )
 
 
@@ -138,9 +142,6 @@ async def create_field(
         plantation_date=field_data.plantation_date,
         expected_harvest_date=field_data.expected_harvest_date,
         status="active",
-        agro_status="pending" if settings.AGROMONITORING_API_KEY.strip() else "not_configured",
-        agro_error=None if settings.AGROMONITORING_API_KEY.strip() else "Satellite data is not connected yet.",
-        agro_retryable=bool(settings.AGROMONITORING_API_KEY.strip()),
     )
     db.add(new_field)
     db.flush()
@@ -253,7 +254,10 @@ def delete_field(
     )
     if field is None:
         raise APIError(404, "field_not_found", "Field not found.")
-    polygon_id = field.agromonitory_poly_id
+        
+    from app.models.db_models import FieldProviderLink
+    link = db.query(FieldProviderLink).filter(FieldProviderLink.field_id == field.id, FieldProviderLink.provider == "agromonitoring").first()
+    polygon_id = link.external_id if link else None
     field.status = "deleting"
     sensor_ids = [row[0] for row in db.query(Sensor.id).filter(Sensor.field_id == field_id, Sensor.owner_id == current_user.id).all()]
     if sensor_ids:
@@ -394,15 +398,21 @@ def get_dashboard(field_id: UUID, db: Session = Depends(get_db), current_user: U
         "retryable": advisor_status in {"pending", "stale", "unavailable"},
         "data_quality": latest_ai_run.data_quality if latest_ai_run is not None else None,
     }
+    link = db.query(FieldProviderLink).filter(FieldProviderLink.field_id == field.id, FieldProviderLink.provider == "agromonitoring").first()
+    agro_status = link.sync_status if link else "pending"
+    agro_error = link.sync_error if link else None
+    agro_retryable = link.retryable if link else False
+    last_satellite_sync = link.last_sync_at if link else None
+
     scene = db.query(SatelliteScene).filter(SatelliteScene.field_id == field.id).order_by(SatelliteScene.acquired_at.desc()).first()
     provider_configured = bool(settings.AGROMONITORING_API_KEY.strip())
     if scene is None:
-        satellite_status = field.agro_status if provider_configured or field.agro_status == "unsupported" else "not_configured"
+        satellite_status = agro_status if provider_configured or agro_status == "unsupported" else "not_configured"
     else:
-        satellite_status = "stale" if field.agro_status in {"pending", "unavailable"} else "available"
+        satellite_status = "stale" if agro_status in {"pending", "unavailable"} else "available"
     satellite = {
         "status": satellite_status,
-        "last_updated": scene.acquired_at if scene else field.last_satellite_sync,
+        "last_updated": scene.acquired_at if scene else last_satellite_sync,
         "data": None if scene is None else {
             "scene_id": scene.id,
             "acquired_at": scene.acquired_at,
@@ -412,8 +422,8 @@ def get_dashboard(field_id: UUID, db: Session = Depends(get_db), current_user: U
             "ndvi_image_url": f"/api/fields/{field.id}/satellite/latest/ndvi" if scene.ndvi_image_path else None,
             "truecolor_image_url": f"/api/fields/{field.id}/satellite/latest/truecolor" if scene.truecolor_image_path else None,
         },
-        "message": field.agro_error if provider_configured or field.agro_status == "unsupported" else "Satellite data is not connected yet.",
-        "retryable": bool(field.agro_retryable and provider_configured),
+        "message": agro_error if provider_configured or agro_status == "unsupported" else "Satellite data is not connected yet.",
+        "retryable": bool(agro_retryable and provider_configured),
     }
     return {
         "field": field_to_response(field, db).model_dump(),

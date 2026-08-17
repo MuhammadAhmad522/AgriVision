@@ -36,8 +36,7 @@ def _make_field_response(field_id, name, owner_id):
         status="active",
         created_at=now,
         updated_at=now,
-        agro_status="unknown",
-        agro_retryable=False,
+        crop_type="Barley",
     )
 
 

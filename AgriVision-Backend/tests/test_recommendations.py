@@ -160,8 +160,8 @@ def test_trigger_refresh(client):
     app.dependency_overrides[get_current_user] = lambda: user
 
     with patch("app.api.recommendations.owned_field", return_value=MagicMock()):
-        with patch("app.api.recommendations.rate_limiter.check"):
-            with patch("app.api.recommendations._run_ai_background"):
-                response = client.post(f"/api/fields/{field_id}/recommendations")
+        with patch("app.services.scheduler.run_ai_by_field_id", return_value=None):
+            response = client.post(f"/api/fields/{field_id}/recommendations")
 
-    assert response.status_code == 202
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)

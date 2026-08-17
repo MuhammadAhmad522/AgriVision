@@ -12,7 +12,7 @@ struct ForgotPasswordView: View {
                 }) {
                     Image(systemName: "chevron.left")
                         .font(.title2)
-                        .foregroundColor(AppColors.authGreen)
+                        .foregroundColor(Theme.Colors.primary)
                         .padding()
                         .background(Color.white.opacity(0.8))
                         .clipShape(Circle())
@@ -24,14 +24,14 @@ struct ForgotPasswordView: View {
             .padding(.top, 10)
             
             Text("Forgot Password")
-                .font(.largeTitle)
-                .bold()
-                .foregroundColor(AppColors.charcoalGreen)
+                .textStyle(.display)
+                .foregroundColor(Theme.Colors.primary)
                 .padding(.top, 10)
             
             Text("Enter your email address to receive a password reset link.")
+                .textStyle(.body)
                 .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
+                .foregroundColor(Theme.Colors.textSecondary)
                 .padding(.horizontal)
             
             AuthTextField(
@@ -45,16 +45,16 @@ struct ForgotPasswordView: View {
             
             if let success = viewModel.successMessage {
                 Text(success)
-                    .foregroundColor(AppColors.mediumGreen)
-                    .font(.subheadline)
+                    .foregroundColor(Theme.Colors.success)
+                    .textStyle(.body)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
             }
             
             if let error = viewModel.errorMessage {
                 Text(error)
-                    .foregroundColor(.red)
-                    .font(.subheadline)
+                    .foregroundColor(Theme.Colors.error)
+                    .textStyle(.body)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
             }
@@ -67,7 +67,7 @@ struct ForgotPasswordView: View {
             Spacer()
         }
         .padding(.horizontal)
-        .background(Color.authCream.ignoresSafeArea())
+        .background(Theme.Colors.background.ignoresSafeArea())
     }
 }
 

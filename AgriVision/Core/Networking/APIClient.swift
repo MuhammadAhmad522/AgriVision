@@ -67,6 +67,10 @@ final class APIClient {
         do {
             return try decoder.decode(Response.self, from: data)
         } catch {
+            print("❌ Decoding Error for \(path): \(error)")
+            if let jsonString = String(data: data, encoding: .utf8) {
+                print("📦 Raw JSON payload: \(jsonString)")
+            }
             throw BackendAPIError(code: "invalid_response", message: "The server returned data the app could not read.", details: [], retryable: true, requestID: response.value(forHTTPHeaderField: "X-Request-ID"), statusCode: response.statusCode)
         }
     }
@@ -123,7 +127,7 @@ final class APIClient {
         components.queryItems = query.isEmpty ? nil : query
         guard let url = components.url else { throw AgriVisionError.invalidInternalState }
 
-        var request = URLRequest(url: url, timeoutInterval: 20)
+        var request = URLRequest(url: url, timeoutInterval: 60)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(UUID().uuidString, forHTTPHeaderField: "X-Request-ID")

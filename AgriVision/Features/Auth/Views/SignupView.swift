@@ -43,20 +43,20 @@ struct SignupView: View {
             
             if let error = viewModel.errorMessage {
                 Text(error)
-                    .font(.caption)
-                    .foregroundColor(.red)
+                    .textStyle(.caption)
+                    .foregroundColor(Theme.Colors.error)
                     .padding(.horizontal)
             }
 
             Button(action: onLoginTap) {
                 HStack(spacing: 4) {
                     Text("Already a Member?")
-                        .foregroundColor(.authPlaceholder)
+                        .foregroundColor(Theme.Colors.textSecondary)
                     Text("Login")
-                        .foregroundColor(.authGreen)
+                        .foregroundColor(Theme.Colors.primary)
                         .fontWeight(.bold)
                 }
-                .font(.system(size: 14))
+                .textStyle(.captionStrong)
             }
             .padding(.bottom, 20)
         }
@@ -67,5 +67,5 @@ struct SignupView: View {
 
 #Preview {
     SignupView(viewModel: SignupViewModel(authService: MockAuthService(), userProfileService: MockUserProfileService()), onLoginTap: {})
-        .background(Color.authCream)
+        .background(Theme.Colors.background)
 }
