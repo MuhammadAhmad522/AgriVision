@@ -13,6 +13,7 @@ struct DashboardView: View {
     @State private var selectedTab: DashboardTab = .home
     @State private var showingAlerts = false
     @State private var showingNotifications = false
+    @State private var selectedMetricDetail: MetricDetailType?
     
     // Grid configuration
     let columns = [
@@ -88,9 +89,16 @@ struct DashboardView: View {
                                     .padding(.horizontal, Theme.Spacing.large)
                                 
                                 HStack(spacing: Theme.Spacing.medium) {
-                                    WeatherCardView(weather: viewModel.weatherSoil?.weather)
-                                    HealthCardView(healthScore: viewModel.healthSummary?.score, cropType: viewModel.currentCropType)
-                                        .padding(.trailing, Theme.Spacing.large)
+                                    Button(action: { selectedMetricDetail = .weather }) {
+                                        WeatherCardView(weather: viewModel.weatherSoil?.weather)
+                                    }
+                                    .buttonStyle(.plain)
+                                    
+                                    Button(action: { selectedMetricDetail = .health }) {
+                                        HealthCardView(healthScore: viewModel.healthSummary?.score, cropType: viewModel.currentCropType)
+                                            .padding(.trailing, Theme.Spacing.large)
+                                    }
+                                    .buttonStyle(.plain)
                                 }
                             }
                             
@@ -101,15 +109,50 @@ struct DashboardView: View {
                                     .padding(.horizontal, Theme.Spacing.large)
                                 
                                 LazyVGrid(columns: columns, spacing: Theme.Spacing.medium) {
-                                    MoistureCardView(moisture: viewModel.weatherSoil?.soil.moisture.map { Int($0 * 100) })
-                                    PHLevelCardView(phLevel: viewModel.readings.first?.ph, sensorStatus: viewModel.sensorStatus)
-                                    SensorLiveCardView(reading: viewModel.readings.first, sensorStatus: viewModel.sensorStatus)
-                                    NDVICardView(ndvi: viewModel.satellite?.data?.statistics?["ndvi"]?.mean ?? viewModel.healthSummary?.score)
-                                    VegetationIndicesCardView(statistics: viewModel.satellite?.data?.statistics)
-                                    UVIndexCardView(snapshot: viewModel.uvi?.data, status: viewModel.uvi?.status)
-                                    ForecastCardView(days: viewModel.weatherSoil?.weather.forecastDays ?? [])
-                                    SensorChemistryCardView(reading: viewModel.readings.first, sensorStatus: viewModel.sensorStatus)
-                                    SoilTempCardView(surfaceTemp: viewModel.weatherSoil?.soil.surfaceTempC, depthTemp: viewModel.weatherSoil?.soil.depthTempC)
+                                    Button(action: { selectedMetricDetail = .moisture }) {
+                                        MoistureCardView(moisture: viewModel.weatherSoil?.soil.moisture.map { Int($0 * 100) })
+                                    }
+                                    .buttonStyle(.plain)
+                                    
+                                    Button(action: { selectedMetricDetail = .phLevel }) {
+                                        PHLevelCardView(phLevel: viewModel.readings.first?.ph, sensorStatus: viewModel.sensorStatus)
+                                    }
+                                    .buttonStyle(.plain)
+                                    
+                                    Button(action: { selectedMetricDetail = .liveSensor }) {
+                                        SensorLiveCardView(reading: viewModel.readings.first, sensorStatus: viewModel.sensorStatus)
+                                    }
+                                    .buttonStyle(.plain)
+                                    
+                                    Button(action: { selectedMetricDetail = .ndvi }) {
+                                        NDVICardView(ndvi: viewModel.satellite?.data?.statistics?["ndvi"]?.mean ?? viewModel.healthSummary?.score)
+                                    }
+                                    .buttonStyle(.plain)
+                                    
+                                    Button(action: { selectedMetricDetail = .vegetationIndices }) {
+                                        VegetationIndicesCardView(statistics: viewModel.satellite?.data?.statistics)
+                                    }
+                                    .buttonStyle(.plain)
+                                    
+                                    Button(action: { selectedMetricDetail = .uvIndex }) {
+                                        UVIndexCardView(snapshot: viewModel.uvi?.data, status: viewModel.uvi?.status)
+                                    }
+                                    .buttonStyle(.plain)
+                                    
+                                    Button(action: { selectedMetricDetail = .forecast }) {
+                                        ForecastCardView(days: viewModel.weatherSoil?.weather.forecastDays ?? [])
+                                    }
+                                    .buttonStyle(.plain)
+                                    
+                                    Button(action: { selectedMetricDetail = .soilChemistry }) {
+                                        SensorChemistryCardView(reading: viewModel.readings.first, sensorStatus: viewModel.sensorStatus)
+                                    }
+                                    .buttonStyle(.plain)
+                                    
+                                    Button(action: { selectedMetricDetail = .soilTemp }) {
+                                        SoilTempCardView(surfaceTemp: viewModel.weatherSoil?.soil.surfaceTempC, depthTemp: viewModel.weatherSoil?.soil.depthTempC)
+                                    }
+                                    .buttonStyle(.plain)
                                 }
                                 .padding(.horizontal, Theme.Spacing.large)
                             }
@@ -121,6 +164,11 @@ struct DashboardView: View {
                     .refreshable { await viewModel.refreshData() }
                 }
                 .navigationBarHidden(true)
+                .sheet(item: $selectedMetricDetail) { detailType in
+                    MetricDetailContainerView(type: detailType, viewModel: viewModel)
+                        .presentationDetents([.medium, .large])
+                        .presentationDragIndicator(.visible)
+                }
                 .sheet(isPresented: $showingAlerts) {
                     NavigationStack {
                         AlertsBottomSheet(
