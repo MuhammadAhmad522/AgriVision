@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
-from app.core.auth import get_current_user
+from app.core.auth import get_current_user, RequireRole
 from app.core.config import settings
 from app.core.errors import APIError
 from app.core.rate_limit import rate_limiter
@@ -171,10 +171,14 @@ async def create_field(
 @router.get("/", response_model=list[FieldResponse], include_in_schema=False)
 def get_fields(
     include_archived: bool = Query(False),
+    admin_view: bool = Query(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = db.query(Field).filter(Field.owner_id == current_user.id)
+    query = db.query(Field)
+    if not (admin_view and current_user.role == "admin"):
+        query = query.filter(Field.owner_id == current_user.id)
+        
     if not include_archived:
         query = query.filter(Field.status == "active")
     fields = query.order_by(Field.created_at.asc()).all()
@@ -239,42 +243,43 @@ def harvest_field_removed(
     raise APIError(410, "field_archiving_removed", "Field archiving is no longer supported. Update the app to permanently delete a field.")
 
 
-@router.delete("/{field_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_field(
-    field_id: UUID,
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    field = (
-        db.query(Field)
-        .filter(Field.id == field_id, Field.owner_id == current_user.id)
-        .with_for_update()
-        .first()
-    )
-    if field is None:
-        raise APIError(404, "field_not_found", "Field not found.")
-        
-    from app.models.db_models import FieldProviderLink
+def queue_field_deletion(db: Session, field: Field, background_tasks: BackgroundTasks):
+    from app.models.db_models import FieldProviderLink, Sensor
+    from app.services.scheduler import process_field_deletion_job
+
     link = db.query(FieldProviderLink).filter(FieldProviderLink.field_id == field.id, FieldProviderLink.provider == "agromonitoring").first()
     polygon_id = link.external_id if link else None
     field.status = "deleting"
-    sensor_ids = [row[0] for row in db.query(Sensor.id).filter(Sensor.field_id == field_id, Sensor.owner_id == current_user.id).all()]
+    
+    sensor_ids = [row[0] for row in db.query(Sensor.id).filter(Sensor.field_id == field.id).all()]
     if sensor_ids:
         db.query(Sensor).filter(Sensor.id.in_(sensor_ids)).delete(synchronize_session=False)
+        
     job = FieldDeletionJob(
-        field_id=field_id,
+        field_id=field.id,
         provider_polygon_id=polygon_id,
-        media_paths=[f"agro/{field_id}", f"chat/{field_id}"],
+        media_paths=[f"agro/{field.id}", f"chat/{field.id}"],
         status="pending",
     )
     db.add(job)
     db.flush()
     db.delete(field)
     db.commit()
-    from app.services.scheduler import process_field_deletion_job
-
     background_tasks.add_task(process_field_deletion_job, job.id)
+
+
+@router.delete("/{field_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_field(
+    field_id: UUID,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(RequireRole(["admin"])),
+):
+    field = db.query(Field).filter(Field.id == field_id).with_for_update().first()
+    if field is None:
+        raise APIError(404, "field_not_found", "Field not found.")
+        
+    queue_field_deletion(db, field, background_tasks)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

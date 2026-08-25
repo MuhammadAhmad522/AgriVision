@@ -14,6 +14,8 @@ struct FieldRecommendation: Codable, Identifiable, Equatable {
     var evidence: [RecommendationEvidence]? = nil
     var safetyLevel: String = "guarded"
     var requiresExpertConfirmation: Bool = false
+    var expertStatus: String = "pending" // "pending", "approved", "rejected"
+    var expertNotes: String? = nil
     let status: String       // "pending", "implemented", "ignored"
     let ndviAtGeneration: Double?
     let createdAt: Date
@@ -33,6 +35,8 @@ struct FieldRecommendation: Codable, Identifiable, Equatable {
         case evidence
         case safetyLevel = "safety_level"
         case requiresExpertConfirmation = "requires_expert_confirmation"
+        case expertStatus = "expert_status"
+        case expertNotes = "expert_notes"
         case status
         case ndviAtGeneration = "ndvi_at_generation"
         case createdAt = "created_at"

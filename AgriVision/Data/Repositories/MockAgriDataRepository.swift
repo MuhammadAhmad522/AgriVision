@@ -82,28 +82,10 @@ class MockAgriDataRepository: AgriDataService {
     /// Mock implementation for fetching fields.
     func fetchFields(includeArchived: Bool = false) async throws -> [Field] {
         try await maybeThrow("fetchFields")
-        // Return a mock field to populate the dashboard UI
-        return [
-            Field(
-                id: mockFieldID,
-                ownerId: mockOwnerID,
-                name: "Alpha Field (Mock)",
-                coordinates: [
-                    PointCoordinates(latitude: 31.5244, longitude: 74.3538),
-                    PointCoordinates(latitude: 31.5240, longitude: 74.3610),
-                    PointCoordinates(latitude: 31.5176, longitude: 74.3618),
-                    PointCoordinates(latitude: 31.5169, longitude: 74.3543)
-                ],
-                areaHa: 10.5,
-                createdAt: Date(),
-                cropType: mockCropType,
-                plantationDate: Date().addingTimeInterval(-60*60*24*30),
-                expectedHarvestDate: Date().addingTimeInterval(60*60*24*90),
-                ndviScore: 0.82,
-                lastSatelliteSync: Date()
-            )
-        ]
+        return []
     }
+
+
     
     /// Fetches mock sensor readings.
     func fetchSensorReadings(for fieldId: UUID) async throws -> [SensorReading] {
@@ -127,23 +109,7 @@ class MockAgriDataRepository: AgriDataService {
     /// Returns mock AI recommendations for UI Preview and testing.
     func fetchRecommendations(for fieldId: UUID) async throws -> [FieldRecommendation] {
         try await maybeThrow("fetchRecommendations")
-        return [
-            FieldRecommendation(
-                id: UUID(), fieldId: fieldId, category: "Irrigation", priority: "high",
-                advice: "Soil moisture is critically low at 0.19 m³/m³. Irrigate within the next 12 hours to prevent permanent wilting.",
-                confidence: 0.91, status: "pending", ndviAtGeneration: 0.23, createdAt: Date()
-            ),
-            FieldRecommendation(
-                id: UUID(), fieldId: fieldId, category: "Weather Alert", priority: "medium",
-                advice: "Heavy rain of 14mm is forecast in 48 hours. Postpone fertilizer application until after the rain event.",
-                confidence: 0.75, status: "pending", ndviAtGeneration: 0.23, createdAt: Date()
-            ),
-            FieldRecommendation(
-                id: UUID(), fieldId: fieldId, category: "Plant Health", priority: "low",
-                advice: "NDVI is stable at 0.23. Continue monitoring — health is below optimum but not declining.",
-                confidence: 0.80, status: "pending", ndviAtGeneration: 0.23, createdAt: Date()
-            )
-        ]
+        return []
     }
     
     /// Mock implementation for deleting a field.

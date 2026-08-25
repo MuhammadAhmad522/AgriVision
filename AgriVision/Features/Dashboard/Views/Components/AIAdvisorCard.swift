@@ -143,15 +143,15 @@ private struct RecommendationRow: View {
 
                         if recommendation.requiresExpertConfirmation {
                             HStack(spacing: 4) {
-                                Image(systemName: "person.badge.shield.checkmark")
+                                Image(systemName: recommendation.expertStatus == "approved" ? "checkmark.seal.fill" : (recommendation.expertStatus == "rejected" ? "xmark.seal.fill" : "person.badge.shield.checkmark"))
                                     .textStyle(.caption)
-                                Text("Agronomist Confirmation Advised")
+                                Text(recommendation.expertStatus == "approved" ? "Expert Approved" : (recommendation.expertStatus == "rejected" ? "Expert Rejected" : "Pending Expert Review"))
                                     .font(.caption2.bold())
                             }
-                            .foregroundColor(.orange)
+                            .foregroundColor(recommendation.expertStatus == "approved" ? .green : (recommendation.expertStatus == "rejected" ? .red : .orange))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Color.orange.opacity(0.1))
+                            .background((recommendation.expertStatus == "approved" ? Color.green : (recommendation.expertStatus == "rejected" ? Color.red : Color.orange)).opacity(0.1))
                             .cornerRadius(4)
                         }
                     }
@@ -172,6 +172,26 @@ private struct RecommendationRow: View {
                             Text("Evidence Basis: \(reason)")
                                 .font(.caption2.italic())
                                 .foregroundColor(.secondary)
+                        }
+                        if let notes = recommendation.expertNotes, !notes.isEmpty {
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .font(.caption2)
+                                        .foregroundColor(Theme.Colors.primaryLight)
+                                    Text("Expert Note")
+                                        .font(.caption2.bold())
+                                        .foregroundColor(Theme.Colors.primary)
+                                }
+                                Text(notes)
+                                    .textStyle(.caption)
+                                    .foregroundColor(Theme.Colors.primary.opacity(0.8))
+                            }
+                            .padding(6)
+                            .background(Color.white.opacity(0.05))
+                            .cornerRadius(4)
+                            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.Colors.primary.opacity(0.2), lineWidth: 1))
+                            .padding(.top, 4)
                         }
                     }
                     .padding(.top, 2)

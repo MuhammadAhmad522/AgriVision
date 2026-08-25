@@ -177,6 +177,8 @@ class RecommendationResponse(BaseModel):
     evidence: Optional[Any] = None
     safety_level: str = "guarded"
     requires_expert_confirmation: bool = False
+    expert_status: str = "pending"
+    expert_notes: Optional[str] = None
     status: str
     ndvi_at_generation: Optional[float] = None
     created_at: datetime
@@ -184,6 +186,13 @@ class RecommendationResponse(BaseModel):
     outcome: Optional[str] = None
     outcome_notes: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
+
+
+class RecommendationExpertValidation(StrictModel):
+    status: Literal["pending", "approved", "rejected"]
+    notes: Optional[Annotated[str, PydanticField(max_length=2000)]] = None
+
+    _clean_notes = field_validator("notes")(lambda value: clean_text(value) if value else value)
 
 
 class RecommendationFeedback(StrictModel):
@@ -231,6 +240,7 @@ class UserSchema(BaseModel):
     id: UUID
     firebase_uid: str
     email: Optional[str]
+    role: str
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
@@ -252,3 +262,22 @@ class ErrorBody(BaseModel):
 
 class ErrorEnvelope(BaseModel):
     error: ErrorBody
+
+class InvitationCreate(StrictModel):
+    email: str
+    role: str
+
+    @field_validator("role")
+    def validate_role(cls, v):
+        allowed_roles = ["admin", "agronomist"]
+        if v not in allowed_roles:
+            raise ValueError(f"Role must be one of {allowed_roles}")
+        return v
+
+class InvitationResponse(BaseModel):
+    id: UUID
+    email: str
+    role: str
+    status: str
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)

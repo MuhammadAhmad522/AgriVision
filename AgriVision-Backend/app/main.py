@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from firebase_admin import credentials
 from sqlalchemy import text
 
-from app.api import chat, export, fields, recommendations, satellite, sensors, session
+from app.api import chat, export, fields, recommendations, satellite, sensors, session, invitations
 from app.core.config import settings
 from app.core.errors import APIError, error_payload
 from app.database import engine
@@ -83,14 +83,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title=settings.PROJECT_NAME, version="1.0.0", lifespan=lifespan)
 
-if settings.allowed_origins:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.allowed_origins,
-        allow_credentials=False,
-        allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
-        allow_headers=["Authorization", "Content-Type", "X-Request-ID", "Idempotency-Key"],
-    )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.allowed_origins if settings.allowed_origins else ["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.middleware("http")
@@ -137,7 +136,11 @@ async def unhandled_error_handler(request: Request, exc: Exception):
     return JSONResponse(status_code=500, content=error_payload(error, request.state.request_id))
 
 
-for router in (session.router, fields.router, sensors.router, recommendations.router, chat.router, satellite.router, export.router):
+from app.api import chat, export, fields, recommendations, satellite, sensors, session, invitations, admin
+
+# ... (rest of imports are fine, but since we are just replacing line 139-140) ...
+
+for router in (session.router, fields.router, sensors.router, recommendations.router, chat.router, satellite.router, export.router, invitations.router, admin.router):
     app.include_router(router)
 
 

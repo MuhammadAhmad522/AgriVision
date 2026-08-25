@@ -12,13 +12,19 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     text,
+    Enum,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.database import Base
+import enum
 
+class UserRole(str, enum.Enum):
+    admin = "admin"
+    agronomist = "agronomist"
+    mobile_user = "mobile_user"
 
 class User(Base):
     __tablename__ = "users"
@@ -26,9 +32,26 @@ class User(Base):
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     firebase_uid = Column(String(128), unique=True, index=True, nullable=False)
     email = Column(String(320), unique=True, index=True)
+    role = Column(Enum(UserRole, name="userrole", create_type=False), nullable=False, default=UserRole.mobile_user)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     fields = relationship("Field", back_populates="owner")
+    invitations_sent = relationship("Invitation", back_populates="invited_by", foreign_keys="[Invitation.invited_by_id]")
+
+
+class Invitation(Base):
+    __tablename__ = "invitations"
+
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email = Column(String(320), index=True, nullable=False)
+    role = Column(Enum(UserRole, name="userrole", create_type=False), nullable=False)
+    status = Column(String(20), nullable=False, default="pending", index=True) # pending, accepted, revoked
+    invited_by_id = Column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    
+    invited_by = relationship("User", back_populates="invitations_sent", foreign_keys=[invited_by_id])
+
+
 
 
 class Field(Base):
@@ -180,6 +203,8 @@ class FieldRecommendation(Base):
     confidence_reason = Column(String(500))
     safety_level = Column(String(20), nullable=False, default="guarded")
     requires_expert_confirmation = Column(Boolean, nullable=False, default=False)
+    expert_status = Column(String(20), nullable=False, default="pending")
+    expert_notes = Column(Text)
     status = Column(String(20), nullable=False, default="pending")
     ndvi_at_generation = Column(Float)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

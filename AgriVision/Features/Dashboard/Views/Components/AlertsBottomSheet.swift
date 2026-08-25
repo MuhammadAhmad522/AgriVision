@@ -43,6 +43,7 @@ struct AlertsBottomSheet: View {
                         Label("Ask AI", systemImage: "sparkles")
                     }
                 }
+                .buttonStyle(.borderless)
                 if viewModel.recommendations.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(spacing: 8) {
@@ -107,6 +108,7 @@ struct AlertsBottomSheet: View {
                                     Button("Ignore", role: .destructive) { Task { await viewModel.updateFeedback(recommendation, status: "ignored") } }
                                 }
                                 .textStyle(.caption)
+                                .buttonStyle(.borderless)
                             } else {
                                 Text(recommendation.status.capitalized).textStyle(.caption).foregroundStyle(.secondary)
                                 if recommendation.status == "implemented" && recommendation.outcome == nil {

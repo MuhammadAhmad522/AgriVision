@@ -16,22 +16,15 @@ logger = logging.getLogger(__name__)
 security = HTTPBearer(auto_error=False)
 
 
+from fastapi import Depends, Request
+
 async def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
     db: Session = Depends(get_db),
 ) -> User:
     if credentials is None or credentials.scheme.lower() != "bearer":
         raise APIError(401, "authentication_required", "Please sign in to continue.")
-
-    if settings.ENVIRONMENT == "development" and credentials.credentials.startswith("MOCK_"):
-        uid = f"dev-user-{credentials.credentials.lower()}"
-        user = db.query(User).filter(User.firebase_uid == uid).first()
-        if user is None:
-            user = User(firebase_uid=uid, email="dev.farmer@agrivision.local")
-            db.add(user)
-            db.commit()
-            db.refresh(user)
-        return user
 
     try:
         firebase_admin.get_app()
@@ -83,6 +76,25 @@ async def get_current_user(
             db.refresh(user)
 
     if user is None:
+        client = request.headers.get("X-Client", "unknown").lower()
+        if client == "web":
+            # Allow if they have a pending invitation
+            from app.models.db_models import Invitation
+            pending_invite = None
+            if email:
+                pending_invite = db.query(Invitation).filter(
+                    Invitation.email == email,
+                    Invitation.status == "pending"
+                ).first()
+                
+            if not pending_invite:
+                # Unauthorized web signup. Delete the orphaned Firebase user to keep the console clean.
+                try:
+                    auth.delete_user(uid)
+                except Exception as e:
+                    logger.warning(f"Failed to delete unauthorized Firebase user {uid}: {e}")
+                raise APIError(403, "forbidden", "Access Denied. You are not authorized to access this portal.")
+            
         user = User(firebase_uid=uid, email=email)
         db.add(user)
         db.commit()
@@ -92,3 +104,13 @@ async def get_current_user(
         db.commit()
         db.refresh(user)
     return user
+
+class RequireRole:
+    def __init__(self, allowed_roles: list[str]):
+        self.allowed_roles = allowed_roles
+
+    def __call__(self, user: User = Depends(get_current_user)) -> User:
+        if user.role not in self.allowed_roles and user.role != "admin":
+            raise APIError(403, "forbidden", "You do not have permission to perform this action.")
+        return user
+

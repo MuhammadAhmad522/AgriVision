@@ -9,7 +9,7 @@ from app.core.errors import APIError
 from app.core.rate_limit import rate_limiter
 from app.database import get_db
 from app.models.db_models import FieldRecommendation, User
-from app.schemas.pydantic_schemas import RecommendationFeedback, RecommendationOutcome, RecommendationResponse
+from app.schemas.pydantic_schemas import RecommendationFeedback, RecommendationOutcome, RecommendationResponse, RecommendationExpertValidation
 
 router = APIRouter(tags=["AI Recommendations"])
 
@@ -57,6 +57,48 @@ def update_feedback(recommendation_id: UUID, feedback: RecommendationFeedback, d
 @router.put("/api/fields/{field_id}/recommendations/{recommendation_id}/feedback", response_model=RecommendationResponse, include_in_schema=False)
 def update_feedback_compat(field_id: UUID, recommendation_id: UUID, feedback: RecommendationFeedback, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     return _apply_feedback(recommendation_id, feedback, db, current_user, field_id)
+
+
+@router.get("/api/recommendations/expert/pending", response_model=list[RecommendationResponse])
+def get_expert_pending_recommendations(
+    limit: int = Query(50, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role != "agronomist":
+        raise APIError(403, "forbidden", "Only agronomists can view global pending recommendations.")
+    return (
+        db.query(FieldRecommendation)
+        .filter(FieldRecommendation.expert_status == "pending")
+        .filter(FieldRecommendation.requires_expert_confirmation == True)
+        .filter(FieldRecommendation.status != "superseded")
+        .order_by(FieldRecommendation.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+
+@router.post("/api/recommendations/{recommendation_id}/expert-validate", response_model=RecommendationResponse)
+def expert_validate(
+    recommendation_id: UUID,
+    validation: RecommendationExpertValidation,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role != "agronomist":
+        raise APIError(403, "forbidden", "Only agronomists can perform expert validation.")
+    
+    recommendation = db.query(FieldRecommendation).filter(FieldRecommendation.id == recommendation_id).first()
+    if recommendation is None:
+        raise APIError(404, "recommendation_not_found", "Recommendation not found.")
+    
+    recommendation.expert_status = validation.status
+    if validation.notes is not None:
+        recommendation.expert_notes = validation.notes
+        
+    db.commit()
+    db.refresh(recommendation)
+    return recommendation
 
 
 @router.post("/api/recommendations/{recommendation_id}/outcome", response_model=RecommendationResponse)

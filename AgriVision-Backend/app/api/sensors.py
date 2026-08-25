@@ -11,9 +11,22 @@ from app.core.errors import APIError
 from app.core.rate_limit import rate_limiter
 from app.database import get_db
 from app.models.db_models import Sensor, SensorReading, SensorReadingHourly, User
-from app.schemas.pydantic_schemas import SensorPairRequest, SensorPairResponse, SensorReadingDB, SensorReadingHourlyDB
+from app.schemas.pydantic_schemas import SensorPairRequest, SensorPairResponse, SensorReadingDB, SensorReadingHourlyDB, SensorResponse
 
 router = APIRouter(prefix="/api", tags=["Sensors"])
+
+
+@router.get("/sensors", response_model=list[SensorResponse])
+def get_sensors(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return (
+        db.query(Sensor)
+        .filter(Sensor.owner_id == current_user.id)
+        .order_by(Sensor.name.asc().nulls_last(), Sensor.device_id.asc())
+        .all()
+    )
 
 
 @router.get("/fields/{field_id}/sensor-readings")
