@@ -50,6 +50,7 @@ class FieldSelectionViewModel: NSObject, ObservableObject {
     
     var onConfirmField: (([CLLocationCoordinate2D]) -> Void)?
     var onCancel: (() -> Void)?
+    var onSignOut: (() -> Void)?
     
     // MARK: - Initialization
     
@@ -276,6 +277,11 @@ class FieldSelectionViewModel: NSObject, ObservableObject {
     /// Typically used to dismiss the current view or reset the state.
     func cancelSelection() {
         onCancel?()
+    }
+
+    func signOut() {
+        try? authService.signOut()
+        onSignOut?()
     }
     
     /// Moves the map to a specific location and updates the search state.

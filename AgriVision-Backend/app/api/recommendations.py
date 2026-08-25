@@ -3,8 +3,8 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.fields import owned_field
-from app.core.auth import get_current_user
+from app.api.fields import field_readable_by, owned_field
+from app.core.auth import RequireRole, get_current_user
 from app.core.errors import APIError
 from app.core.rate_limit import rate_limiter
 from app.database import get_db
@@ -22,7 +22,7 @@ def get_recommendations(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    owned_field(db, current_user, field_id)
+    field_readable_by(db, current_user, field_id)
     return (
         db.query(FieldRecommendation)
         .filter(FieldRecommendation.field_id == field_id, FieldRecommendation.status != "superseded")
@@ -63,10 +63,8 @@ def update_feedback_compat(field_id: UUID, recommendation_id: UUID, feedback: Re
 def get_expert_pending_recommendations(
     limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(RequireRole(["agronomist"])),
 ):
-    if current_user.role != "agronomist":
-        raise APIError(403, "forbidden", "Only agronomists can view global pending recommendations.")
     return (
         db.query(FieldRecommendation)
         .filter(FieldRecommendation.expert_status == "pending")
@@ -83,15 +81,15 @@ def expert_validate(
     recommendation_id: UUID,
     validation: RecommendationExpertValidation,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(RequireRole(["agronomist"])),
 ):
-    if current_user.role != "agronomist":
-        raise APIError(403, "forbidden", "Only agronomists can perform expert validation.")
-    
     recommendation = db.query(FieldRecommendation).filter(FieldRecommendation.id == recommendation_id).first()
     if recommendation is None:
         raise APIError(404, "recommendation_not_found", "Recommendation not found.")
-    
+    # Staff can review any recommendation on a field they can read, not only ones the
+    # AI already flagged with requires_expert_confirmation.
+    field_readable_by(db, current_user, recommendation.field_id)
+
     recommendation.expert_status = validation.status
     if validation.notes is not None:
         recommendation.expert_notes = validation.notes
@@ -126,13 +124,17 @@ def record_outcome(
 
 @router.post("/api/fields/{field_id}/recommendations", response_model=list[RecommendationResponse])
 @router.post("/api/fields/{field_id}/recommendations/refresh/", response_model=list[RecommendationResponse], include_in_schema=False)
-def trigger_refresh(
+async def trigger_refresh(
     field_id: UUID,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    owned_field(db, current_user, field_id, include_archived=False)
+    # Triggering a re-analysis is a request for the AI to reconsider, not a farmer-only
+    # mutation, so staff reviewing a field (e.g. right after leaving agronomist guidance)
+    # can trigger it too.
+    field_readable_by(db, current_user, field_id, include_archived=False)
+    await rate_limiter.check(f"ai-refresh:{current_user.firebase_uid}:{field_id}", 10, 3600)
     from app.services.scheduler import run_ai_by_field_id
 
     background_tasks.add_task(run_ai_by_field_id, field_id, force=True)

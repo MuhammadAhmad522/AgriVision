@@ -98,6 +98,17 @@ struct AlertsBottomSheet: View {
                             if let rationale = recommendation.rationale {
                                 Text(rationale).textStyle(.caption).foregroundStyle(.secondary)
                             }
+                            if let evidence = recommendation.evidence, !evidence.isEmpty {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    ForEach(evidence) { source in
+                                        if let urlString = source.url, let url = URL(string: urlString) {
+                                            Link(urlString, destination: url)
+                                                .textStyle(.caption)
+                                                .lineLimit(1)
+                                        }
+                                    }
+                                }
+                            }
                             if recommendation.requiresExpertConfirmation {
                                 Label("Expert confirmation required", systemImage: "person.badge.shield.checkmark")
                                     .textStyle(.captionStrong).foregroundStyle(.orange)

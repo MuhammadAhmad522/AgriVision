@@ -32,6 +32,7 @@ class SensorIntegrationViewModel: ObservableObject {
     
     var onSetupSuccess: (() -> Void)?
     var onBack: (() -> Void)?
+    var onSignOut: (() -> Void)?
     
     init(dataService: AgriDataService, authService: AuthService, fieldData: FieldSelectionData) {
         self.dataService = dataService
@@ -58,7 +59,12 @@ class SensorIntegrationViewModel: ObservableObject {
     }
     
     // MARK: - Actions
-    
+
+    func signOut() {
+        try? authService.signOut()
+        onSignOut?()
+    }
+
     func verifyHardware() {
         guard !pairingCode.trimmingCharacters(in: .whitespaces).isEmpty else {
             errorMessage = "Please enter a Pairing Code to verify."

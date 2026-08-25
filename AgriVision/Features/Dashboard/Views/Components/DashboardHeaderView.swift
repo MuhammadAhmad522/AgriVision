@@ -7,6 +7,7 @@ struct DashboardHeaderView: View {
     var profileInitial: String
     @Binding var showNotifications: Bool
     var notificationCount: Int
+    var onSignOut: () -> Void
     var body: some View {
         VStack(spacing: 8) {
             HStack(spacing: 12) {
@@ -56,41 +57,8 @@ struct DashboardHeaderView: View {
                 .layoutPriority(1)
                 
                 // Avatar
-                if let url = profileImageURL {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .empty:
-                            ProgressView()
-                        case .success(let image):
-                            image.resizable()
-                                 .aspectRatio(contentMode: .fill)
-                        case .failure:
-                            Image(systemName: "person.crop.circle.fill")
-                                .foregroundColor(.gray)
-                        @unknown default:
-                            EmptyView()
-                        }
-                    }
-                    .frame(width: 40, height: 40)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.white, lineWidth: 2))
-                    .shadow(radius: 2)
+                UserAvatarView(profileImageURL: profileImageURL, profileInitial: profileInitial, onSignOut: onSignOut)
                     .layoutPriority(1)
-                    
-                } else {
-                    ZStack {
-                        Circle()
-                            .fill(Theme.Colors.primaryMedium)
-                        
-                        Text(profileInitial)
-                            .textStyle(.bodyStrong)
-                            .foregroundColor(.white)
-                    }
-                    .frame(width: 40, height: 40)
-                    .overlay(Circle().stroke(Color.white, lineWidth: 2))
-                    .shadow(radius: 2)
-                    .layoutPriority(1)
-                }
             }
             
             HStack {

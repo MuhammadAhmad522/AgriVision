@@ -12,6 +12,7 @@ struct FieldsView: View {
     let profileImageURL: URL?
     let profileInitial: String
     let onAddField: () -> Void
+    let onSignOut: () -> Void
 
     @State private var cameraPosition: MapCameraPosition = .automatic
 
@@ -83,13 +84,7 @@ struct FieldsView: View {
     }
 
     @ViewBuilder private var avatar: some View {
-        if let profileImageURL {
-            AsyncImage(url: profileImageURL) { image in image.resizable().scaledToFill() } placeholder: { ProgressView() }
-                .frame(width: 46, height: 46).clipShape(Circle())
-        } else {
-            Circle().fill(Theme.Colors.primaryMedium).frame(width: 46, height: 46)
-                .overlay(Text(profileInitial.isEmpty ? "U" : profileInitial).foregroundStyle(.white).bold())
-        }
+        UserAvatarView(profileImageURL: profileImageURL, profileInitial: profileInitial, size: 46, onSignOut: onSignOut)
     }
 
     private var summaryCard: some View {

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import type { Field, SensorDevice, DashboardSources, AIRecommendation } from '../types';
+import type { Field, SensorDevice, DashboardPayload } from '../types';
 import { fieldService } from '../services/FieldService';
 import { sensorService } from '../services/SensorService';
 import { advisoryService } from '../services/AdvisoryService';
@@ -9,10 +9,11 @@ interface FarmContextType {
   fields: Field[];
   activeField: Field | null;
   setActiveField: (field: Field) => void;
-  dashboardData: { sources: DashboardSources; recommendations: AIRecommendation[] } | null;
+  dashboardData: DashboardPayload | null;
   sensors: SensorDevice[];
   loading: boolean;
   refreshData: () => Promise<void>;
+  refreshActiveFieldData: () => Promise<void>;
   activeTab: string;
   setActiveTab: (tab: string) => void;
 }
@@ -21,9 +22,10 @@ const FarmContext = createContext<FarmContextType | undefined>(undefined);
 
 export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
+  const isStaff = user?.role === 'admin' || user?.role === 'agronomist';
   const [fields, setFields] = useState<Field[]>([]);
   const [activeField, setActiveField] = useState<Field | null>(null);
-  const [dashboardData, setDashboardData] = useState<{ sources: DashboardSources; recommendations: AIRecommendation[] } | null>(null);
+  const [dashboardData, setDashboardData] = useState<DashboardPayload | null>(null);
   const [sensors, setSensors] = useState<SensorDevice[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('gis');
@@ -33,16 +35,17 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
       return;
     }
-    
+
     setLoading(true);
     try {
-      const fieldList = await fieldService.getFields();
+      // Staff (admin/agronomist) review every farmer's fields, not just their own.
+      const fieldList = isStaff ? await fieldService.getAllFields() : await fieldService.getFields();
       setFields(fieldList);
-      
+
       // We only set the active field if it's not already set, or if we want to ensure it's valid.
       // The actual dashboard/recommendation data hydration is handled exclusively by the activeField useEffect.
       setActiveField((prev) => prev || fieldList[0] || null);
-      
+
       const sensorList = await sensorService.getDevices();
       setSensors(sensorList);
     } catch (err) {
@@ -50,7 +53,16 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, isStaff]);
+
+  const loadActiveFieldData = useCallback(async () => {
+    if (!activeField) return;
+    const [dashboard, recs] = await Promise.all([
+      fieldService.getFieldDashboard(activeField.id),
+      advisoryService.getRecommendations(activeField.id)
+    ]);
+    setDashboardData({ sources: dashboard.sources, advisor: dashboard.advisor, recommendations: recs });
+  }, [activeField]);
 
   useEffect(() => {
     if (user) {
@@ -59,15 +71,8 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [user]);
 
   useEffect(() => {
-    if (activeField) {
-      Promise.all([
-        fieldService.getFieldDashboard(activeField.id),
-        advisoryService.getRecommendations(activeField.id)
-      ]).then(([dashboard, recs]) => {
-        setDashboardData({ sources: dashboard.sources, recommendations: recs });
-      });
-    }
-  }, [activeField]);
+    loadActiveFieldData();
+  }, [loadActiveFieldData]);
 
   return (
     <FarmContext.Provider
@@ -79,6 +84,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
         sensors,
         loading,
         refreshData,
+        refreshActiveFieldData: loadActiveFieldData,
         activeTab,
         setActiveTab
       }}

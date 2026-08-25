@@ -46,7 +46,7 @@ def test_get_recommendations_returns_list(client):
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_current_user] = lambda: user
 
-    with patch("app.api.recommendations.owned_field", return_value=MagicMock()):
+    with patch("app.api.recommendations.field_readable_by", return_value=MagicMock()):
         response = client.get(f"/api/fields/{field_id}/recommendations")
 
     assert response.status_code == 200
@@ -61,7 +61,8 @@ def _make_recommendation(**overrides):
         id=uuid4(), field_id=uuid4(), category="irrigation", priority="high",
         advice="Water now", rationale=None, confidence=None,
         confidence_reason=None, evidence=None, safety_level="guarded",
-        requires_expert_confirmation=False, status="pending",
+        requires_expert_confirmation=False, expert_status="pending", expert_notes=None,
+        status="pending",
         ndvi_at_generation=None, created_at=now, expires_at=None,
         outcome=None, outcome_notes=None,
     )
@@ -159,7 +160,7 @@ def test_trigger_refresh(client):
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_current_user] = lambda: user
 
-    with patch("app.api.recommendations.owned_field", return_value=MagicMock()):
+    with patch("app.api.recommendations.field_readable_by", return_value=MagicMock()):
         with patch("app.services.scheduler.run_ai_by_field_id", return_value=None):
             response = client.post(f"/api/fields/{field_id}/recommendations")
 

@@ -329,6 +329,82 @@ async def test_ai_run_handles_provider_failure():
 
 
 @pytest.mark.asyncio
+async def test_ai_run_skips_when_within_ai_hours_override():
+    db = SessionLocal()
+    try:
+        field_id, _ = _seed_field_and_data(db)
+        _add_observation(db, field_id.hex, "soil_current", {"moisture": 0.35})
+        recent_run_id = uuid.uuid4().hex
+        db.execute(
+            text("""INSERT INTO ai_analysis_runs (id, field_id, provider, status, started_at, completed_at)
+                     VALUES (:id, :fid, :prov, :status, :started, :completed)"""),
+            {"id": recent_run_id, "fid": field_id.hex, "prov": "gemini", "status": "completed",
+             "started": datetime.now(timezone.utc) - timedelta(hours=1),
+             "completed": datetime.now(timezone.utc) - timedelta(hours=1)},
+        )
+        db.commit()
+
+        field = _make_field(field_id)
+        field.interval_overrides = {"ai_hours": 24}
+
+        provider = _mock_provider()
+
+        with (
+            patch("app.services.scheduler._acquire_source_lock", return_value=True),
+            patch("app.services.scheduler.get_ai_provider", return_value=provider),
+        ):
+            from app.services.scheduler import run_ai_for_field
+            await run_ai_for_field(field, db)
+        db.commit()
+
+        provider.recommendations.assert_not_called()
+
+        from app.models.db_models import AIAnalysisRun
+        run_count = db.query(AIAnalysisRun).filter(AIAnalysisRun.field_id == field_id).count()
+        assert run_count == 1  # only the seeded recent run, nothing new
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_ai_run_force_bypasses_ai_hours_override():
+    db = SessionLocal()
+    try:
+        field_id, _ = _seed_field_and_data(db)
+        _add_observation(db, field_id.hex, "soil_current", {"moisture": 0.35})
+        recent_run_id = uuid.uuid4().hex
+        db.execute(
+            text("""INSERT INTO ai_analysis_runs (id, field_id, provider, status, started_at, completed_at)
+                     VALUES (:id, :fid, :prov, :status, :started, :completed)"""),
+            {"id": recent_run_id, "fid": field_id.hex, "prov": "gemini", "status": "completed",
+             "started": datetime.now(timezone.utc) - timedelta(hours=1),
+             "completed": datetime.now(timezone.utc) - timedelta(hours=1)},
+        )
+        db.commit()
+
+        field = _make_field(field_id)
+        field.interval_overrides = {"ai_hours": 24}
+
+        provider = _mock_provider()
+
+        with (
+            patch("app.services.scheduler._acquire_source_lock", return_value=True),
+            patch("app.services.scheduler.get_ai_provider", return_value=provider),
+        ):
+            from app.services.scheduler import run_ai_for_field
+            await run_ai_for_field(field, db, force=True)
+        db.commit()
+
+        provider.recommendations.assert_called_once()
+
+        from app.models.db_models import AIAnalysisRun
+        run_count = db.query(AIAnalysisRun).filter(AIAnalysisRun.field_id == field_id).count()
+        assert run_count == 2
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
 async def test_ai_run_insufficient_data_quality():
     db = SessionLocal()
     try:

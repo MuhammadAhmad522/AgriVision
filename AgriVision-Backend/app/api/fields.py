@@ -25,6 +25,7 @@ from app.models.db_models import (
     Sensor,
     SensorReading,
     User,
+    UserRole,
 )
 from app.schemas.pydantic_schemas import FieldResponse, FieldUpdate, FieldWithSensorsCreate, SensorCreate, SensorResponse
 
@@ -78,6 +79,23 @@ def owned_field(db: Session, user: User, field_id: UUID, *, include_archived: bo
         query = query.filter(Field.status == "active")
     field = query.first()
     if field is None:
+        raise APIError(404, "field_not_found", "Field not found.")
+    return field
+
+
+def field_readable_by(db: Session, user: User, field_id: UUID, *, include_archived: bool = True) -> Field:
+    """Like owned_field, but also allows staff (admin/agronomist) read-only access to any field.
+
+    Only use this for GET/read endpoints. Every write action stays on owned_field so staff
+    never act as the farmer.
+    """
+    query = db.query(Field).filter(Field.id == field_id)
+    if not include_archived:
+        query = query.filter(Field.status == "active")
+    field = query.first()
+    if field is None:
+        raise APIError(404, "field_not_found", "Field not found.")
+    if field.owner_id != user.id and user.role not in (UserRole.admin, UserRole.agronomist):
         raise APIError(404, "field_not_found", "Field not found.")
     return field
 
@@ -176,7 +194,7 @@ def get_fields(
     current_user: User = Depends(get_current_user),
 ):
     query = db.query(Field)
-    if not (admin_view and current_user.role == "admin"):
+    if not (admin_view and current_user.role in (UserRole.admin, UserRole.agronomist)):
         query = query.filter(Field.owner_id == current_user.id)
         
     if not include_archived:

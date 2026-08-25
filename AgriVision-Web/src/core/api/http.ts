@@ -42,10 +42,10 @@ export class HttpClient {
     return await res.json();
   }
 
-  async post<T>(endpoint: string, body?: any): Promise<T> {
+  async post<T>(endpoint: string, body?: any, options?: { headers?: Record<string, string> }): Promise<T> {
     const res = await fetch(`${this.baseURL}${endpoint}`, {
       method: 'POST',
-      headers: await this.getAuthHeaders(),
+      headers: { ...(await this.getAuthHeaders()), ...(options?.headers || {}) },
       body: body ? JSON.stringify(body) : undefined
     });
 

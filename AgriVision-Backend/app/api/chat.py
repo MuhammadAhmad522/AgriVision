@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, File, Form, Header, Query, Response, Upl
 from sqlalchemy import case, text
 from sqlalchemy.orm import Session
 
-from app.api.fields import owned_field
+from app.api.fields import field_readable_by, owned_field
 from app.core.auth import get_current_user
 from app.core.config import settings
 from app.core.errors import APIError
@@ -21,10 +21,10 @@ from app.services.chat_media_service import SanitizedImage, get_chat_media_stora
 router = APIRouter(prefix="/api/fields/{field_id}/chat", tags=["Chat"])
 
 
-def _thread_for_field(db: Session, field_id: UUID) -> AIChatThread:
-    thread = db.query(AIChatThread).filter(AIChatThread.field_id == field_id).first()
+def _thread_for_field(db: Session, field_id: UUID, channel: str = "farmer") -> AIChatThread:
+    thread = db.query(AIChatThread).filter(AIChatThread.field_id == field_id, AIChatThread.channel == channel).first()
     if thread is None:
-        thread = AIChatThread(field_id=field_id)
+        thread = AIChatThread(field_id=field_id, channel=channel)
         db.add(thread)
         db.flush()
     return thread
@@ -73,9 +73,9 @@ def _lock_turn(db: Session, field_id: UUID, key: str) -> None:
     db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock_key})
 
 
-def _update_rolling_summary(thread: AIChatThread, user_text: str, assistant_text: str) -> None:
+def _update_rolling_summary(thread: AIChatThread, user_text: str, assistant_text: str, speaker: str = "Farmer") -> None:
     user_excerpt = user_text.strip() or "[field image submitted]"
-    turn = f"Farmer: {user_excerpt[:800]}\nAdvisor: {assistant_text.strip()[:1600]}"
+    turn = f"{speaker}: {user_excerpt[:800]}\nAdvisor: {assistant_text.strip()[:1600]}"
     combined = f"{thread.rolling_summary}\n\n{turn}" if thread.rolling_summary else turn
     # Bound database/prompt growth while retaining the newest decisions and context.
     thread.rolling_summary = combined[-6000:]
@@ -89,7 +89,7 @@ def get_history(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    owned_field(db, current_user, field_id)
+    field_readable_by(db, current_user, field_id)
     thread = _thread_for_field(db, field_id)
     query = db.query(AIChatMessage).filter(AIChatMessage.thread_id == thread.id)
     if before:
@@ -113,7 +113,7 @@ def get_attachment(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    owned_field(db, current_user, field_id)
+    field_readable_by(db, current_user, field_id)
     attachment = db.query(ChatAttachment).join(AIChatMessage).filter(
         ChatAttachment.id == attachment_id,
         AIChatMessage.thread_id == _thread_for_field(db, field_id).id

@@ -7,6 +7,10 @@ import SwiftUI
 struct AIAdvisorCard: View {
     let recommendations: [FieldRecommendation]
     let isLoading: Bool
+    var advisorStatus: String = "pending"
+    var advisorMessage: String? = nil
+    var advisorDataQuality: String? = nil
+    var onRetry: (() -> Void)? = nil
 
     var body: some View {
         GlassCard(title: "🤖 AI Field Advisor") {
@@ -18,22 +22,36 @@ struct AIAdvisorCard: View {
                     }
                 }
             } else if recommendations.isEmpty {
-                VStack(spacing: 10) {
-                    Image(systemName: "brain.head.profile")
-                        .textStyle(.title1)
-                        .foregroundColor(Theme.Colors.primaryMedium.opacity(0.5))
-                    Text("AI is analyzing your field data…")
-                        .textStyle(.body)
-                        .foregroundColor(Theme.Colors.primary.opacity(0.5))
-                    Text("Recommendations will appear after the next satellite sync.")
-                        .textStyle(.caption)
-                        .multilineTextAlignment(.center)
-                        .foregroundColor(Theme.Colors.primary.opacity(0.4))
+                if advisorStatus == "unavailable" {
+                    AdvisorErrorState(
+                        message: advisorMessage ?? "AI Advisor could not complete the latest analysis.",
+                        dataQuality: advisorDataQuality,
+                        onRetry: onRetry
+                    )
+                } else {
+                    VStack(spacing: 10) {
+                        Image(systemName: "brain.head.profile")
+                            .textStyle(.title1)
+                            .foregroundColor(Theme.Colors.primaryMedium.opacity(0.5))
+                        Text(advisorMessage ?? "AI is analyzing your field data…")
+                            .textStyle(.body)
+                            .foregroundColor(Theme.Colors.primary.opacity(0.5))
+                        Text("Recommendations will appear after the next satellite sync.")
+                            .textStyle(.caption)
+                            .multilineTextAlignment(.center)
+                            .foregroundColor(Theme.Colors.primary.opacity(0.4))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
             } else {
                 VStack(spacing: 10) {
+                    if advisorStatus == "stale" || advisorStatus == "unavailable" {
+                        AdvisorStaleBanner(
+                            message: advisorMessage ?? "Showing the last successful advice while AI retries.",
+                            onRetry: onRetry
+                        )
+                    }
                     ForEach(Array(recommendations.enumerated()), id: \.element.id) { index, rec in
                         RecommendationRow(recommendation: rec)
                         if index < recommendations.count - 1 {
@@ -44,6 +62,60 @@ struct AIAdvisorCard: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Advisor Error / Stale States
+
+private struct AdvisorErrorState: View {
+    let message: String
+    let dataQuality: String?
+    let onRetry: (() -> Void)?
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .textStyle(.title1)
+                .foregroundColor(.orange.opacity(0.8))
+            Text(message)
+                .textStyle(.body)
+                .multilineTextAlignment(.center)
+                .foregroundColor(Theme.Colors.primary.opacity(0.7))
+            if let dataQuality {
+                Text("Evidence quality: \(dataQuality.capitalized)")
+                    .textStyle(.caption)
+                    .foregroundColor(Theme.Colors.primary.opacity(0.4))
+            }
+            if let onRetry {
+                Button("Retry analysis", action: onRetry)
+                    .textStyle(.captionStrong)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+    }
+}
+
+private struct AdvisorStaleBanner: View {
+    let message: String
+    let onRetry: (() -> Void)?
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "clock.arrow.trianglehead.counterclockwise.rotate.90")
+                .textStyle(.caption)
+            Text(message)
+                .textStyle(.caption)
+            Spacer()
+            if let onRetry {
+                Button("Retry", action: onRetry)
+                    .textStyle(.captionStrong)
+            }
+        }
+        .foregroundColor(.orange)
+        .padding(8)
+        .background(Color.orange.opacity(0.1))
+        .cornerRadius(8)
     }
 }
 
@@ -172,6 +244,25 @@ private struct RecommendationRow: View {
                             Text("Evidence Basis: \(reason)")
                                 .font(.caption2.italic())
                                 .foregroundColor(.secondary)
+                        }
+                        if let evidence = recommendation.evidence, !evidence.isEmpty {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Sources:")
+                                    .font(.caption2.bold())
+                                    .foregroundColor(Theme.Colors.primary.opacity(0.6))
+                                ForEach(evidence) { source in
+                                    if let urlString = source.url, let url = URL(string: urlString) {
+                                        Link(destination: url) {
+                                            Text(urlString)
+                                                .font(.caption2)
+                                                .foregroundColor(.blue)
+                                                .underline()
+                                                .lineLimit(1)
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(.top, 2)
                         }
                         if let notes = recommendation.expertNotes, !notes.isEmpty {
                             VStack(alignment: .leading, spacing: 2) {

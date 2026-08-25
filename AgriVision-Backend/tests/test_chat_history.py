@@ -87,7 +87,7 @@ def test_get_history_returns_paginated_messages(client, mock_db):
     field_id = uuid4()
     messages = [_make_message("model", "Hello!"), _make_message("user", "Hi")]
 
-    with patch("app.api.chat.owned_field"):
+    with patch("app.api.chat.field_readable_by"):
         _configure_db_query(mock_db, messages)
         response = client.get(f"/api/fields/{field_id}/chat")
 
@@ -106,7 +106,7 @@ def test_get_history_with_before_parameter(client, mock_db):
     before = datetime.now(timezone.utc)
     messages = [_make_message("user", "Older message")]
 
-    with patch("app.api.chat.owned_field"):
+    with patch("app.api.chat.field_readable_by"):
         mock_query, mock_field_filtered = _configure_db_query(mock_db, messages)
         mock_before_filtered = MagicMock()
         mock_ordered = MagicMock()
@@ -143,7 +143,7 @@ def test_get_attachment_with_valid_attachment(client, mock_db):
     attachment.height = 600
     attachment.sha256 = "abc123"
 
-    with patch("app.api.chat.owned_field"):
+    with patch("app.api.chat.field_readable_by"):
         mock_query = MagicMock()
         mock_query.join.return_value.filter.return_value.first.return_value = attachment
 
@@ -168,7 +168,7 @@ def test_get_attachment_with_nonexistent_attachment(client, mock_db):
     field_id = uuid4()
     attachment_id = uuid4()
 
-    with patch("app.api.chat.owned_field"):
+    with patch("app.api.chat.field_readable_by"):
         mock_query = MagicMock()
         mock_filtered = MagicMock()
         mock_query.filter.return_value = mock_filtered

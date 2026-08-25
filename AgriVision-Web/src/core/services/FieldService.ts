@@ -1,13 +1,18 @@
 import { http } from '../api/http';
-import type { Field, DashboardSources } from '../types';
+import type { DashboardPayload, Field } from '../types';
 
 export class FieldService {
   async getFields(): Promise<Field[]> {
     return await http.get<Field[]>('/api/fields');
   }
 
-  async getFieldDashboard(fieldId: string): Promise<{ sources: DashboardSources; recommendations: any[] }> {
-    return await http.get<{ sources: DashboardSources; recommendations: any[] }>(`/api/fields/${fieldId}/dashboard`);
+  /** Staff-only: browse every field, not just ones the current user owns. */
+  async getAllFields(): Promise<Field[]> {
+    return await http.get<Field[]>('/api/fields?admin_view=true');
+  }
+
+  async getFieldDashboard(fieldId: string): Promise<DashboardPayload> {
+    return await http.get<DashboardPayload>(`/api/fields/${fieldId}/dashboard`);
   }
 }
 

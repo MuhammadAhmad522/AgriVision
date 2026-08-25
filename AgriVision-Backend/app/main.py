@@ -71,10 +71,10 @@ async def lifespan(app: FastAPI):
             logger.warning("Database is not ready; retrying (%s/5)", attempt + 1)
             await asyncio.sleep(3)
 
-    from app.services.scheduler import start_ai_reasoning_worker, start_satellite_sync_worker, _aggregation_loop
+    from app.services.scheduler import start_satellite_sync_worker, _aggregation_loop
 
     mqtt_consumer = await start_background_tasks()
-    tasks = [start_satellite_sync_worker(), start_ai_reasoning_worker(), asyncio.create_task(_aggregation_loop()), mqtt_consumer]
+    tasks = [start_satellite_sync_worker(), asyncio.create_task(_aggregation_loop()), mqtt_consumer]
     yield
     for task in tasks:
         task.cancel()
@@ -136,11 +136,9 @@ async def unhandled_error_handler(request: Request, exc: Exception):
     return JSONResponse(status_code=500, content=error_payload(error, request.state.request_id))
 
 
-from app.api import chat, export, fields, recommendations, satellite, sensors, session, invitations, admin
+from app.api import chat, export, fields, recommendations, satellite, sensors, session, invitations, admin, agronomist
 
-# ... (rest of imports are fine, but since we are just replacing line 139-140) ...
-
-for router in (session.router, fields.router, sensors.router, recommendations.router, chat.router, satellite.router, export.router, invitations.router, admin.router):
+for router in (session.router, fields.router, sensors.router, recommendations.router, chat.router, satellite.router, export.router, invitations.router, admin.router, agronomist.router):
     app.include_router(router)
 
 

@@ -71,7 +71,10 @@ def upgrade():
     _add_column("ai_chat_messages", sa.Column("reply_to_message_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("ai_chat_messages.id", ondelete="CASCADE")))
     _create_index("ix_ai_chat_messages_idempotency_key", "ai_chat_messages", ["idempotency_key"])
     _create_index("ix_ai_chat_messages_reply_to_message_id", "ai_chat_messages", ["reply_to_message_id"])
-    if not _has_unique("ai_chat_messages", "uq_chat_message_field_idempotency"):
+    # Some environments carry a legacy field_id column on ai_chat_messages that predates this
+    # migration; the current model has no such column (messages are scoped via thread_id
+    # instead), so this constraint is only meaningful where that legacy column exists.
+    if _has_column("ai_chat_messages", "field_id") and not _has_unique("ai_chat_messages", "uq_chat_message_field_idempotency"):
         op.create_unique_constraint("uq_chat_message_field_idempotency", "ai_chat_messages", ["field_id", "idempotency_key"])
 
     if not _has_table("chat_attachments"):
@@ -88,7 +91,11 @@ def upgrade():
         sa.Column("sha256", sa.String(64), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
         )
-    _create_index("ix_chat_attachments_field_id", "chat_attachments", ["field_id"])
+    # As with ai_chat_messages above, the current ChatAttachment model has no field_id
+    # column (attachments are scoped via message_id -> thread -> field instead); this
+    # index is only meaningful where a legacy field_id column exists.
+    if _has_column("chat_attachments", "field_id"):
+        _create_index("ix_chat_attachments_field_id", "chat_attachments", ["field_id"])
     _create_index("ix_chat_attachments_message_id", "chat_attachments", ["message_id"])
 
     _ensure_cascade_fk("provider_request_logs", "provider_request_logs_field_id_fkey")

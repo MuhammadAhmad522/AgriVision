@@ -142,41 +142,11 @@ struct FieldDetailsView: View {
             
             Spacer()
             
-            if let url = viewModel.profileImageURL {
-                // Google User Profile Image
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .empty:
-                        ProgressView()
-                    case .success(let image):
-                        image.resizable()
-                             .aspectRatio(contentMode: .fill)
-                    case .failure:
-                        Image(systemName: "person.crop.circle.fill")
-                            .foregroundColor(.gray)
-                    @unknown default:
-                        EmptyView()
-                    }
-                }
-                .frame(width: 40, height: 40)
-                .clipShape(Circle())
-                .overlay(Circle().stroke(Color.white, lineWidth: 2))
-                .shadow(radius: 2)
-                
-            } else {
-                // Email User - Last Name Initial
-                ZStack {
-                    Circle()
-                        .fill(Theme.Colors.primaryLight)
-                    
-                    Text(viewModel.profileInitial)
-                        .textStyle(.bodyStrong)
-                        .foregroundColor(.white)
-                }
-                .frame(width: 40, height: 40)
-                .overlay(Circle().stroke(Color.white, lineWidth: 2))
-                .shadow(radius: 2)
-            }
+            UserAvatarView(
+                profileImageURL: viewModel.profileImageURL,
+                profileInitial: viewModel.profileInitial,
+                onSignOut: viewModel.signOut
+            )
         }
     }
 }

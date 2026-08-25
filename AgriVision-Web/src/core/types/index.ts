@@ -7,6 +7,7 @@ export interface Coordinate {
 
 export interface Field {
   id: string;
+  owner_id?: string;
   name: string;
   crop_type: string;
   area_ha: number;
@@ -109,6 +110,11 @@ export interface DashboardSources {
   };
 }
 
+export interface RecommendationEvidence {
+  url?: string;
+  approved?: boolean;
+}
+
 export interface AIRecommendation {
   id: string;
   field_id: string;
@@ -118,6 +124,7 @@ export interface AIRecommendation {
   rationale?: string;
   confidence?: number;
   confidence_reason?: string;
+  evidence?: RecommendationEvidence[];
   safety_level: string;
   requires_expert_confirmation: boolean;
   expert_status: 'pending' | 'approved' | 'rejected';
@@ -128,4 +135,36 @@ export interface AIRecommendation {
   expires_at?: string;
   outcome?: string;
   outcome_notes?: string;
+}
+
+export interface AdvisorState {
+  status: 'pending' | 'available' | 'stale' | 'unavailable';
+  last_updated?: string;
+  message?: string;
+  retryable: boolean;
+  data_quality?: string;
+}
+
+export interface DashboardPayload {
+  sources: DashboardSources;
+  recommendations: AIRecommendation[];
+  advisor?: AdvisorState;
+}
+
+export interface ChatAttachment {
+  id: string;
+  mime_type: string;
+  byte_size: number;
+  width: number;
+  height: number;
+  url: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'model';
+  content: string;
+  status: string;
+  created_at: string;
+  attachments: ChatAttachment[];
 }

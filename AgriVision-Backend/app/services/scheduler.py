@@ -15,6 +15,7 @@ from app.core.errors import APIError
 from app.database import SessionLocal
 from app.models.db_models import (
     AIAnalysisRun,
+    AIChatThread,
     Field,
     FieldDeletionJob,
     FieldObservation,
@@ -510,80 +511,21 @@ async def external_data_loop() -> None:
         await asyncio.sleep(settings.AGRO_WORKER_SCAN_SECONDS)
 
 
-def _generate_telemetry_fallback_recommendations(field: Field, context: dict) -> list[dict]:
-    recs = []
-    readings = context.get("readings") or []
-    crop = (field.crop_type or "Crop").title()
-
-    # 1. Soil Moisture Rule
-    moisture_vals = [r.get("moisture") for r in readings if isinstance(r, dict) and r.get("moisture") is not None]
-    if moisture_vals:
-        avg_m = sum(moisture_vals) / len(moisture_vals)
-        if avg_m < 22.0:
-            recs.append({
-                "category": "Irrigation",
-                "priority": "high" if avg_m < 15.0 else "medium",
-                "advice": f"Low Soil Moisture detected ({avg_m:.1f}%). Apply 2-3 inches of irrigation to your {crop} field to prevent yield loss.",
-                "rationale": f"Current soil moisture reading is below the optimal threshold for {crop} development.",
-                "confidence": 0.88,
-                "confidence_reason": f"Based on live sensor probe measurements ({avg_m:.1f}%).",
-                "evidence": [{"metric": "moisture", "value": round(avg_m, 1)}],
-                "safety_level": "routine",
-                "requires_expert_confirmation": False,
-            })
-
-    # 2. NPK Nitrogen Rule
-    npk_n_vals = [r.get("npk_n") for r in readings if isinstance(r, dict) and r.get("npk_n") is not None]
-    if npk_n_vals:
-        avg_n = sum(npk_n_vals) / len(npk_n_vals)
-        if avg_n < 50.0:
-            recs.append({
-                "category": "Fertilizer Window",
-                "priority": "medium",
-                "advice": f"Nitrogen Deficiency detected ({avg_n:.1f} mg/kg). Consider top-dressing Nitrogen fertilizer during the current growth stage.\n\n⚠️ Note: Confirm product label, timing, and dose with a qualified local agronomist before application.",
-                "rationale": f"Soil Nitrogen level ({avg_n:.1f} mg/kg) is below optimal requirements for {crop}.",
-                "confidence": 0.82,
-                "confidence_reason": f"Based on live NPK RS485 probe telemetry ({avg_n:.1f} mg/kg).",
-                "evidence": [{"metric": "npk_n", "value": round(avg_n, 1)}],
-                "safety_level": "guarded",
-                "requires_expert_confirmation": True,
-            })
-
-    # 3. Satellite NDVI Vegetation Health Rule
-    if field.latest_ndvi is not None and field.latest_ndvi < 0.40:
-        recs.append({
-            "category": "Plant Health",
-            "priority": "high" if field.latest_ndvi < 0.25 else "medium",
-            "advice": f"Low Vegetation Health Index detected (NDVI: {field.latest_ndvi:.2f}). Inspect the field for signs of pest stress or nutrient deficiency.",
-            "rationale": f"Satellite multi-spectral analysis indicates lower-than-normal canopy vigor.",
-            "confidence": 0.85,
-            "confidence_reason": f"Sentinel-2 Satellite Remote Sensing (NDVI {field.latest_ndvi:.2f}).",
-            "evidence": [{"metric": "latest_ndvi", "value": round(field.latest_ndvi, 2)}],
-            "safety_level": "routine",
-            "requires_expert_confirmation": False,
-        })
-
-    # 4. Default Field Monitoring Baseline
-    if not recs:
-        recs.append({
-            "category": "Field Monitoring",
-            "priority": "low",
-            "advice": f"Continue routine field monitoring for your {crop} field. All telemetry metrics remain within acceptable bounds.",
-            "rationale": "Field sensor telemetry and satellite vegetation indices report stable status.",
-            "confidence": 0.90,
-            "confidence_reason": "Based on multi-source field evidence.",
-            "evidence": [],
-            "safety_level": "routine",
-            "requires_expert_confirmation": False,
-        })
-
-    return recs
-
 
 async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) -> None:
     if not _acquire_source_lock(db, field.id, "ai_analysis"):
         db.rollback()
         return
+    if not force:
+        ai_hours = _override(field, "ai_hours")
+        if ai_hours:
+            last_run = db.query(AIAnalysisRun.started_at).filter(
+                AIAnalysisRun.field_id == field.id,
+                AIAnalysisRun.status == "completed",
+            ).order_by(AIAnalysisRun.started_at.desc()).first()
+            if last_run and last_run[0] > _utcnow() - timedelta(hours=ai_hours):
+                db.rollback()
+                return
     stale_before = _utcnow() - timedelta(seconds=max(settings.AI_PROVIDER_TIMEOUT_SECONDS * 2, 120))
     active_run = db.query(AIAnalysisRun).filter(
         AIAnalysisRun.field_id == field.id,
@@ -633,7 +575,35 @@ async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) ->
         },
     }
     fresh_observations = [item for item in observations if item.expires_at is None or item.expires_at >= _utcnow()]
+    latest_ndvi_observation = next((item for item in observations if item.metric == "ndvi"), None)
     days_since_planting = max(0, (_utcnow().date() - field.plantation_date.date()).days) if field.plantation_date else None
+    recent_resolved = (
+        db.query(FieldRecommendation)
+        .filter(
+            FieldRecommendation.field_id == field.id,
+            FieldRecommendation.status.in_(("implemented", "ignored")),
+        )
+        .order_by(FieldRecommendation.created_at.desc())
+        .limit(10)
+        .all()
+    )
+    recommendation_history = [
+        {
+            "category": item.category,
+            "advice": item.advice[:300],
+            "status": item.status,
+            "outcome": item.outcome,
+            "expert_status": item.expert_status,
+            "expert_notes": item.expert_notes,
+        }
+        for item in recent_resolved
+    ]
+    agronomist_thread = (
+        db.query(AIChatThread)
+        .filter(AIChatThread.field_id == field.id, AIChatThread.channel == "agronomist")
+        .first()
+    )
+    agronomist_guidance = agronomist_thread.rolling_summary if agronomist_thread else None
     context = {
         "field": {
             "name": field.name,
@@ -644,6 +614,8 @@ async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) ->
             "region": "Punjab, Pakistan",
         },
         "latest_ndvi": field.latest_ndvi,
+        "latest_ndvi_observed_at": latest_ndvi_observation.observed_at if latest_ndvi_observation else None,
+        "latest_ndvi_fresh": bool(latest_ndvi_observation and latest_ndvi_observation in fresh_observations),
         "observations": [{
             "source": item.source,
             "metric": item.metric,
@@ -668,9 +640,19 @@ async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) ->
             for r in readings
         ],
         "sensor_summary": sensor_summary,
+        "recommendation_history": recommendation_history,
+        "agronomist_guidance": agronomist_guidance,
     }
     serializable_context = json.loads(json.dumps(context, default=str))
-    data_quality = "good" if field.crop_type and len(fresh_observations) >= 2 else ("limited" if field.crop_type and (fresh_observations or readings) else "insufficient")
+    # Count distinct evidence *types*, not raw rows: a single satellite pass emits
+    # ndvi/evi/evi2 together, which would otherwise trivially satisfy "good" on its own.
+    fresh_metrics = {item.metric for item in fresh_observations}
+    if field.crop_type and (len(fresh_metrics) >= 2 or (fresh_metrics and readings)):
+        data_quality = "good"
+    elif field.crop_type and (fresh_metrics or readings):
+        data_quality = "limited"
+    else:
+        data_quality = "insufficient"
     serializable_context["data_quality"] = data_quality
     provider = get_ai_provider()
     fingerprint_payload = json.dumps(serializable_context, sort_keys=True, separators=(",", ":"))
@@ -707,16 +689,14 @@ async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) ->
         ai_error_msg = None
         try:
             recommendations = await provider.recommendations(serializable_context)
-            if not recommendations:
-                recommendations = _generate_telemetry_fallback_recommendations(field, serializable_context)
         except APIError as exc:
             ai_failed = True
             ai_error_msg = exc.message
-            recommendations = _generate_telemetry_fallback_recommendations(field, serializable_context)
+            recommendations = []
         except Exception as exc:
             ai_failed = True
             ai_error_msg = str(exc)
-            recommendations = _generate_telemetry_fallback_recommendations(field, serializable_context)
+            recommendations = []
 
         for item in recommendations:
             db.query(FieldRecommendation).filter(
@@ -735,6 +715,7 @@ async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) ->
                 confidence_reason=item.get("confidence_reason"),
                 safety_level=item.get("safety_level", "guarded"),
                 requires_expert_confirmation=item.get("requires_expert_confirmation", False),
+                evidence=item.get("evidence"),
                 ndvi_at_generation=field.latest_ndvi,
                 expires_at=_utcnow() + timedelta(days=7),
             ))
@@ -771,32 +752,6 @@ async def run_ai_for_field_id(field_id: UUID, *, force: bool = False) -> None:
 
 async def run_ai_by_field_id(field_id: UUID, *, force: bool = False) -> None:
     await run_ai_for_field_id(field_id, force=force)
-
-
-async def ai_reasoning_loop() -> None:
-    await asyncio.sleep(30)
-    while True:
-        db = SessionLocal()
-        try:
-            fields = db.query(Field).filter(Field.status == "active").all()
-            for field in fields:
-                ai_hours = _override(field, "ai_hours")
-                if ai_hours:
-                    last_run = db.query(AIAnalysisRun.started_at).filter(
-                        AIAnalysisRun.field_id == field.id,
-                        AIAnalysisRun.status == "completed",
-                    ).order_by(AIAnalysisRun.started_at.desc()).first()
-                    if last_run and last_run[0] > _utcnow() - timedelta(hours=ai_hours):
-                        continue
-                await run_ai_for_field(field, db)
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            logger.exception("AI reasoning cycle failed")
-            db.rollback()
-        finally:
-            db.close()
-        await asyncio.sleep(300)
 
 
 async def process_field_deletion_job(job_id: UUID) -> None:
@@ -929,7 +884,3 @@ async def _aggregation_loop() -> None:
 
 def start_satellite_sync_worker():
     return asyncio.create_task(external_data_loop())
-
-
-def start_ai_reasoning_worker():
-    return asyncio.create_task(ai_reasoning_loop())

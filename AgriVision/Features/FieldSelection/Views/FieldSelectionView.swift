@@ -148,27 +148,12 @@ struct FieldSelectionView: View {
                                 Spacer()
                                 
                                 // Profile Avatar
-                                if let url = viewModel.profileImageURL {
-                                    AsyncImage(url: url) { phase in
-                                        if let image = phase.image {
-                                            image.resizable().aspectRatio(contentMode: .fill)
-                                        } else {
-                                            ProgressView()
-                                        }
-                                    }
-                                    .frame(width: 36, height: 36)
-                                    .clipShape(Circle())
-                                    .overlay(Circle().stroke(Color.white, lineWidth: 2))
-                                } else {
-                                    ZStack {
-                                        Circle().fill(Theme.Colors.primaryLight)
-                                        Text(viewModel.profileInitial)
-                                            .textStyle(.bodyStrong)
-                                            .foregroundColor(.white)
-                                    }
-                                    .frame(width: 36, height: 36)
-                                    .overlay(Circle().stroke(Color.white, lineWidth: 2))
-                                }
+                                UserAvatarView(
+                                    profileImageURL: viewModel.profileImageURL,
+                                    profileInitial: viewModel.profileInitial,
+                                    size: 36,
+                                    onSignOut: viewModel.signOut
+                                )
                             }
                             .padding(.horizontal, 18)
                             .padding(.top, 60)

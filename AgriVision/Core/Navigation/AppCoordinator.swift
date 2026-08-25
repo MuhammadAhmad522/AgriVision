@@ -175,7 +175,16 @@ final class AppCoordinator: Coordinator {
         fieldCoordinator.onCancel = {
             // No-op: Map cancel pops back to AddFieldIntro screen within the same coordinator flow
         }
-        
+
+        fieldCoordinator.onSignOut = { [weak self, weak fieldCoordinator] in
+            guard let self = self else { return }
+            if let coordinator = fieldCoordinator {
+                self.childCoordinators.removeAll { $0 === coordinator }
+            }
+            self.fieldSessionStore.clear()
+            self.showAuth()
+        }
+
         childCoordinators.append(fieldCoordinator)
         fieldCoordinator.start()
     }

@@ -22,6 +22,7 @@ final class FieldSelectionCoordinator: Coordinator {
     
     var onFieldConfirmed: (() -> Void)?
     var onCancel: (() -> Void)?
+    var onSignOut: (() -> Void)?
 
     init(navigationController: UINavigationController, authService: AuthService, dataService: AgriDataService) {
         self.navigationController = navigationController
@@ -38,7 +39,10 @@ final class FieldSelectionCoordinator: Coordinator {
         viewModel.onAddFieldTapped = { [weak self] in
             self?.showMapSelection()
         }
-        
+        viewModel.onSignOut = { [weak self] in
+            self?.onSignOut?()
+        }
+
         let view = AddFieldIntroView(viewModel: viewModel)
         let hostingController = UIHostingController(rootView: view)
         navigationController.setViewControllers([hostingController], animated: true)
@@ -53,7 +57,10 @@ final class FieldSelectionCoordinator: Coordinator {
             self?.onCancel?()
             self?.navigationController.popViewController(animated: true)
         }
-        
+        viewModel.onSignOut = { [weak self] in
+            self?.onSignOut?()
+        }
+
         let view = FieldSelectionView(viewModel: viewModel)
         let hostingController = UIHostingController(rootView: view)
         navigationController.setNavigationBarHidden(true, animated: true)
@@ -74,7 +81,10 @@ final class FieldSelectionCoordinator: Coordinator {
         viewModel.onBack = { [weak self] in
             self?.navigationController.popViewController(animated: true)
         }
-        
+        viewModel.onSignOut = { [weak self] in
+            self?.onSignOut?()
+        }
+
         let view = FieldDetailsView(viewModel: viewModel)
         let hostingController = UIHostingController(rootView: view)
         navigationController.pushViewController(hostingController, animated: true)
@@ -90,7 +100,10 @@ final class FieldSelectionCoordinator: Coordinator {
         viewModel.onBack = { [weak self] in
             self?.navigationController.popViewController(animated: true)
         }
-        
+        viewModel.onSignOut = { [weak self] in
+            self?.onSignOut?()
+        }
+
         let view = SensorIntegrationView(viewModel: viewModel)
         let hostingController = UIHostingController(rootView: view)
         navigationController.pushViewController(hostingController, animated: true)

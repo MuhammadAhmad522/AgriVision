@@ -62,6 +62,7 @@ class FieldDetailsViewModel: ObservableObject {
     /// If IoT is OFF, we persist to backend.
     var onSaveTriggered: ((FieldSelectionData, Bool) -> Void)?
     var onBack: (() -> Void)?
+    var onSignOut: (() -> Void)?
     
     init(dataService: AgriDataService, authService: AuthService, coordinates: [CLLocationCoordinate2D]) {
         self.dataService = dataService
@@ -165,5 +166,10 @@ class FieldDetailsViewModel: ObservableObject {
     func goBack() {
         onBack?()
     }
-    
+
+    func signOut() {
+        try? authService.signOut()
+        onSignOut?()
+    }
+
 }

@@ -17,6 +17,8 @@ final class AddFieldIntroViewModel: ObservableObject {
     // MARK: - Coordinator Callbacks
     /// Callback to notify the coordinator to proceed to Add Field flow.
     var onAddFieldTapped: (() -> Void)?
+    /// Callback to notify the coordinator that the user signed out.
+    var onSignOut: (() -> Void)?
     
     // MARK: - Initialization
     init(authService: AuthService) {
@@ -58,5 +60,10 @@ final class AddFieldIntroViewModel: ObservableObject {
     // MARK: - Actions
     func addFieldAction() {
         onAddFieldTapped?()
+    }
+
+    func signOut() {
+        try? authService.signOut()
+        onSignOut?()
     }
 }

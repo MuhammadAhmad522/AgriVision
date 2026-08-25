@@ -117,7 +117,6 @@ class TestSensorReadingsEndpoint:
             patch("app.main._prepare_database"),
             patch("app.main._initialize_firebase"),
             patch("app.main.start_background_tasks", side_effect=_null_async),
-            patch("app.services.scheduler.start_ai_reasoning_worker", side_effect=_noop_task),
             patch("app.services.scheduler.start_satellite_sync_worker", side_effect=_noop_task),
             patch("app.services.scheduler._aggregation_loop", side_effect=_noop_coro),
         ):

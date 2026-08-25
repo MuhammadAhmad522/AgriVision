@@ -44,7 +44,8 @@ struct DashboardView: View {
                                 profileImageURL: viewModel.profileImageURL,
                                 profileInitial: viewModel.profileInitial,
                                 showNotifications: $showingNotifications,
-                                notificationCount: 0
+                                notificationCount: 0,
+                                onSignOut: { viewModel.signOut() }
                             )
                             .padding(.horizontal, Theme.Spacing.large)
                             
@@ -225,7 +226,8 @@ struct DashboardView: View {
                     isLoadingSnapshot: viewModel.isLoading,
                     profileImageURL: viewModel.profileImageURL,
                     profileInitial: viewModel.profileInitial,
-                    onAddField: viewModel.addField
+                    onAddField: viewModel.addField,
+                    onSignOut: { viewModel.signOut() }
                 )
             }
             .tabItem { Label("Fields", systemImage: "leaf.fill") }
