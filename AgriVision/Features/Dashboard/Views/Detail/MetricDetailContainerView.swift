@@ -15,9 +15,18 @@ struct MetricDetailContainerView: View {
                     switch type {
                     case .weather, .forecast:
                         WeatherDetailView(weather: viewModel.weatherSoil?.weather)
-                    case .health, .ndvi:
-                        HealthNDVIDetailView(
+                    case .health:
+                        AIFieldHealthDetailView(
                             healthScore: viewModel.healthSummary?.score,
+                            healthLabel: viewModel.healthSummary?.label ?? "insufficient_data",
+                            rationale: viewModel.healthSummary?.rationale,
+                            updatedAt: viewModel.healthSummary?.updatedAt,
+                            cropType: viewModel.currentCropType,
+                            recommendations: viewModel.recommendations,
+                            advisorStatus: viewModel.advisorStatus
+                        )
+                    case .ndvi:
+                        HealthNDVIDetailView(
                             cropType: viewModel.currentCropType,
                             statistics: viewModel.satellite?.data?.statistics
                         )

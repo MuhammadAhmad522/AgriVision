@@ -2,12 +2,11 @@ import SwiftUI
 import Charts
 
 struct HealthNDVIDetailView: View {
-    var healthScore: Double?
     var cropType: String
     var statistics: [String: VegetationStatistics]?
-    
+
     private var ndviValue: Double {
-        statistics?["ndvi"]?.mean ?? healthScore ?? 0.0
+        statistics?["ndvi"]?.mean ?? 0.0
     }
     
     private var ndviClassification: (label: String, color: Color, description: String) {

@@ -1,9 +1,18 @@
 import { http } from '../api/http';
-import type { AIRecommendation, ChatMessage } from '../types';
+import type { AIRecommendation, ChatMessage, SeasonMemory } from '../types';
 
 export class AdvisoryService {
   async getRecommendations(fieldId: string): Promise<AIRecommendation[]> {
     return await http.get<AIRecommendation[]>(`/api/fields/${fieldId}/recommendations`);
+  }
+
+  /** Read-only: null when the field has no crop journal yet (e.g. no plantation date set). */
+  async getSeasonMemory(fieldId: string): Promise<SeasonMemory | null> {
+    try {
+      return await http.get<SeasonMemory>(`/api/fields/${fieldId}/season-memory`);
+    } catch {
+      return null;
+    }
   }
 
   /** Forces an immediate AI re-analysis for the field (rate-limited server-side). */

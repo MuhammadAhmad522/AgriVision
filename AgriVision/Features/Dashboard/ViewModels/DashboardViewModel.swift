@@ -4,11 +4,13 @@ import Foundation
 @MainActor
 final class DashboardViewModel: ObservableObject {
     @Published var recommendations: [FieldRecommendation] = []
+    @Published var seasonMemory: SeasonMemory?
     @Published var advisorStatus = "pending"
     @Published var advisorMessage: String?
     @Published var advisorDataQuality: String?
     @Published var loadedFieldId: UUID?
     @Published var readings: [SensorReading] = []
+    @Published var sensorFleet: [SensorFleetEntry] = []
     @Published var weatherSoil: FieldWeatherSoil?
     @Published var satellite: SourceState<SatelliteSnapshot>?
     @Published var satelliteImageData: Data?
@@ -24,6 +26,7 @@ final class DashboardViewModel: ObservableObject {
     @Published var userName: String?
     @Published var profileImageURL: URL?
     @Published var profileInitial = "U"
+    @Published var lastUpdatedAt: Date?
 
     let fieldSessionStore: FieldSessionStore
     let dataService: AgriDataService
@@ -32,10 +35,17 @@ final class DashboardViewModel: ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
     private var dashboardRequestToken: UUID?
 
+    // Matches the backend's own external-data scan cadence (AGRO_WORKER_SCAN_SECONDS in
+    // AgriVision-Backend). Polling faster than the backend itself checks for new satellite/
+    // weather/soil data or reconsiders AI recommendations cannot surface anything newer —
+    // it would just re-download unchanged satellite images and recommendation text.
+    private static let fullDashboardRefreshInterval: TimeInterval = 300
+
     var onSignOut: (() -> Void)?
     var onSettingsTap: (() -> Void)?
     var onChatTapped: ((UUID) -> Void)?
     var onAddFieldTapped: (() -> Void)?
+    var onFieldsEmptied: (() -> Void)?
 
     init(dataService: AgriDataService, authService: AuthService, preferencesService: PreferencesService, fieldSessionStore: FieldSessionStore) {
         self.dataService = dataService
@@ -61,14 +71,13 @@ final class DashboardViewModel: ObservableObject {
     var fields: [Field] { fieldSessionStore.fields }
     var currentCropType: String { activeField?.cropType ?? "Unknown crop" }
 
-    var healthSummary: (score: Double, message: String, color: String)? {
-        guard let ndvi = activeField?.ndviScore else { return nil }
-        switch ndvi {
-        case 0.7...1: return (ndvi, "Excellent Crop Health", "green")
-        case 0.4..<0.7: return (ndvi, "Monitor Crop Health", "orange")
-        case 0..<0.4: return (ndvi, "Inspection Recommended", "red")
-        default: return nil
-        }
+    var healthSummary: (score: Double?, label: String, rationale: String?, updatedAt: Date?)? {
+        guard let field = activeField else { return nil }
+        return (field.latestHealthScore, field.latestHealthLabel ?? "insufficient_data", field.latestHealthRationale, field.latestHealthUpdatedAt)
+    }
+
+    var showHarvestAlert: Bool {
+        return recommendations.contains { $0.category == "Harvest Timing" && $0.priority == "high" }
     }
 
     func signOut() {
@@ -86,11 +95,57 @@ final class DashboardViewModel: ObservableObject {
         }
     }
 
+    func harvestNow() {
+        guard fieldSessionStore.activeFieldId != nil else { return }
+        isLoading = true
+        Task {
+            do {
+                try await fieldSessionStore.deleteActiveField()
+                isLoading = false
+                if fieldSessionStore.fields.isEmpty {
+                    onFieldsEmptied?()
+                }
+            } catch {
+                isLoading = false
+                presentError(error.userFacingMessage)
+            }
+        }
+    }
+
     func pollUntilCancelled() async {
+        async let sensors: Void = pollSensorReadings()
+        async let dashboard: Void = pollFullDashboard()
+        _ = await (sensors, dashboard)
+    }
+
+    private func pollSensorReadings() async {
         while !Task.isCancelled {
-            await refreshData()
+            await refreshSensorReadingsOnly()
             try? await Task.sleep(for: .seconds(preferencesService.dashboardRefreshInterval))
         }
+    }
+
+    private func pollFullDashboard() async {
+        while !Task.isCancelled {
+            await refreshData()
+            try? await Task.sleep(for: .seconds(Self.fullDashboardRefreshInterval))
+        }
+    }
+
+    private func refreshSensorReadingsOnly() async {
+        guard let fieldID = fieldSessionStore.activeFieldId, sensorCount > 0 else { return }
+        guard let newReadings = try? await dataService.fetchSensorReadings(for: fieldID) else { return }
+        guard fieldID == fieldSessionStore.activeFieldId else { return }
+        readings = newReadings
+        // Fast tier: keep each sensor's values fresh without re-checking online/offline
+        // status, which only needs the slower full-dashboard tier's cadence.
+        let latestBySensor = Dictionary(newReadings.map { ($0.sensor_id, $0) }, uniquingKeysWith: { a, b in a.time > b.time ? a : b })
+        for index in sensorFleet.indices {
+            if let fresh = latestBySensor[sensorFleet[index].sensorId] {
+                sensorFleet[index].reading = fresh
+            }
+        }
+        lastUpdatedAt = Date()
     }
 
     func refreshData() async {
@@ -120,6 +175,7 @@ final class DashboardViewModel: ObservableObject {
             advisorMessage = snapshot.advisor?.message
             advisorDataQuality = snapshot.advisor?.dataQuality
             readings = snapshot.sources.sensors.data ?? []
+            sensorFleet = snapshot.sources.sensorFleet
             sensorCount = snapshot.sources.sensors.configuredCount ?? Set(readings.map(\.sensor_id)).count
             sensorStatus = snapshot.sources.sensors.status
             satellite = snapshot.sources.satellite
@@ -135,6 +191,10 @@ final class DashboardViewModel: ObservableObject {
                 hasNDVI: snapshot.sources.satellite.data?.ndviImageURL != nil,
                 hasTruecolor: snapshot.sources.satellite.data?.truecolorImageURL != nil
             )
+            // Best-effort: a missing crop journal (e.g. no plantation date set yet) is a normal
+            // state, not a dashboard-load failure.
+            seasonMemory = try? await dataService.fetchSeasonMemory(for: fieldID)
+            lastUpdatedAt = Date()
         } catch is CancellationError {
         } catch {
             guard fieldID == fieldSessionStore.activeFieldId, dashboardRequestToken == requestToken else { return }
@@ -145,11 +205,13 @@ final class DashboardViewModel: ObservableObject {
     private func clearFieldData() {
         dashboardRequestToken = nil
         recommendations = []
+        seasonMemory = nil
         advisorStatus = "pending"
         advisorMessage = nil
         advisorDataQuality = nil
         loadedFieldId = nil
         readings = []
+        sensorFleet = []
         weatherSoil = nil
         satellite = nil
         satelliteImageData = nil
@@ -159,6 +221,7 @@ final class DashboardViewModel: ObservableObject {
         sensorStatus = "not_configured"
         dataAvailability = []
         errorMessage = nil
+        lastUpdatedAt = nil
     }
 
     private func loadSatelliteImages(for fieldID: UUID, requestToken: UUID, hasNDVI: Bool, hasTruecolor: Bool) async {
@@ -174,14 +237,29 @@ final class DashboardViewModel: ObservableObject {
         guard let fieldID = fieldSessionStore.activeFieldId else { return }
         isRefreshingAI = true
         defer { isRefreshingAI = false }
+        // The backend runs the actual re-analysis as an async background job and returns
+        // immediately with whatever recommendations already existed — a single refetch right
+        // after would almost always show stale advice with a false "updated" message. Poll
+        // until a recommendation created after this trigger actually shows up (or the run
+        // fails), bounded so this can't hang forever.
+        let triggeredAt = Date()
         do {
             advisorStatus = "pending"
             advisorMessage = "AI is reviewing the latest field evidence."
             try await dataService.refreshRecommendations(for: fieldID)
             guard fieldID == fieldSessionStore.activeFieldId else { return }
-            await refreshData()
-            successMessage = "Advice updated with latest insights."
-            ToastMessageAutoDismiss.schedule(expectedMessage: successMessage ?? "", currentMessage: { [weak self] in self?.successMessage }, clearMessage: { [weak self] in self?.successMessage = nil })
+            for attempt in 0..<8 {
+                if attempt > 0 { try? await Task.sleep(for: .seconds(3)) }
+                await refreshData()
+                guard fieldID == fieldSessionStore.activeFieldId else { return }
+                if recommendations.contains(where: { $0.createdAt > triggeredAt }) {
+                    successMessage = "Advice updated with latest insights."
+                    ToastMessageAutoDismiss.schedule(expectedMessage: successMessage ?? "", currentMessage: { [weak self] in self?.successMessage }, clearMessage: { [weak self] in self?.successMessage = nil })
+                    return
+                }
+                if advisorStatus == "unavailable" { return } // run failed — refreshData() already surfaced the real error
+            }
+            presentError("Still processing — check back in a moment.")
         } catch {
             guard fieldID == fieldSessionStore.activeFieldId else { return }
             advisorStatus = "unavailable"

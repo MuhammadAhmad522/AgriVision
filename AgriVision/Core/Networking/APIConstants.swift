@@ -21,6 +21,7 @@ struct APIConstants {
         static func readings(_ id: UUID) -> String { "\(field(id))/sensor-readings" }
         static func assignSensor(to id: UUID) -> String { "\(field(id))/sensors" }
         static func recommendations(for id: UUID) -> String { "\(field(id))/recommendations" }
+        static func seasonMemory(for id: UUID) -> String { "\(field(id))/season-memory" }
         static func feedback(_ recommendationID: UUID) -> String { "api/recommendations/\(recommendationID.uuidString.lowercased())/feedback" }
         static func outcome(_ recommendationID: UUID) -> String { "api/recommendations/\(recommendationID.uuidString.lowercased())/outcome" }
         static func chat(for id: UUID) -> String { "\(field(id))/chat" }

@@ -6,21 +6,8 @@ struct MoistureCardView: View {
     var body: some View {
         LiquidGlassCard {
             VStack(spacing: 0) {
-                HStack(spacing: 4) {
-                    Image(systemName: "drop.fill")
-                        .foregroundColor(.cyan) // matched light blue
-                        .shadow(radius: 1)
-                    Text("Soil Moisture")
-                        .textStyle(.caption)
-                        .foregroundColor(Theme.Colors.primary)
-                    Spacer()
-                    Image(systemName: "arrow.up")
-                        .textStyle(.caption)
-                        .foregroundColor(Theme.Colors.primaryMedium)
-                }
-                .padding(.horizontal, 14)
-                .padding(.top, 16)
-                
+                MetricCardHeader(icon: "drop.fill", iconColor: .cyan, title: "Soil Moisture")
+
                 Spacer(minLength: 0)
                 
                 ZStack(alignment: .bottom) {
@@ -40,18 +27,16 @@ struct MoistureCardView: View {
                     .clipped()
                     
                     Text(moisture.map { "\($0)%" } ?? "--")
-                        .textStyle(.bodyStrong)
+                        .textStyle(.title3)
                         .foregroundColor(Theme.Colors.primary)
                         .padding(.bottom, -2)
                 }
                 .padding(.top, 10)
-                
+
                 Spacer(minLength: 0)
-                
-                Text("Optimal Value: 30-50")
-                    .textStyle(.caption)
-                    .foregroundColor(Theme.Colors.primaryMedium)
-                
+
+                MetricCardFooter(text: "Satellite estimate · Optimal 30-50%", bottomPadding: 0)
+
                 Spacer(minLength: 0)
                 
                 if #available(iOS 16.0, *) {

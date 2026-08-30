@@ -75,7 +75,7 @@ def on_message(client, userdata, msg):
         allowed = reading_fields | {"device_id"}
         unexpected = set(payload) - allowed
         if unexpected:
-            logger.debug(f"MQTT payload contains additional fields: {', '.join(sorted(unexpected))}")
+            raise ValueError(f"MQTT payload contains additional fields: {', '.join(sorted(unexpected))}")
         payload_device_id = payload.get("device_id")
         if payload_device_id is not None and payload_device_id != device_id:
             raise ValueError("MQTT payload device ID does not match topic")

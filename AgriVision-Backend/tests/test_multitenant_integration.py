@@ -508,8 +508,9 @@ def test_permanent_delete_cascades_all_field_owned_database_data():
         db = SessionLocal()
         try:
             assert db.query(Field).filter(Field.id == field_id).count() == 0
-            assert db.query(Sensor).filter(Sensor.id == sensor_id).count() == 0
-            assert db.query(SensorReading).filter(SensorReading.sensor_id == sensor_id).count() == 0
+            sensor = db.query(Sensor).filter(Sensor.id == sensor_id).first()
+            assert sensor is not None
+            assert sensor.field_id is None
             for model in (FieldObservation, SatelliteScene, AIAnalysisRun, FieldRecommendation, AIChatThread, ProviderCapability, ProviderRequestLog, ProviderCache):
                 assert db.query(model).filter(model.field_id == field_id).count() == 0
             assert db.query(AIChatMessage).join(AIChatThread, AIChatMessage.thread_id == AIChatThread.id).filter(AIChatThread.field_id == field_id).count() == 0

@@ -93,8 +93,13 @@ def _clean_data():
     yield
     db = SessionLocal()
     try:
-        for t in ("field_recommendations", "ai_analysis_runs", "sensor_readings",
+        for t in ("field_recommendations", "ai_analysis_runs", "field_season_memories",
+                   "ai_chat_threads", "sensor_readings",
                    "sensors", "field_observations", "fields", "users"):
+            # field_season_memories/ai_chat_threads are real migrated tables (not part of
+            # _CREATE_TABLES above), guard in case a given DB snapshot predates them.
+            if not engine.dialect.has_table(db.connection(), t):
+                continue
             db.execute(text(f"DELETE FROM {t}"))
         db.commit()
     finally:
@@ -148,17 +153,20 @@ def _add_observation(db, field_id_hex, metric, payload, observed_at=None):
     )
 
 
-def _mock_provider(recommendations=None):
+def _mock_provider(recommendations=None, season_memory=None, field_health=None):
     recs = recommendations or [
         {"category": "Irrigation", "priority": "high", "advice": "Water now",
          "confidence": 0.85, "rationale": "Soil is dry",
          "safety_level": "guarded", "requires_expert_confirmation": False,
          "evidence": []},
     ]
+    memory_result = season_memory or {"narrative": "Wheat planted; irrigation advised early.", "key_event": ""}
+    health_result = field_health or {"score": 82.0, "label": "good", "rationale": "Canopy and soil evidence look normal for this growth stage."}
     provider = AsyncMock()
     provider.name = "gemini"
     provider.model_name = "gemini-2.0-flash"
-    provider.recommendations = AsyncMock(return_value=recs)
+    provider.recommendations = AsyncMock(return_value={"recommendations": recs, "field_health": health_result})
+    provider.summarize_season = AsyncMock(return_value=memory_result)
     return provider
 
 
@@ -200,6 +208,113 @@ async def test_ai_run_creates_recommendations():
         ).all()
         assert len(recs) == 1
         assert recs[0].advice == "Water now"
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_field_health_persisted_on_success():
+    db = SessionLocal()
+    try:
+        from app.models.db_models import Field
+
+        field_id, _ = _seed_field_and_data(db)
+        _add_observation(db, field_id.hex, "soil_current", {"moisture": 0.35})
+        db.commit()
+
+        # Use a real session-attached Field (as run_ai_for_field_id does in production), not
+        # the detached _make_field() helper — mutating a detached object's attributes never
+        # reaches the database, which would make this test pass even if the real code didn't.
+        field = db.query(Field).filter(Field.id == field_id).first()
+        provider = _mock_provider(field_health={"score": 88.0, "label": "excellent", "rationale": "Strong canopy and adequate moisture."})
+
+        with (
+            patch("app.services.scheduler._acquire_source_lock", return_value=True),
+            patch("app.services.scheduler.get_ai_provider", return_value=provider),
+        ):
+            from app.services.scheduler import run_ai_for_field
+            await run_ai_for_field(field, db)
+        db.commit()
+
+        db.expire_all()
+        persisted = db.query(Field).filter(Field.id == field_id).first()
+        assert persisted.latest_health_score == 88.0
+        assert persisted.latest_health_label == "excellent"
+        assert persisted.latest_health_rationale == "Strong canopy and adequate moisture."
+        assert persisted.latest_health_updated_at is not None
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_field_health_untouched_on_ai_failure():
+    db = SessionLocal()
+    try:
+        from app.models.db_models import Field
+
+        field_id, _ = _seed_field_and_data(db)
+        _add_observation(db, field_id.hex, "soil_current", {"moisture": 0.35})
+        db.execute(
+            text("UPDATE fields SET latest_health_score = :score, latest_health_label = :label, latest_health_rationale = :rationale WHERE id = :id"),
+            {"score": 75.0, "label": "good", "rationale": "Previous run.", "id": field_id.hex},
+        )
+        db.commit()
+
+        field = db.query(Field).filter(Field.id == field_id).first()
+        provider = AsyncMock()
+        provider.name = "gemini"
+        provider.model_name = "gemini-2.0-flash"
+        provider.recommendations = AsyncMock(side_effect=APIError(503, "ai_provider_failed", "Down", retryable=True))
+
+        with (
+            patch("app.services.scheduler._acquire_source_lock", return_value=True),
+            patch("app.services.scheduler.get_ai_provider", return_value=provider),
+        ):
+            from app.services.scheduler import run_ai_for_field
+            await run_ai_for_field(field, db)
+        db.commit()
+
+        db.expire_all()
+        persisted = db.query(Field).filter(Field.id == field_id).first()
+        assert persisted.latest_health_score == 75.0
+        assert persisted.latest_health_label == "good"
+        assert persisted.latest_health_rationale == "Previous run."
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_ai_run_includes_farmer_reported_context():
+    db = SessionLocal()
+    try:
+        field_id, _ = _seed_field_and_data(db)
+        _add_observation(db, field_id.hex, "soil_current", {"moisture": 0.35})
+        db.execute(
+            text("""INSERT INTO ai_chat_threads (id, field_id, channel, rolling_summary)
+                     VALUES (:id, :fid, 'farmer', :summary)"""),
+            {"id": uuid.uuid4().hex, "fid": field_id.hex, "summary": "Farmer: I see yellow patches on the east side.\nAdvisor: Noted."},
+        )
+        db.commit()
+
+        field = _make_field(field_id)
+        provider = _mock_provider()
+
+        with (
+            patch("app.services.scheduler._acquire_source_lock", return_value=True),
+            patch("app.services.scheduler.get_ai_provider", return_value=provider),
+        ):
+            from app.services.scheduler import run_ai_for_field
+            await run_ai_for_field(field, db)
+        db.commit()
+
+        from app.models.db_models import AIAnalysisRun
+        run = db.query(AIAnalysisRun).filter(AIAnalysisRun.field_id == field_id).first()
+        assert run is not None
+        assert "yellow patches" in run.context_snapshot["farmer_reported_context"]
+
+        call_kwargs = provider.recommendations.call_args
+        sent_context = call_kwargs.args[0] if call_kwargs.args else call_kwargs.kwargs["context"]
+        assert "yellow patches" in sent_context["farmer_reported_context"]
     finally:
         db.close()
 
@@ -400,6 +515,128 @@ async def test_ai_run_force_bypasses_ai_hours_override():
         from app.models.db_models import AIAnalysisRun
         run_count = db.query(AIAnalysisRun).filter(AIAnalysisRun.field_id == field_id).count()
         assert run_count == 2
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_season_memory_created_and_narrative_persisted():
+    db = SessionLocal()
+    try:
+        field_id, _ = _seed_field_and_data(db)
+        _add_observation(db, field_id.hex, "soil_current", {"moisture": 0.35})
+        db.commit()
+
+        field = _make_field(field_id)
+        field.plantation_date = datetime(2026, 6, 1, tzinfo=timezone.utc)
+
+        provider = _mock_provider(season_memory={"narrative": "Wheat planted June 1; early tillering underway.", "key_event": ""})
+
+        with (
+            patch("app.services.scheduler._acquire_source_lock", return_value=True),
+            patch("app.services.scheduler.get_ai_provider", return_value=provider),
+        ):
+            from app.services.scheduler import run_ai_for_field
+            await run_ai_for_field(field, db)
+        db.commit()
+
+        from app.models.db_models import FieldSeasonMemory
+        db.expire_all()
+        memory = db.query(FieldSeasonMemory).filter(FieldSeasonMemory.field_id == field_id).first()
+        assert memory is not None
+        assert memory.season_ended_at is None
+        assert "tillering" in memory.narrative
+        assert memory.key_events == []
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_season_memory_rotates_on_replant():
+    db = SessionLocal()
+    try:
+        field_id, _ = _seed_field_and_data(db)
+        _add_observation(db, field_id.hex, "soil_current", {"moisture": 0.35})
+        db.commit()
+
+        field = _make_field(field_id)
+        field.plantation_date = datetime(2026, 6, 1, tzinfo=timezone.utc)
+
+        provider = _mock_provider()
+        with (
+            patch("app.services.scheduler._acquire_source_lock", return_value=True),
+            patch("app.services.scheduler.get_ai_provider", return_value=provider),
+        ):
+            from app.services.scheduler import run_ai_for_field
+            await run_ai_for_field(field, db)
+        db.commit()
+
+        # Second run, no data change: same season, must return the same active memory (steady state).
+        provider2 = _mock_provider()
+        with (
+            patch("app.services.scheduler._acquire_source_lock", return_value=True),
+            patch("app.services.scheduler.get_ai_provider", return_value=provider2),
+        ):
+            await run_ai_for_field(field, db, force=True)
+        db.commit()
+
+        from app.models.db_models import FieldSeasonMemory
+        db.expire_all()
+        memories = db.query(FieldSeasonMemory).filter(FieldSeasonMemory.field_id == field_id).all()
+        assert len(memories) == 1
+        assert memories[0].season_ended_at is None
+
+        # Replant: new plantation_date must archive the old season and start a fresh one.
+        field.plantation_date = datetime(2026, 10, 1, tzinfo=timezone.utc)
+        provider3 = _mock_provider()
+        with (
+            patch("app.services.scheduler._acquire_source_lock", return_value=True),
+            patch("app.services.scheduler.get_ai_provider", return_value=provider3),
+        ):
+            await run_ai_for_field(field, db, force=True)
+        db.commit()
+
+        db.expire_all()
+        memories = db.query(FieldSeasonMemory).filter(FieldSeasonMemory.field_id == field_id).order_by(FieldSeasonMemory.season_started_at).all()
+        assert len(memories) == 2
+        assert memories[0].season_ended_at is not None
+        assert memories[1].season_ended_at is None
+        assert memories[1].season_started_at.date() == field.plantation_date.date()
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_season_memory_key_event_persisted_via_reassignment():
+    db = SessionLocal()
+    try:
+        field_id, _ = _seed_field_and_data(db)
+        _add_observation(db, field_id.hex, "soil_current", {"moisture": 0.35})
+        db.commit()
+
+        field = _make_field(field_id)
+        field.plantation_date = datetime(2026, 6, 1, tzinfo=timezone.utc)
+
+        provider = _mock_provider(season_memory={
+            "narrative": "Wheat planted; aphid pressure first observed this cycle.",
+            "key_event": "First pest risk (aphids) flagged for this field",
+        })
+
+        with (
+            patch("app.services.scheduler._acquire_source_lock", return_value=True),
+            patch("app.services.scheduler.get_ai_provider", return_value=provider),
+        ):
+            from app.services.scheduler import run_ai_for_field
+            await run_ai_for_field(field, db)
+        db.commit()
+
+        from app.models.db_models import FieldSeasonMemory
+        # Force a real re-read from the database (not the in-memory Python object) so an
+        # in-place .append() that SQLAlchemy failed to detect would show up as lost here.
+        db.expire_all()
+        memory = db.query(FieldSeasonMemory).filter(FieldSeasonMemory.field_id == field_id).first()
+        assert len(memory.key_events) == 1
+        assert "aphid" in memory.key_events[0]["description"].lower()
     finally:
         db.close()
 

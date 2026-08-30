@@ -43,7 +43,6 @@ static String deviceId;
  *  - Uses DEVICE_ID from config.h or falls back to "ESP32_FIELD_NODE_1".
  */
 static void _init_device_id() {
-#ifdef PROD_MODE
   if (strlen(DEVICE_ID) > 0) {
     deviceId = DEVICE_ID;
     return;
@@ -53,9 +52,6 @@ static void _init_device_id() {
   char buf[16];
   snprintf(buf, sizeof(buf), "ESP32_%02X%02X%02X", mac[3], mac[4], mac[5]);
   deviceId = buf;
-#else
-  deviceId = DEVICE_ID[0] ? DEVICE_ID : "ESP32_FIELD_NODE_1";
-#endif
 }
 
 // =============================================================================
@@ -77,6 +73,8 @@ constexpr int DISCONNECTED_RAW_THRESHOLD = 500;   // Raw ADC values below this i
 // Network & Timing Configuration (PROD Mode Only)
 // =============================================================================
 
+unsigned long lastPublish = 0;
+
 #ifdef PROD_MODE
 /// Interval between sensor transmissions (5 seconds)
 constexpr unsigned long PUBLISH_INTERVAL = 5000;
@@ -94,7 +92,6 @@ WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
 
 // Timing state trackers
-unsigned long lastPublish = 0;
 unsigned long wifiRetryDelay = WIFI_RETRY_MIN;
 unsigned long lastWifiAttempt = 0;
 bool otaRunning = false;
@@ -197,7 +194,7 @@ static float _read_moisture() {
     return NAN;
   }
 
-  float pct = map(raw, DRY_VALUE, WET_VALUE, 0, 100);
+  float pct = (float)(raw - DRY_VALUE) * 100.0f / (WET_VALUE - DRY_VALUE);
   return constrain(pct, 0.0f, 100.0f);
 }
 
@@ -302,8 +299,11 @@ void loop() {
     _publish_sensors();
   }
 #else
-  // In DEV mode, read sensors, output to serial, and pause for 5 seconds
-  _publish_sensors();
-  delay(5000);
+  // In DEV mode, read sensors and output to serial every 5 seconds without blocking
+  unsigned long now = millis();
+  if (now - lastPublish >= 5000) {
+    lastPublish = now;
+    _publish_sensors();
+  }
 #endif
 }

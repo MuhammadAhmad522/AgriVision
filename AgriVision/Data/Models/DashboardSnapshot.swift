@@ -79,6 +79,38 @@ struct DashboardSources: Decodable {
     let weather: SourceState<FieldWeatherSoil.WeatherData>
     let uvi: SourceState<UVISnapshot>
     let sensors: SourceState<[SensorReading]>
+    let sensorFleet: [SensorFleetEntry]
+
+    enum CodingKeys: String, CodingKey {
+        case satellite, soil, weather, uvi, sensors
+        case sensorFleet = "sensor_fleet"
+    }
+}
+
+/// Per-sensor breakdown for a field — distinct from `sensors` above (which is a single
+/// blended list of recent readings across all sensors): this carries each sensor's own
+/// identity, online/offline status (based on the backend's SENSOR_OFFLINE_CUTOFF_MINUTES),
+/// and its own latest reading, so the dashboard can show which specific device is down.
+struct SensorFleetEntry: Decodable, Identifiable {
+    let sensorId: UUID
+    let name: String?
+    let deviceId: String
+    let sensorType: String
+    let isOnline: Bool
+    let lastSeen: Date?
+    var reading: SensorReading?
+
+    var id: UUID { sensorId }
+    var displayName: String { (name?.isEmpty == false ? name : nil) ?? deviceId }
+
+    enum CodingKeys: String, CodingKey {
+        case name, reading
+        case sensorId = "sensor_id"
+        case deviceId = "device_id"
+        case sensorType = "sensor_type"
+        case isOnline = "is_online"
+        case lastSeen = "last_seen"
+    }
 }
 
 struct SatelliteSnapshot: Decodable {

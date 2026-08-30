@@ -98,11 +98,11 @@ struct SensorIntegrationView: View {
                                         }
                                         Text(viewModel.isVerifying ? "Pairing..." : "Pair Sensor")
                                             .textStyle(.captionStrong)
+                                            .foregroundColor(.white)
                                     }
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 12)
                                     .background(Theme.Colors.primary)
-                                    .foregroundColor(.white)
                                     .cornerRadius(12)
                                 }
                                 .disabled(viewModel.isVerifying)

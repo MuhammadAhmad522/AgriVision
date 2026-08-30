@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Response, status
@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
-from app.core.auth import get_current_user, RequireRole
+from app.core.auth import get_current_user
 from app.core.config import settings
 from app.core.errors import APIError
 from app.core.rate_limit import rate_limiter
@@ -70,6 +70,10 @@ def field_to_response(field: Field, db: Session) -> FieldResponse:
         agro_retryable=link.retryable if link else bool(settings.AGROMONITORING_API_KEY.strip()),
         latest_ndvi=field.latest_ndvi,
         last_satellite_sync=link.last_sync_at if link else None,
+        latest_health_score=field.latest_health_score,
+        latest_health_label=field.latest_health_label,
+        latest_health_rationale=field.latest_health_rationale,
+        latest_health_updated_at=field.latest_health_updated_at,
     )
 
 
@@ -271,7 +275,7 @@ def queue_field_deletion(db: Session, field: Field, background_tasks: Background
     
     sensor_ids = [row[0] for row in db.query(Sensor.id).filter(Sensor.field_id == field.id).all()]
     if sensor_ids:
-        db.query(Sensor).filter(Sensor.id.in_(sensor_ids)).delete(synchronize_session=False)
+        db.query(Sensor).filter(Sensor.id.in_(sensor_ids)).update({"field_id": None}, synchronize_session=False)
         
     job = FieldDeletionJob(
         field_id=field.id,
@@ -291,12 +295,13 @@ def delete_field(
     field_id: UUID,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RequireRole(["admin"])),
+    current_user: User = Depends(get_current_user),
 ):
+    owned_field(db, current_user, field_id)
     field = db.query(Field).filter(Field.id == field_id).with_for_update().first()
     if field is None:
         raise APIError(404, "field_not_found", "Field not found.")
-        
+
     queue_field_deletion(db, field, background_tasks)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -359,8 +364,10 @@ async def refresh_field_data(
     field = owned_field(db, current_user, field_id, include_archived=False)
     if not settings.AGROMONITORING_API_KEY.strip():
         raise APIError(503, "agromonitoring_not_configured", "Satellite and weather services are not connected yet.")
-    if field.agro_status == "unsupported":
-        raise APIError(409, "agromonitoring_unsupported", field.agro_error or "This field is not supported by the satellite provider.")
+    from app.models.db_models import FieldProviderLink
+    link = db.query(FieldProviderLink).filter(FieldProviderLink.field_id == field.id, FieldProviderLink.provider == "agromonitoring").first()
+    if link and link.sync_status == "unsupported":
+        raise APIError(409, "agromonitoring_unsupported", link.sync_error or "This field is not supported by the satellite provider.")
     await rate_limiter.check(f"provider-refresh:{current_user.firebase_uid}:{field_id}", 4, 3600)
     background_tasks.add_task(_sync_field_background, field_id, True)
     return {"status": "accepted", "message": "Field data refresh queued."}
@@ -380,6 +387,27 @@ def get_dashboard(field_id: UUID, db: Session = Depends(get_db), current_user: U
             .limit(50)
             .all()
         )
+    # Per-sensor breakdown, queried per sensor (not derived from latest_readings above) so a
+    # quiet sensor's true latest reading can't be crowded out by a chattier sibling sensor's
+    # rows within that shared top-50 window.
+    offline_cutoff = datetime.now(timezone.utc) - timedelta(minutes=settings.SENSOR_OFFLINE_CUTOFF_MINUTES)
+    sensor_fleet = []
+    for sensor in sensors:
+        latest_for_sensor = (
+            db.query(SensorReading)
+            .filter(SensorReading.sensor_id == sensor.id)
+            .order_by(SensorReading.time.desc())
+            .first()
+        )
+        sensor_fleet.append({
+            "sensor_id": sensor.id,
+            "name": sensor.name,
+            "device_id": sensor.device_id,
+            "sensor_type": sensor.sensor_type,
+            "is_online": bool(sensor.last_seen and sensor.last_seen >= offline_cutoff),
+            "last_seen": sensor.last_seen,
+            "reading": latest_for_sensor,
+        })
     recommendations = (
         db.query(FieldRecommendation)
         .filter(
@@ -464,6 +492,7 @@ def get_dashboard(field_id: UUID, db: Session = Depends(get_db), current_user: U
                 "message": "IoT monitoring is optional for this field." if not sensors else (None if latest_readings else "The paired sensor has not reported any readings yet."),
                 "retryable": bool(sensors and not latest_readings),
             },
+            "sensor_fleet": sensor_fleet,
         },
         "advisor": advisor,
         "recommendations": recommendations,

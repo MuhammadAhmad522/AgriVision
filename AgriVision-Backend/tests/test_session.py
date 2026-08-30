@@ -17,6 +17,7 @@ def _mock_user():
     user.id = uuid4()
     user.firebase_uid = f"test-{uuid4()}"
     user.email = "test@example.com"
+    user.role = "mobile_user"
     user.created_at = datetime.now(timezone.utc)
     return user
 
@@ -63,6 +64,8 @@ class TestSessionBootstrap:
         ]
         query = MagicMock()
         query.filter.return_value.order_by.return_value.all.return_value = fields
+        # bootstrap() also queries Invitation for a pending role upgrade — keep that branch inert.
+        query.filter.return_value.first.return_value = None
         db.query.return_value = query
 
         app.dependency_overrides[get_db] = lambda: db
@@ -95,6 +98,7 @@ class TestSessionBootstrap:
 
         query = MagicMock()
         query.filter.return_value.order_by.return_value.all.return_value = []
+        query.filter.return_value.first.return_value = None
         db.query.return_value = query
 
         app.dependency_overrides[get_db] = lambda: db

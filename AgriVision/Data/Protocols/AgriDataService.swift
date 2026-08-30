@@ -12,6 +12,7 @@ protocol AgriDataService {
     func refreshFieldData(for fieldId: UUID) async throws
     func fetchRecommendations(for fieldId: UUID) async throws -> [FieldRecommendation]
     func refreshRecommendations(for fieldId: UUID) async throws
+    func fetchSeasonMemory(for fieldId: UUID) async throws -> SeasonMemory?
     func updateRecommendationFeedback(for fieldId: UUID, recommendationId: UUID, status: String) async throws -> FieldRecommendation
     func recordRecommendationOutcome(for fieldId: UUID, recommendationId: UUID, outcome: String, notes: String?) async throws -> FieldRecommendation
     func fetchChatHistory(for fieldId: UUID) async throws -> [ChatMessage]

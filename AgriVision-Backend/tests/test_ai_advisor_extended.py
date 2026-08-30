@@ -6,7 +6,9 @@ import pytest
 from app.services.ai_advisor_service import (
     _apply_safety_policy,
     _canonical_category,
+    _field_health_payload,
     _guard_chat_response,
+    _reconcile_field_health,
     _recommendation_payload,
 )
 
@@ -114,6 +116,53 @@ def test_recommendation_payload_with_no_valid_json():
     response = SimpleNamespace(parsed=None, text="Hello world")
     with pytest.raises(ValueError, match="invalid recommendation payload"):
         _recommendation_payload(response)
+
+
+def test_field_health_payload_with_valid_data():
+    payload = {"field_health": {"score": 87.4, "label": "excellent", "rationale": "Canopy and soil evidence look strong."}}
+    result = _field_health_payload(payload)
+    assert result == {"score": 87.4, "label": "excellent", "rationale": "Canopy and soil evidence look strong."}
+
+
+def test_field_health_payload_missing_defaults_to_insufficient_data():
+    result = _field_health_payload({})
+    assert result["label"] == "insufficient_data"
+    assert result["score"] is None
+
+
+def test_field_health_payload_clamps_out_of_range_score():
+    payload = {"field_health": {"score": 250, "label": "good", "rationale": "x"}}
+    result = _field_health_payload(payload)
+    assert result["score"] == 100.0
+
+
+def test_field_health_payload_invalid_label_falls_back():
+    payload = {"field_health": {"score": 90, "label": "amazing", "rationale": "x"}}
+    result = _field_health_payload(payload)
+    assert result["label"] == "insufficient_data"
+    assert result["score"] is None  # insufficient_data never carries a fabricated score
+
+
+def test_reconcile_field_health_forces_insufficient_data_on_bad_evidence():
+    health = {"score": 90.0, "label": "excellent", "rationale": "Looks great"}
+    result = _reconcile_field_health(health, [], data_quality="insufficient")
+    assert result["label"] == "insufficient_data"
+    assert result["score"] is None
+
+
+def test_reconcile_field_health_downgrades_good_score_with_high_priority_risk():
+    health = {"score": 92.0, "label": "excellent", "rationale": "Looks great"}
+    recommendations = [{"priority": "high", "category": "Pest Risk"}]
+    result = _reconcile_field_health(health, recommendations, data_quality="good")
+    assert result["label"] == "needs_attention"
+    assert result["score"] <= 60.0
+
+
+def test_reconcile_field_health_leaves_consistent_output_untouched():
+    health = {"score": 40.0, "label": "at_risk", "rationale": "Pest pressure detected"}
+    recommendations = [{"priority": "high", "category": "Pest Risk"}]
+    result = _reconcile_field_health(health, recommendations, data_quality="good")
+    assert result == health
 
 
 @pytest.mark.parametrize("category", [

@@ -138,7 +138,7 @@ async def test_authentication_fails_closed_when_firebase_is_unavailable():
     credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials="not-a-real-token")
     with patch("app.core.auth.firebase_admin.get_app", side_effect=ValueError("not initialized")):
         with pytest.raises(APIError) as raised:
-            await get_current_user(credentials=credentials, db=Mock())
+            await get_current_user(request=Mock(), credentials=credentials, db=Mock())
     assert raised.value.status_code == 503
     assert raised.value.code == "authentication_unavailable"
 
@@ -154,7 +154,7 @@ async def test_authentication_allows_only_configured_bounded_clock_skew():
         "app.core.auth.auth.verify_id_token",
         return_value={"uid": "firebase-user"},
     ) as verify:
-        result = await get_current_user(credentials=credentials, db=db)
+        result = await get_current_user(request=Mock(), credentials=credentials, db=db)
 
     assert result is existing_user
     verify.assert_called_once_with(
@@ -177,7 +177,7 @@ async def test_authentication_timeout_is_retryable():
         side_effect=raise_timeout,
     ):
         with pytest.raises(APIError) as raised:
-            await get_current_user(credentials=credentials, db=Mock())
+            await get_current_user(request=Mock(), credentials=credentials, db=Mock())
 
     assert raised.value.status_code == 503
     assert raised.value.code == "authentication_unavailable"

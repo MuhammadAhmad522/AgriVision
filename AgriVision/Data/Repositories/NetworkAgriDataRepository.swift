@@ -79,6 +79,14 @@ final class NetworkAgriDataRepository: AgriDataService {
         try await apiClient.sendWithoutResponse(APIConstants.Endpoints.recommendations(for: fieldId), method: "POST")
     }
 
+    func fetchSeasonMemory(for fieldId: UUID) async throws -> SeasonMemory? {
+        do {
+            return try await apiClient.send(APIConstants.Endpoints.seasonMemory(for: fieldId))
+        } catch let error as BackendAPIError where error.statusCode == 404 {
+            return nil
+        }
+    }
+
     func updateRecommendationFeedback(for fieldId: UUID, recommendationId: UUID, status: String) async throws -> FieldRecommendation {
         try await apiClient.send(APIConstants.Endpoints.feedback(recommendationId), method: "POST", body: FeedbackRequest(status: status))
     }

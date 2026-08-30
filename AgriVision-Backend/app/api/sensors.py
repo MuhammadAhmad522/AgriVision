@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.api.fields import owned_field
 from app.core.auth import get_current_user
+from app.core.config import settings
 from app.core.errors import APIError
 from app.core.rate_limit import rate_limiter
 from app.database import get_db
@@ -105,7 +106,7 @@ def verify_sensor_connection(device_id: str, db: Session = Depends(get_db), curr
         return {"is_verified": False, "message": "Hardware ID not found. Ensure the device and serial bridge are running."}
     if sensor.owner_id not in (None, current_user.id):
         raise APIError(409, "sensor_owned_by_another_tenant", "That sensor is already registered to another account.")
-    cutoff = datetime.now(timezone.utc) - timedelta(minutes=60)
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=settings.SENSOR_OFFLINE_CUTOFF_MINUTES)
     if sensor.last_seen and sensor.last_seen >= cutoff:
         return {"is_verified": True, "name": sensor.name, "last_seen": sensor.last_seen, "message": "Hardware verified and active."}
     return {"is_verified": False, "message": "Sensor found but no recent heartbeat was detected."}
@@ -129,7 +130,7 @@ async def pair_sensor(
     if sensor.owner_id not in (None, current_user.id):
         raise APIError(409, "sensor_owned_by_another_tenant", "That sensor is already paired to another account.")
 
-    cutoff = datetime.now(timezone.utc) - timedelta(minutes=60)
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=settings.SENSOR_OFFLINE_CUTOFF_MINUTES)
     if sensor.last_seen is None or sensor.last_seen < cutoff:
         raise APIError(409, "sensor_not_online", "No recent sensor heartbeat was detected. Check its power and MQTT connection.", retryable=True)
 

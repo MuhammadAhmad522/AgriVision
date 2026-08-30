@@ -16,10 +16,12 @@ final class AIChatViewModel: ObservableObject {
     private let fieldId: UUID
     private var pendingIdempotencyKey: String?
     var onDismiss: (() -> Void)?
+    var onMessageSent: (() -> Void)?
 
-    init(dataService: AgriDataService, fieldId: UUID) {
+    init(dataService: AgriDataService, fieldId: UUID, onMessageSent: (() -> Void)? = nil) {
         self.dataService = dataService
         self.fieldId = fieldId
+        self.onMessageSent = onMessageSent
     }
 
     var canSend: Bool {
@@ -73,6 +75,7 @@ final class AIChatViewModel: ObservableObject {
             currentMessage = ""
             selectedImages = []
             pendingIdempotencyKey = nil
+            onMessageSent?()
         } catch {
             presentError(error.userFacingMessage)
         }

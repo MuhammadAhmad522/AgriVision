@@ -1,17 +1,28 @@
 import SwiftUI
 
 struct HealthCardView: View {
+    /// AI-computed holistic score, 0-100. Nil means insufficient_data / no AI run yet.
     var healthScore: Double?
+    var healthLabel: String?
     var cropType: String
-    
+
     @State private var animatedProgress: Double = 0.0
-    
+
     var cropImageName: String {
         switch cropType.lowercased() {
         case "wheat": return "wheat"
         case "rice": return "rice"
         case "sugarcane": return "sugarcane"
         default: return "leaf.fill"
+        }
+    }
+
+    var ringColors: [Color] {
+        switch healthLabel {
+        case "excellent", "good": return [Theme.Colors.primaryLight, Theme.Colors.primaryMedium]
+        case "needs_attention": return [.orange.opacity(0.7), .orange]
+        case "at_risk": return [.red.opacity(0.7), .red]
+        default: return [Theme.Colors.primaryLight.opacity(0.4), Theme.Colors.primaryMedium.opacity(0.4)]
         }
     }
     
@@ -45,7 +56,7 @@ struct HealthCardView: View {
                     .trim(from: 0, to: CGFloat(animatedProgress))
                     .stroke(
                         LinearGradient(
-                            colors: [Theme.Colors.primaryLight, Theme.Colors.primaryMedium],
+                            colors: ringColors,
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
@@ -70,13 +81,13 @@ struct HealthCardView: View {
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
                 withAnimation(.spring(response: 1.25, dampingFraction: 0.76, blendDuration: 0.25)) {
-                    animatedProgress = healthScore ?? 0.0
+                    animatedProgress = (healthScore ?? 0.0) / 100.0
                 }
             }
         }
         .onChange(of: healthScore) { newScore in
             withAnimation(.spring(response: 1.25, dampingFraction: 0.76, blendDuration: 0.25)) {
-                animatedProgress = newScore ?? 0.0
+                animatedProgress = (newScore ?? 0.0) / 100.0
             }
         }
     }

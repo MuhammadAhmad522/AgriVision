@@ -21,6 +21,7 @@ from app.models.db_models import (
     FieldObservation,
     FieldProviderLink,
     FieldRecommendation,
+    FieldSeasonMemory,
     ProviderCapability,
     SatelliteScene,
     Sensor,
@@ -111,6 +112,22 @@ def _override(field: Field, key: str) -> int | None:
     if overrides and isinstance(overrides, dict):
         return overrides.get(key)
     return None
+
+
+def _get_or_rotate_season_memory(db: Session, field: Field) -> FieldSeasonMemory | None:
+    if not field.plantation_date:
+        return None
+    active = db.query(FieldSeasonMemory).filter(
+        FieldSeasonMemory.field_id == field.id, FieldSeasonMemory.season_ended_at.is_(None)
+    ).first()
+    if active and active.season_started_at.date() == field.plantation_date.date():
+        return active
+    if active:
+        active.season_ended_at = _utcnow()  # replant (or a plantation_date edit): archive the old season
+    memory = FieldSeasonMemory(field_id=field.id, season_started_at=field.plantation_date, narrative=None)
+    db.add(memory)
+    db.flush()
+    return memory
 
 
 def _store_derived_accumulations(db: Session, field_id: UUID) -> None:
@@ -604,12 +621,20 @@ async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) ->
         .first()
     )
     agronomist_guidance = agronomist_thread.rolling_summary if agronomist_thread else None
+    farmer_thread = (
+        db.query(AIChatThread)
+        .filter(AIChatThread.field_id == field.id, AIChatThread.channel == "farmer")
+        .first()
+    )
+    farmer_reported_context = farmer_thread.rolling_summary if farmer_thread else None
+    season_memory = _get_or_rotate_season_memory(db, field)
     context = {
         "field": {
             "name": field.name,
             "area_ha": field.area_ha,
             "crop_type": field.crop_type,
             "plantation_date": field.plantation_date,
+            "expected_harvest_date": field.expected_harvest_date,
             "days_since_planting": days_since_planting,
             "region": "Punjab, Pakistan",
         },
@@ -642,6 +667,8 @@ async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) ->
         "sensor_summary": sensor_summary,
         "recommendation_history": recommendation_history,
         "agronomist_guidance": agronomist_guidance,
+        "farmer_reported_context": farmer_reported_context,
+        "season_memory": season_memory.narrative if season_memory else None,
     }
     serializable_context = json.loads(json.dumps(context, default=str))
     # Count distinct evidence *types*, not raw rows: a single satellite pass emits
@@ -687,8 +714,11 @@ async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) ->
     try:
         ai_failed = False
         ai_error_msg = None
+        field_health = None
         try:
-            recommendations = await provider.recommendations(serializable_context)
+            ai_result = await provider.recommendations(serializable_context)
+            recommendations = ai_result["recommendations"]
+            field_health = ai_result["field_health"]
         except APIError as exc:
             ai_failed = True
             ai_error_msg = exc.message
@@ -722,7 +752,33 @@ async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) ->
         run.status = "failed" if ai_failed else "completed"
         run.error = ai_error_msg if ai_failed else None
         run.completed_at = _utcnow()
+        if not ai_failed and field_health is not None:
+            field.latest_health_score = field_health["score"]
+            field.latest_health_label = field_health["label"]
+            field.latest_health_rationale = field_health["rationale"]
+            field.latest_health_updated_at = _utcnow()
         db.commit()
+
+        if not ai_failed and recommendations and season_memory:
+            try:
+                update = await provider.summarize_season(
+                    existing_narrative=season_memory.narrative,
+                    new_recommendations=recommendations,
+                    recommendation_history=recommendation_history,
+                    farmer_reported_context=farmer_reported_context,
+                    days_since_planting=days_since_planting,
+                    crop_type=field.crop_type,
+                )
+                season_memory.narrative = update["narrative"]
+                if update.get("key_event"):
+                    season_memory.key_events = [
+                        *season_memory.key_events,
+                        {"date": _utcnow().isoformat(), "description": update["key_event"]},
+                    ]
+                db.commit()
+            except Exception:
+                logger.warning("Season memory update failed field_id=%s", field.id, exc_info=True)
+                db.rollback()
     except asyncio.CancelledError:
         run.status = "failed"
         run.error = "AI analysis was interrupted and will retry."

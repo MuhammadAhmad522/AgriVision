@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://redis:6379/0"
     ENABLE_TIMESCALEDB: bool = False
 
-    FIREBASE_SERVICE_ACCOUNT_PATH: str = "/app/firebase-credentials.json"
+    FIREBASE_SERVICE_ACCOUNT_PATH: str = "firebase-credentials.json"
     # Firebase permits 0...60 seconds. Five seconds absorbs normal clock and
     # token-issuance jitter without materially extending token validity.
     FIREBASE_CLOCK_SKEW_SECONDS: int = Field(default=5, ge=0, le=60)
@@ -43,9 +43,10 @@ class Settings(BaseSettings):
     GOOGLE_GENAI_USE_VERTEXAI: bool = True
     GOOGLE_AI_MODEL: str = "gemini-3.7-flash"
     VERTEX_SEARCH_DATASTORE: str = ""
+    VERTEX_SEARCH_ENGINE: str = ""
     AI_PROMPT_VERSION: str = "agrivision-punjab-v2"
     AI_POLICY_VERSION: str = "guarded-advisory-v1"
-    AI_PROVIDER_TIMEOUT_SECONDS: float = Field(default=45.0, gt=0, le=120)
+    AI_PROVIDER_TIMEOUT_SECONDS: float = Field(default=300.0, gt=0, le=300)
     CHAT_MEDIA_ROOT: str = "./media/chat"
     CHAT_GCS_BUCKET: str = ""
     CHAT_MAX_IMAGES: int = 3
@@ -54,6 +55,7 @@ class Settings(BaseSettings):
     CHAT_MAX_DIMENSION: int = 2048
     CHAT_REQUEST_MAX_BYTES: int = 32 * 1024 * 1024
     ACTIVE_FIELD_LIMIT: int = 5
+    SENSOR_OFFLINE_CUTOFF_MINUTES: int = 60
     MAX_REQUEST_BODY_BYTES: int = 1_048_576
     ALLOWED_ORIGINS: str = ""
 

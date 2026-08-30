@@ -95,6 +95,7 @@ struct AlertsBottomSheet: View {
                                 Text(recommendation.priority.capitalized).textStyle(.caption).foregroundStyle(.secondary)
                             }
                             Text(recommendation.advice).textStyle(.body)
+                            Text(recommendation.relativeCreatedAt).textStyle(.caption).foregroundStyle(.secondary)
                             if let rationale = recommendation.rationale {
                                 Text(rationale).textStyle(.caption).foregroundStyle(.secondary)
                             }
@@ -143,7 +144,32 @@ struct AlertsBottomSheet: View {
                 }
             }
             .listRowBackground(Color.gray.opacity(0.16))
-            
+
+            if let narrative = viewModel.seasonMemory?.narrative, !narrative.isEmpty {
+                Section {
+                    DisclosureGroup {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(narrative)
+                                .textStyle(.body)
+                            if let events = viewModel.seasonMemory?.keyEvents, !events.isEmpty {
+                                ForEach(events) { event in
+                                    if let description = event.description {
+                                        Label(description, systemImage: "bookmark.fill")
+                                            .textStyle(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.top, 4)
+                    } label: {
+                        Label("Crop Journal", systemImage: "book.pages")
+                            .textStyle(.bodyStrong)
+                    }
+                }
+                .listRowBackground(Color.gray.opacity(0.16))
+            }
+
             // Extra space at bottom to scroll past the floating tab bar if fully expanded
             Spacer().frame(height: 100)
                 .listRowBackground(Color.clear)

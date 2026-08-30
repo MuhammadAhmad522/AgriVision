@@ -72,6 +72,15 @@ struct FieldRecommendation: Codable, Identifiable, Equatable {
         guard let c = confidence else { return "N/A" }
         return "\(Int(c * 100))%"
     }
+
+    /// Relative time since this recommendation was generated, e.g. "2 hours ago" — lets a
+    /// farmer tell a genuinely fresh AI pass apart from one that repeated earlier advice
+    /// because the underlying field evidence hadn't changed.
+    var relativeCreatedAt: String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: createdAt, relativeTo: Date())
+    }
 }
 
 struct RecommendationEvidence: Codable, Identifiable, Equatable {

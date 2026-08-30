@@ -4,8 +4,8 @@ import { useAuth } from '../core/auth/AuthContext';
 import { advisoryService } from '../core/services/AdvisoryService';
 import { GlassCard } from '../components/ui/GlassCard';
 import { MetricBadge } from '../components/ui/MetricBadge';
-import { Sparkles, CheckCircle, Brain, Zap, AlertTriangle, Clock, ExternalLink, MessageSquare, Send } from 'lucide-react';
-import type { AIRecommendation, ChatMessage } from '../core/types';
+import { Sparkles, CheckCircle, Brain, Zap, AlertTriangle, Clock, ExternalLink, MessageSquare, Send, BookOpen } from 'lucide-react';
+import type { AIRecommendation, ChatMessage, SeasonMemory } from '../core/types';
 import clsx from 'clsx';
 
 const CATEGORY_FILTERS = ['all', 'irrigation', 'plant_health', 'weather_alert', 'fertilizer_window', 'harvest_timing', 'pest_risk', 'field_monitoring'];
@@ -45,14 +45,22 @@ export const AIAdvisoryView: React.FC = () => {
   const handleForceReEvaluation = async () => {
     if (!activeField) return;
     setReEvaluating(true);
+    // The backend runs the actual re-analysis as an async background job — a single fetch
+    // right after triggering would almost always show stale advice. Poll (via a direct
+    // service call, not context state, to avoid a stale-closure read) until a recommendation
+    // created after this trigger actually shows up, or the attempt budget runs out.
+    const triggeredAt = Date.now();
     try {
       const ok = await advisoryService.triggerAIReasoning(activeField.id);
       if (!ok) {
         alert('Could not trigger AI re-evaluation. It may be rate-limited — try again shortly.');
         return;
       }
-      // The run happens in the background; give it a moment before pulling fresh data.
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      for (let attempt = 0; attempt < 8; attempt++) {
+        if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 3000));
+        const recs = await advisoryService.getRecommendations(activeField.id);
+        if (recs.some((r) => new Date(r.created_at).getTime() > triggeredAt)) break;
+      }
       await refreshActiveFieldData();
     } finally {
       setReEvaluating(false);
@@ -244,9 +252,50 @@ export const AIAdvisoryView: React.FC = () => {
         ))}
       </div>
 
+      {!showQueue && activeField && <SeasonMemoryPanel fieldId={activeField.id} />}
       {!showQueue && activeField && <FieldChatPanel fieldId={activeField.id} />}
       {!showQueue && isStaff && activeField && <AgronomistGuidancePanel fieldId={activeField.id} />}
     </div>
+  );
+};
+
+const SeasonMemoryPanel: React.FC<{ fieldId: string }> = ({ fieldId }) => {
+  const [memory, setMemory] = useState<SeasonMemory | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    advisoryService.getSeasonMemory(fieldId)
+      .then(setMemory)
+      .finally(() => setLoading(false));
+  }, [fieldId]);
+
+  if (!loading && !memory?.narrative) return null;
+
+  return (
+    <GlassCard className="p-5">
+      <div className="flex items-center gap-2 mb-1">
+        <BookOpen size={16} className="text-accent-lime" />
+        <h3 className="text-sm font-bold text-text-main">Crop Journal</h3>
+      </div>
+      <p className="text-[12px] text-text-muted mb-3">
+        The AI's compressed, whole-season narrative for this field's current crop cycle — fusing satellite,
+        sensor, and farmer-reported context over time.
+      </p>
+      {loading && <p className="text-text-muted text-xs">Loading…</p>}
+      {!loading && memory?.narrative && (
+        <>
+          <p className="text-[13px] text-text-main leading-relaxed">{memory.narrative}</p>
+          {memory.key_events.length > 0 && (
+            <div className="flex flex-col gap-1 mt-3">
+              {memory.key_events.map((event, i) => (
+                <p key={i} className="text-[12px] text-text-muted">• {event.description}</p>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </GlassCard>
   );
 };
 
@@ -294,6 +343,7 @@ const FieldChatPanel: React.FC<{ fieldId: string }> = ({ fieldId }) => {
 };
 
 const AgronomistGuidancePanel: React.FC<{ fieldId: string }> = ({ fieldId }) => {
+  const { refreshActiveFieldData } = useFarm();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
@@ -317,6 +367,9 @@ const AgronomistGuidancePanel: React.FC<{ fieldId: string }> = ({ fieldId }) => 
       const turn = await advisoryService.sendAgronomistGuidance(fieldId, text);
       setMessages((prev) => [...prev, turn.user_message, turn.assistant_message]);
       setDraft('');
+      // Give the backend's fingerprint-triggered AI reconsideration a moment, then nudge one
+      // extra dashboard refresh instead of waiting for the normal 5-minute reactive-tier poll.
+      setTimeout(() => { refreshActiveFieldData(); }, 6000);
     } catch (e) {
       console.error(e);
       alert('Failed to send guidance to the AI.');

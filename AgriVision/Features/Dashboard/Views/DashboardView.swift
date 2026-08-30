@@ -14,6 +14,7 @@ struct DashboardView: View {
     @State private var showingAlerts = false
     @State private var showingNotifications = false
     @State private var selectedMetricDetail: MetricDetailType?
+    @State private var showingHarvestPopup = false
     
     // Grid configuration
     let columns = [
@@ -52,6 +53,14 @@ struct DashboardView: View {
                             if !viewModel.dataAvailability.isEmpty {
                                 DataAvailabilityCard(items: viewModel.dataAvailability) {
                                     Task { await viewModel.requestDataRefresh() }
+                                }
+                                .padding(.horizontal, Theme.Spacing.large)
+                            }
+                            
+                            // Harvest Ready Banner
+                            if viewModel.showHarvestAlert {
+                                HarvestReadyBanner {
+                                    showingHarvestPopup = true
                                 }
                                 .padding(.horizontal, Theme.Spacing.large)
                             }
@@ -96,7 +105,7 @@ struct DashboardView: View {
                                     .buttonStyle(.plain)
                                     
                                     Button(action: { selectedMetricDetail = .health }) {
-                                        HealthCardView(healthScore: viewModel.healthSummary?.score, cropType: viewModel.currentCropType)
+                                        HealthCardView(healthScore: viewModel.healthSummary?.score, healthLabel: viewModel.healthSummary?.label, cropType: viewModel.currentCropType)
                                             .padding(.trailing, Theme.Spacing.large)
                                     }
                                     .buttonStyle(.plain)
@@ -116,17 +125,17 @@ struct DashboardView: View {
                                     .buttonStyle(.plain)
                                     
                                     Button(action: { selectedMetricDetail = .phLevel }) {
-                                        PHLevelCardView(phLevel: viewModel.readings.first?.ph, sensorStatus: viewModel.sensorStatus)
+                                        PHLevelCardView(entries: viewModel.sensorFleet)
                                     }
                                     .buttonStyle(.plain)
                                     
                                     Button(action: { selectedMetricDetail = .liveSensor }) {
-                                        SensorLiveCardView(reading: viewModel.readings.first, sensorStatus: viewModel.sensorStatus)
+                                        SensorLiveCardView(entries: viewModel.sensorFleet)
                                     }
                                     .buttonStyle(.plain)
                                     
                                     Button(action: { selectedMetricDetail = .ndvi }) {
-                                        NDVICardView(ndvi: viewModel.satellite?.data?.statistics?["ndvi"]?.mean ?? viewModel.healthSummary?.score)
+                                        NDVICardView(ndvi: viewModel.satellite?.data?.statistics?["ndvi"]?.mean)
                                     }
                                     .buttonStyle(.plain)
                                     
@@ -146,7 +155,7 @@ struct DashboardView: View {
                                     .buttonStyle(.plain)
                                     
                                     Button(action: { selectedMetricDetail = .soilChemistry }) {
-                                        SensorChemistryCardView(reading: viewModel.readings.first, sensorStatus: viewModel.sensorStatus)
+                                        SensorChemistryCardView(entries: viewModel.sensorFleet)
                                     }
                                     .buttonStyle(.plain)
                                     
@@ -238,7 +247,13 @@ struct DashboardView: View {
                 if let activeFieldId = viewModel.fieldSessionStore.activeFieldId {
                     AIChatView(viewModel: AIChatViewModel(
                         dataService: viewModel.dataService,
-                        fieldId: activeFieldId
+                        fieldId: activeFieldId,
+                        onMessageSent: { [weak viewModel] in
+                            Task {
+                                try? await Task.sleep(for: .seconds(6))
+                                await viewModel?.refreshData()
+                            }
+                        }
                     ))
                     .id(activeFieldId)
                 } else {
@@ -256,6 +271,7 @@ struct DashboardView: View {
             NavigationStack {
                 SettingsView(
                     viewModel: settingsViewModel,
+                    lastUpdated: viewModel.lastUpdatedAt,
                     onBack: { selectedTab = .home }
                 )
             }
@@ -277,6 +293,14 @@ struct DashboardView: View {
             } else if let success = viewModel.successMessage {
                 ToastView(message: success, type: .success).padding(.top, 56).padding(.horizontal)
             }
+        }
+        .alert("Harvest Ready", isPresented: $showingHarvestPopup) {
+            Button("Cancel", role: .cancel) { }
+            Button("Harvest Now", role: .destructive) {
+                viewModel.harvestNow()
+            }
+        } message: {
+            Text("This field and all its data will be permanently deleted once harvested. Do you want to continue?")
         }
     }
 
@@ -313,4 +337,25 @@ private enum DashboardTab: Hashable {
 
 // MARK: - Bottom Alerts Card
 
-
+struct HarvestReadyBanner: View {
+    var action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Image(systemName: "leaf.arrow.circlepath")
+                    .foregroundColor(.white)
+                Text("Ready for Harvest")
+                    .textStyle(.bodyStrong)
+                    .foregroundColor(.white)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.white.opacity(0.8))
+            }
+            .padding()
+            .background(Theme.Colors.success, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .shadow(color: .black.opacity(0.1), radius: 5, y: 2)
+        }
+        .buttonStyle(.plain)
+    }
+}

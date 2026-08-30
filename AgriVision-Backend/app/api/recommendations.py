@@ -8,8 +8,8 @@ from app.core.auth import RequireRole, get_current_user
 from app.core.errors import APIError
 from app.core.rate_limit import rate_limiter
 from app.database import get_db
-from app.models.db_models import FieldRecommendation, User
-from app.schemas.pydantic_schemas import RecommendationFeedback, RecommendationOutcome, RecommendationResponse, RecommendationExpertValidation
+from app.models.db_models import FieldRecommendation, FieldSeasonMemory, User
+from app.schemas.pydantic_schemas import RecommendationFeedback, RecommendationOutcome, RecommendationResponse, RecommendationExpertValidation, SeasonMemoryResponse
 
 router = APIRouter(tags=["AI Recommendations"])
 
@@ -30,6 +30,23 @@ def get_recommendations(
         .limit(limit)
         .all()
     )
+
+
+@router.get("/api/fields/{field_id}/season-memory", response_model=SeasonMemoryResponse)
+def get_season_memory(
+    field_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    field_readable_by(db, current_user, field_id)
+    memory = (
+        db.query(FieldSeasonMemory)
+        .filter(FieldSeasonMemory.field_id == field_id, FieldSeasonMemory.season_ended_at.is_(None))
+        .first()
+    )
+    if memory is None:
+        raise APIError(404, "season_memory_not_found", "No season memory yet for this field.")
+    return memory
 
 
 def _apply_feedback(recommendation_id: UUID, feedback: RecommendationFeedback, db: Session, current_user: User, field_id: UUID | None = None):

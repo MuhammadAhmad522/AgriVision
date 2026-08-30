@@ -7,6 +7,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -73,6 +74,14 @@ class Field(Base):
 
     latest_ndvi = Column(Float)
     interval_overrides = Column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+
+    # AI-computed holistic field health — a separate concept from latest_ndvi (a raw
+    # vegetation index): score is null whenever label is "insufficient_data" rather than a
+    # fabricated number.
+    latest_health_score = Column(Float, nullable=True)
+    latest_health_label = Column(String(20), nullable=True)
+    latest_health_rationale = Column(Text, nullable=True)
+    latest_health_updated_at = Column(DateTime(timezone=True), nullable=True)
 
     owner = relationship("User", back_populates="fields")
     provider_links = relationship("FieldProviderLink", back_populates="field", passive_deletes=True)
@@ -227,6 +236,27 @@ class AIChatThread(Base):
     channel = Column(String(20), nullable=False, server_default="farmer")
     rolling_summary = Column(Text)
     summarized_through = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class FieldSeasonMemory(Base):
+    __tablename__ = "field_season_memories"
+    __table_args__ = (
+        Index(
+            "uq_field_season_memories_active",
+            "field_id",
+            unique=True,
+            postgresql_where=text("season_ended_at IS NULL"),
+        ),
+    )
+
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    field_id = Column(PG_UUID(as_uuid=True), ForeignKey("fields.id", ondelete="CASCADE"), index=True, nullable=False)
+    season_started_at = Column(DateTime(timezone=True), nullable=False)
+    season_ended_at = Column(DateTime(timezone=True))
+    narrative = Column(Text)
+    key_events = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 

@@ -133,7 +133,8 @@ class MockAgriDataRepository: AgriDataService {
                 soil: SourceState(status: "available", lastUpdated: Date(), data: weatherSoil.soil, message: nil),
                 weather: SourceState(status: "available", lastUpdated: Date(), data: weatherSoil.weather, message: nil),
                 uvi: SourceState(status: "unavailable", lastUpdated: nil, data: nil, message: nil),
-                sensors: SourceState(status: "available", lastUpdated: Date(), data: try await fetchSensorReadings(for: fieldId), message: nil)
+                sensors: SourceState(status: "available", lastUpdated: Date(), data: try await fetchSensorReadings(for: fieldId), message: nil),
+                sensorFleet: []
             ),
             advisor: AdvisorSnapshot(
                 status: "available",
@@ -171,6 +172,11 @@ class MockAgriDataRepository: AgriDataService {
 
     func refreshRecommendations(for fieldId: UUID) async throws {
         try await maybeThrow("refreshRecommendations")
+    }
+
+    func fetchSeasonMemory(for fieldId: UUID) async throws -> SeasonMemory? {
+        try await maybeThrow("fetchSeasonMemory")
+        return nil
     }
     
     /// Fetches the conversational history for a field from the AI backend.

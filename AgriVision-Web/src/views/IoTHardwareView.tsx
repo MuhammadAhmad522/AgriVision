@@ -4,8 +4,14 @@ import { GlassCard } from '../components/ui/GlassCard';
 import { MetricBadge } from '../components/ui/MetricBadge';
 import { Radio, Battery, Wifi, Plus, Terminal } from 'lucide-react';
 
+// Live tier: raw IoT telemetry only. 10s matches the fast end of iOS's sensor-refresh
+// range (DashboardViewModel's dashboardRefreshInterval) — this is the one kind of data
+// in the app that's genuinely real-time (MQTT-pushed), so a short fixed interval is
+// correct here, unlike a full dashboard/recommendation re-fetch.
+const SENSOR_POLL_INTERVAL_MS = 10000;
+
 export const IoTHardwareView: React.FC = () => {
-  const { sensors, fields } = useFarm();
+  const { sensors, fields, activeField } = useFarm();
   const [showPairModal, setShowPairModal] = useState(false);
   const [newDeviceId, setNewDeviceId] = useState('');
 
@@ -14,9 +20,9 @@ export const IoTHardwareView: React.FC = () => {
   // Poll for raw readings to simulate live MQTT stream
   React.useEffect(() => {
     let interval: number | ReturnType<typeof setTimeout>;
-    
+
     const fetchLatest = () => {
-      const fieldId = fields[0]?.id; // Just pick the first field for the global demo if none is active
+      const fieldId = activeField?.id ?? fields[0]?.id; // fall back only if nothing is selected yet
       if (!fieldId) return;
 
       import('../core/services/SensorService').then(({ sensorService }) => {
@@ -32,10 +38,10 @@ export const IoTHardwareView: React.FC = () => {
     };
 
     fetchLatest();
-    interval = setInterval(fetchLatest, 10000); // poll every 10 seconds
+    interval = setInterval(fetchLatest, SENSOR_POLL_INTERVAL_MS);
 
     return () => clearInterval(interval);
-  }, [fields]);
+  }, [fields, activeField]);
 
   return (
     <div className="flex flex-col gap-6 pb-10">

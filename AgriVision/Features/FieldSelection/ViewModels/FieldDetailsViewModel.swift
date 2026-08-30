@@ -10,6 +10,7 @@ class FieldDetailsViewModel: ObservableObject {
     @Published var selectedCrop: String = "Wheat"
     @Published var plantationDate: Date = Date()
     @Published var harvestDate: Date = Date().addingTimeInterval(60 * 60 * 24 * 30 * 4) // 4 months default
+    @Published var letSystemDecideHarvestDate: Bool = true
     @Published var monitorWithIoT: Bool = false
     @Published var profileImageURL: URL?
     @Published var profileInitial: String = ""
@@ -121,7 +122,7 @@ class FieldDetailsViewModel: ObservableObject {
             areaHa: areaHa,
             cropType: selectedCrop,
             plantationDate: plantationDate,
-            expectedHarvestDate: harvestDate
+            expectedHarvestDate: letSystemDecideHarvestDate ? nil : harvestDate
         )
         
         if monitorWithIoT {

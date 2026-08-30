@@ -43,9 +43,19 @@ def _prepare_database() -> None:
         connection.execute(text("CREATE EXTENSION IF NOT EXISTS postgis"))
         if settings.ENABLE_TIMESCALEDB:
             connection.execute(text("CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE"))
+    from sqlalchemy import inspect
+    inspector = inspect(engine)
+    is_fresh = "users" not in inspector.get_table_names()
+    
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
-    command.upgrade(config, "head")
+    
+    if is_fresh:
+        from app.database import Base
+        Base.metadata.create_all(bind=engine)
+        command.stamp(config, "head")
+    else:
+        command.upgrade(config, "head")
     if settings.ENABLE_TIMESCALEDB:
         with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as connection:
             connection.execute(
@@ -149,11 +159,27 @@ def root():
 
 @app.get("/health")
 def health():
-    with engine.connect() as connection:
-        connection.execute(text("SELECT 1"))
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+        db_status = "healthy"
+    except Exception as e:
+        logger.error(f"Database health check failed: {e}")
+        db_status = "unavailable"
+
     try:
         firebase_admin.get_app()
         auth_status = "ready"
     except ValueError:
         auth_status = "unavailable"
-    return {"status": "healthy", "version": "1.0.0", "authentication": auth_status}
+        
+    status_code = 503 if db_status == "unavailable" else 200
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "status": "healthy" if db_status == "healthy" else "degraded",
+            "database": db_status,
+            "version": "1.0.0",
+            "authentication": auth_status
+        }
+    )

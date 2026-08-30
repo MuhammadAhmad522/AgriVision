@@ -12,7 +12,7 @@ export interface Field {
   crop_type: string;
   area_ha: number;
   plantation_date: string;
-  expected_harvest_date: string;
+  expected_harvest_date: string | null;
   coordinates: Coordinate[];
   status: string;
   ndvi_score?: number;
@@ -135,6 +135,19 @@ export interface AIRecommendation {
   expires_at?: string;
   outcome?: string;
   outcome_notes?: string;
+}
+
+export interface SeasonKeyEvent {
+  date?: string;
+  description?: string;
+}
+
+/** The AI advisor's compressed, whole-season narrative for a field's current crop cycle. */
+export interface SeasonMemory {
+  field_id: string;
+  season_started_at: string;
+  narrative?: string;
+  key_events: SeasonKeyEvent[];
 }
 
 export interface AdvisorState {

@@ -31,7 +31,13 @@ struct Field: Identifiable, Codable, Equatable {
     // Satellite Data
     let ndviScore: Double?
     let lastSatelliteSync: Date?
-    
+
+    // AI-computed holistic field health — distinct from ndviScore (a raw vegetation index)
+    var latestHealthScore: Double? = nil
+    var latestHealthLabel: String? = nil
+    var latestHealthRationale: String? = nil
+    var latestHealthUpdatedAt: Date? = nil
+
     enum CodingKeys: String, CodingKey {
         case id
         case ownerId = "owner_id"
@@ -55,6 +61,12 @@ struct Field: Identifiable, Codable, Equatable {
         // Satellite mappings
         case ndviScore = "latest_ndvi"
         case lastSatelliteSync = "last_satellite_sync"
+
+        // AI-computed field health mappings
+        case latestHealthScore = "latest_health_score"
+        case latestHealthLabel = "latest_health_label"
+        case latestHealthRationale = "latest_health_rationale"
+        case latestHealthUpdatedAt = "latest_health_updated_at"
     }
 
     /// Returns the same field with a locally retained boundary.
@@ -82,6 +94,10 @@ struct Field: Identifiable, Codable, Equatable {
         copy.agroStatus = agroStatus
         copy.agroError = agroError
         copy.agroRetryable = agroRetryable
+        copy.latestHealthScore = latestHealthScore
+        copy.latestHealthLabel = latestHealthLabel
+        copy.latestHealthRationale = latestHealthRationale
+        copy.latestHealthUpdatedAt = latestHealthUpdatedAt
         return copy
     }
 }

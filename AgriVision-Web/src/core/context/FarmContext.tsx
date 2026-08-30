@@ -74,6 +74,16 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loadActiveFieldData();
   }, [loadActiveFieldData]);
 
+  // Reactive tier — matches iOS's DashboardViewModel full-dashboard poll and the backend's own
+  // AGRO_WORKER_SCAN_SECONDS (5 min): polling faster can't surface anything the backend hasn't
+  // itself noticed yet. No fast/sensor tier needed here — staff review, they don't need
+  // 15s-fresh raw telemetry the way the farmer-facing app does.
+  useEffect(() => {
+    if (!activeField) return;
+    const interval = setInterval(loadActiveFieldData, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [activeField, loadActiveFieldData]);
+
   return (
     <FarmContext.Provider
       value={{

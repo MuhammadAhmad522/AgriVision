@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @StateObject var viewModel: SettingsViewModel
+    var lastUpdated: Date?
     var onBack: (() -> Void)?
 
     @Environment(\.dismiss) private var dismiss
@@ -9,8 +10,9 @@ struct SettingsView: View {
     @State private var showEditProfile = false
     @State private var showSensorSetup = false
 
-    init(viewModel: SettingsViewModel, onBack: (() -> Void)? = nil) {
+    init(viewModel: SettingsViewModel, lastUpdated: Date? = nil, onBack: (() -> Void)? = nil) {
         _viewModel = StateObject(wrappedValue: viewModel)
+        self.lastUpdated = lastUpdated
         self.onBack = onBack
     }
 
@@ -177,7 +179,7 @@ struct SettingsView: View {
             }
             .pickerStyle(.menu)
             
-            Picker("Auto-refresh", selection: Binding(
+            Picker("Sensor refresh", selection: Binding(
                 get: { viewModel.refreshInterval },
                 set: viewModel.setRefreshInterval
             )) {
@@ -187,8 +189,15 @@ struct SettingsView: View {
             }
             .pickerStyle(.menu)
 
-            SettingsInfoRow(icon: "arrow.triangle.2.circlepath", label: "Data source", value: "Backend snapshots")
+            SettingsInfoRow(icon: "arrow.triangle.2.circlepath", label: "Last updated", value: lastUpdatedText)
         }
+    }
+
+    private var lastUpdatedText: String {
+        guard let lastUpdated else { return "Not yet" }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: lastUpdated, relativeTo: Date())
     }
 
     private var integrationsSection: some View {

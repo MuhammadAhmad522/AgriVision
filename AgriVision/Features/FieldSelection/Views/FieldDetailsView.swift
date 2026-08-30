@@ -38,7 +38,8 @@ struct FieldDetailsView: View {
                         // Input Forms
                         VStack(spacing: 20) {
                             FieldTextFieldBox(
-                                placeholder: "Field Name",
+                                label: "Field Name",
+                                placeholder: "Enter Field Name",
                                 text: $viewModel.name
                             )
                             
@@ -60,13 +61,23 @@ struct FieldDetailsView: View {
                                 showPlantationPicker = true
                             }
                             
-                            FieldSelectionBox(
-                                label: "Expected Harvest Date",
-                                value: dateFormatter.string(from: viewModel.harvestDate),
-                                placeholder: "Expected Harvest Date",
-                                icon: "calendar"
-                            ) {
-                                showHarvestPicker = true
+                            VStack(spacing: 8) {
+                                FieldSelectionBox(
+                                    label: "Expected Harvest Date",
+                                    value: viewModel.letSystemDecideHarvestDate ? "Let system decide" : dateFormatter.string(from: viewModel.harvestDate),
+                                    placeholder: "Expected Harvest Date",
+                                    icon: "calendar"
+                                ) {
+                                    if !viewModel.letSystemDecideHarvestDate {
+                                        showHarvestPicker = true
+                                    }
+                                }
+                                
+                                Toggle("Let system decide", isOn: $viewModel.letSystemDecideHarvestDate)
+                                    .textStyle(.caption)
+                                    .foregroundColor(Theme.Colors.primaryMedium)
+                                    .padding(.horizontal, 16)
+                                    .tint(Theme.Colors.primaryMedium)
                             }
                             
                             FieldToggleBox(
@@ -161,26 +172,33 @@ struct FieldSelectionBox: View {
     let action: () -> Void
     
     var body: some View {
-        Button(action: action) {
-            HStack {
-                Text(value.isEmpty ? placeholder : value)
-                    .textStyle(.body)
-                    .foregroundColor(Theme.Colors.primaryMedium)
+        VStack(alignment: .leading, spacing: 8) {
+            Text(label)
+                .textStyle(.captionStrong)
+                .foregroundColor(Theme.Colors.primaryMedium)
+                .padding(.leading, 8)
                 
-                Spacer()
-                
-                Image(systemName: icon)
-                    .foregroundColor(Theme.Colors.primaryMedium)
-                    .textStyle(.body)
+            Button(action: action) {
+                HStack {
+                    Text(value.isEmpty ? placeholder : value)
+                        .textStyle(.body)
+                        .foregroundColor(Theme.Colors.primaryMedium)
+                    
+                    Spacer()
+                    
+                    Image(systemName: icon)
+                        .foregroundColor(Theme.Colors.primaryMedium)
+                        .textStyle(.body)
+                }
+                .padding(.horizontal, 16)
+                .frame(width: 366, height: 60)
+                .background(Theme.Colors.background)
+                .cornerRadius(15)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 15)
+                        .stroke(Theme.Colors.primaryLight, lineWidth: 1)
+                )
             }
-            .padding(.horizontal, 16)
-            .frame(width: 366, height: 60)
-            .background(Theme.Colors.background)
-            .cornerRadius(15)
-            .overlay(
-                RoundedRectangle(cornerRadius: 15)
-                    .stroke(Theme.Colors.primaryLight, lineWidth: 1)
-            )
         }
     }
 }
@@ -220,21 +238,29 @@ struct FieldToggleBox: View {
 }
 
 struct FieldTextFieldBox: View {
+    let label: String
     let placeholder: String
     @Binding var text: String
     
     var body: some View {
-        TextField(placeholder, text: $text)
-            .textStyle(.body)
-            .foregroundColor(Theme.Colors.primaryMedium)
-            .padding(.horizontal, 16)
-            .frame(width: 366, height: 60)
-            .background(Theme.Colors.background)
-            .cornerRadius(15)
-            .overlay(
-                RoundedRectangle(cornerRadius: 15)
-                    .stroke(Theme.Colors.primaryLight, lineWidth: 1)
-            )
+        VStack(alignment: .leading, spacing: 8) {
+            Text(label)
+                .textStyle(.captionStrong)
+                .foregroundColor(Theme.Colors.primaryMedium)
+                .padding(.leading, 8)
+                
+            TextField(placeholder, text: $text)
+                .textStyle(.body)
+                .foregroundColor(Theme.Colors.primaryMedium)
+                .padding(.horizontal, 16)
+                .frame(width: 366, height: 60)
+                .background(Theme.Colors.background)
+                .cornerRadius(15)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 15)
+                        .stroke(Theme.Colors.primaryLight, lineWidth: 1)
+                )
+        }
     }
 }
 

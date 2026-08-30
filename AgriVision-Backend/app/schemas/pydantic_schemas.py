@@ -117,6 +117,15 @@ class FieldResponse(BaseModel):
     expected_harvest_date: Optional[datetime] = None
     latest_ndvi: Optional[float] = None
     interval_overrides: Optional[dict[str, int]] = None
+    agromonitoring_polygon_id: Optional[str] = None
+    agro_status: Optional[str] = None
+    agro_error: Optional[str] = None
+    agro_retryable: Optional[bool] = None
+    last_satellite_sync: Optional[datetime] = None
+    latest_health_score: Optional[float] = None
+    latest_health_label: Optional[str] = None
+    latest_health_rationale: Optional[str] = None
+    latest_health_updated_at: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -185,6 +194,14 @@ class RecommendationResponse(BaseModel):
     expires_at: Optional[datetime] = None
     outcome: Optional[str] = None
     outcome_notes: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SeasonMemoryResponse(BaseModel):
+    field_id: UUID
+    season_started_at: datetime
+    narrative: Optional[str] = None
+    key_events: Any = []
     model_config = ConfigDict(from_attributes=True)
 
 
