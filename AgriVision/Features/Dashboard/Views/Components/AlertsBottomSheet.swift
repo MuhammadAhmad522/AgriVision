@@ -2,7 +2,6 @@ import SwiftUI
 
 struct AlertsBottomSheet: View {
     @ObservedObject var viewModel: DashboardViewModel
-    let onShowAll: () -> Void
     var onAskAI: (() -> Void)? = nil
     
     var body: some View {
@@ -17,15 +16,6 @@ struct AlertsBottomSheet: View {
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    if !viewModel.recommendations.isEmpty {
-                        Button(action: onShowAll) {
-                            Label(
-                                "View all \(viewModel.recommendations.count)",
-                                systemImage: "arrow.up.left.and.arrow.down.right"
-                            )
-                        }
-                        .textStyle(.captionStrong)
-                    }
                 }
                 HStack {
                     Button { Task { await viewModel.refreshRecommendations() } } label: {
@@ -82,7 +72,7 @@ struct AlertsBottomSheet: View {
                         .foregroundStyle(.orange)
                     }
                     if viewModel.recommendations.count > 1 {
-                        Text("Scroll or tap View all to read every recommendation for this field.")
+                        Text("Scroll down to read every recommendation for this field.")
                             .textStyle(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -92,29 +82,24 @@ struct AlertsBottomSheet: View {
                                 Text(recommendation.icon)
                                 Text(recommendation.category).textStyle(.bodyStrong)
                                 Spacer()
-                                Text(recommendation.priority.capitalized).textStyle(.caption).foregroundStyle(.secondary)
-                            }
-                            Text(recommendation.advice).textStyle(.body)
-                            Text(recommendation.relativeCreatedAt).textStyle(.caption).foregroundStyle(.secondary)
-                            if let rationale = recommendation.rationale {
-                                Text(rationale).textStyle(.caption).foregroundStyle(.secondary)
-                            }
-                            if let evidence = recommendation.evidence, !evidence.isEmpty {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    ForEach(evidence) { source in
-                                        if let urlString = source.url, let url = URL(string: urlString) {
-                                            Link(urlString, destination: url)
-                                                .textStyle(.caption)
-                                                .lineLimit(1)
-                                        }
-                                    }
+                                if recommendation.status == "implemented" {
+                                    Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
+                                } else if recommendation.status == "ignored" {
+                                    Image(systemName: "xmark.circle.fill").foregroundColor(.gray)
+                                } else {
+                                    Text(recommendation.priority.capitalized).textStyle(.caption).foregroundStyle(.secondary)
                                 }
                             }
-                            if recommendation.requiresExpertConfirmation {
-                                Label("Expert confirmation required", systemImage: "person.badge.shield.checkmark")
-                                    .textStyle(.captionStrong).foregroundStyle(.orange)
-                            }
+                            
                             if recommendation.status == "pending" {
+                                Text(recommendation.advice).textStyle(.body)
+                                Text(recommendation.relativeCreatedAt).textStyle(.caption).foregroundStyle(.secondary)
+                                
+                                if recommendation.requiresExpertConfirmation {
+                                    Label("Expert confirmation required", systemImage: "person.badge.shield.checkmark")
+                                        .textStyle(.captionStrong).foregroundStyle(.orange)
+                                }
+                                
                                 HStack {
                                     Button("Implemented") { Task { await viewModel.updateFeedback(recommendation, status: "implemented") } }
                                     Button("Ignore", role: .destructive) { Task { await viewModel.updateFeedback(recommendation, status: "ignored") } }
@@ -122,7 +107,6 @@ struct AlertsBottomSheet: View {
                                 .textStyle(.caption)
                                 .buttonStyle(.borderless)
                             } else {
-                                Text(recommendation.status.capitalized).textStyle(.caption).foregroundStyle(.secondary)
                                 if recommendation.status == "implemented" && recommendation.outcome == nil {
                                     Menu {
                                         Button("Useful") { Task { await viewModel.recordOutcome(recommendation, outcome: "useful") } }
@@ -140,6 +124,7 @@ struct AlertsBottomSheet: View {
                             }
                         }
                         .padding(.vertical, 4)
+                        .buttonStyle(.plain)
                     }
                 }
             }

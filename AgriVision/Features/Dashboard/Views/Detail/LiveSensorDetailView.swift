@@ -19,15 +19,7 @@ struct LiveSensorDetailView: View {
             }
         }
         
-        let baseTemp = reading?.temperature ?? 24.5
-        let baseMoist = reading?.moisture ?? 38.0
-        let timeLabels = ["10m ago", "8m ago", "6m ago", "4m ago", "2m ago", "Just Now"]
-        let tempOffsets: [Double] = [-0.4, -0.2, 0.1, 0.3, 0.0, 0.2]
-        let moistOffsets: [Double] = [0.5, -0.3, -0.8, -0.2, 0.4, 0.0]
-        
-        return zip(timeLabels, zip(tempOffsets, moistOffsets)).map { (time, offsets) in
-            (time: time, temp: baseTemp + offsets.0, moisture: baseMoist + offsets.1)
-        }
+        return []
     }
     
     var body: some View {

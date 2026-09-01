@@ -58,9 +58,32 @@ def _apply_feedback(recommendation_id: UUID, feedback: RecommendationFeedback, d
         raise APIError(404, "recommendation_not_found", "Recommendation not found.")
     owned_field(db, current_user, recommendation.field_id)
     from datetime import datetime, timezone
+    import uuid
+    from sqlalchemy.orm.attributes import flag_modified
 
     recommendation.status = feedback.status
     recommendation.feedback_at = datetime.now(timezone.utc)
+    
+    # Update Season Memory Journal
+    memory = db.query(FieldSeasonMemory).filter(
+        FieldSeasonMemory.field_id == recommendation.field_id,
+        FieldSeasonMemory.season_ended_at.is_(None)
+    ).first()
+    
+    if memory:
+        action_verb = "implemented" if feedback.status == "implemented" else "ignored"
+        event = {
+            "id": str(uuid.uuid4()),
+            "date": datetime.now(timezone.utc).isoformat(),
+            "description": f"Farmer {action_verb} AI advice: {recommendation.category}",
+            "source": "user",
+            "type": "feedback"
+        }
+        if not isinstance(memory.key_events, list):
+            memory.key_events = []
+        memory.key_events.append(event)
+        flag_modified(memory, "key_events")
+
     db.commit()
     db.refresh(recommendation)
     return recommendation

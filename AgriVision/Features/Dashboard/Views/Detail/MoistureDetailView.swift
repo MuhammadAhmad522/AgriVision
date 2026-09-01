@@ -15,12 +15,7 @@ struct MoistureDetailView: View {
             }
         }
         
-        let base = Double(moisture ?? 35)
-        let hours = ["6h ago", "4h ago", "2h ago", "1h ago", "Now"]
-        let offsets: [Double] = [-2, -1, 1, 0, 0]
-        return zip(hours, offsets).map { (h, off) in
-            (label: h, value: max(5, min(95, base + off)))
-        }
+        return []
     }
     
     private var moistureStatus: (text: String, color: Color, recommendation: String) {

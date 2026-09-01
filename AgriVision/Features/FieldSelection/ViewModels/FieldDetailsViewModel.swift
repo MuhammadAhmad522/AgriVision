@@ -92,8 +92,24 @@ class FieldDetailsViewModel: ObservableObject {
     // MARK: - Actions
     
     func saveField() {
-        guard !name.trimmingCharacters(in: .whitespaces).isEmpty else {
-            errorMessage = "Please enter a field name."
+        // Sanitize input
+        var sanitizedName = name
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+            .components(separatedBy: .controlCharacters)
+            .joined()
+            
+        if sanitizedName.count > 50 {
+            sanitizedName = String(sanitizedName.prefix(50)).trimmingCharacters(in: .whitespaces)
+        }
+        
+        // Update the UI with the sanitized name
+        name = sanitizedName
+        
+        guard !name.isEmpty else {
+            errorMessage = "Please enter a valid field name."
             ToastMessageAutoDismiss.schedule(
                 expectedMessage: errorMessage ?? "",
                 currentMessage: { [weak self] in self?.errorMessage },

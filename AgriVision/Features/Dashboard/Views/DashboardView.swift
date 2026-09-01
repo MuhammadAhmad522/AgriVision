@@ -15,6 +15,7 @@ struct DashboardView: View {
     @State private var showingNotifications = false
     @State private var selectedMetricDetail: MetricDetailType?
     @State private var showingHarvestPopup = false
+    @State private var alertsDetent: PresentationDetent = .medium
     
     // Grid configuration
     let columns = [
@@ -149,11 +150,6 @@ struct DashboardView: View {
                                     }
                                     .buttonStyle(.plain)
                                     
-                                    Button(action: { selectedMetricDetail = .forecast }) {
-                                        ForecastCardView(days: viewModel.weatherSoil?.weather.forecastDays ?? [])
-                                    }
-                                    .buttonStyle(.plain)
-                                    
                                     Button(action: { selectedMetricDetail = .soilChemistry }) {
                                         SensorChemistryCardView(entries: viewModel.sensorFleet)
                                     }
@@ -183,7 +179,6 @@ struct DashboardView: View {
                     NavigationStack {
                         AlertsBottomSheet(
                             viewModel: viewModel,
-                            onShowAll: { }, // no longer needed for sheet height
                             onAskAI: {
                                 showingAlerts = false
                                 selectedTab = .advisor
@@ -197,7 +192,7 @@ struct DashboardView: View {
                             }
                         }
                     }
-                    .presentationDetents([.medium, .large])
+                    .presentationDetents([.medium, .large], selection: $alertsDetent)
                 }
                 .sheet(isPresented: $showingNotifications) {
                     NavigationStack {

@@ -191,7 +191,6 @@ The `FastAPI` application starts with an `asynccontextmanager` lifespan hook tha
 | **Project** | `PROJECT_NAME`, `ENVIRONMENT` | "AgriVision API", "development" | App metadata |
 | **Database** | `DATABASE_URL` | `postgresql://admin:password@db:5432/agrivision` | PostgreSQL connection |
 | | `ENABLE_TIMESCALEDB` | `False` | TimescaleDB hypertable |
-| **Redis** | `REDIS_URL` | `redis://redis:6379/0` | Reserved for future use |
 | **Firebase** | `FIREBASE_SERVICE_ACCOUNT_PATH` | `/app/firebase-credentials.json` | Auth credentials |
 | | `FIREBASE_CLOCK_SKEW_SECONDS` | 5 | Token tolerance (0-60) |
 | | `FIREBASE_CHECK_REVOKED` | `False` | Online revocation check |
@@ -969,13 +968,12 @@ ESP32:       serial.print(json)              mqttClient.publish(topic, json)
 | Service | Image | Port(s) | Purpose |
 |---------|-------|---------|---------|
 | `db` | timescale/timescaledb-ha:pg15-all | 5432 | PostgreSQL + PostGIS + TimescaleDB |
-| `redis` | redis:alpine | — | Reserved for future scaling |
 | `mqtt` | eclipse-mosquitto:latest | 1883 | MQTT message broker |
 | `pgadmin` | dpage/pgadmin4:8.14 | 5050 | DB management (profile: tools) |
 | `backend` | (builds from Dockerfile) | 8000 | FastAPI application |
 | `portainer` | portainer/portainer-ce:latest | 9000, 9443 | Container management (profile: tools) |
 
-**Service dependencies:** backend → db (healthcheck) + redis + mqtt
+**Service dependencies:** backend → db (healthcheck) + mqtt
 
 ### 6.2 Networks & Volumes
 

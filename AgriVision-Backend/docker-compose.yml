@@ -23,13 +23,6 @@ services:
       timeout: 5s
       retries: 10
 
-  # 2. Redis (Caching & Speed)
-  redis:
-    image: redis:alpine
-    container_name: agrivision_redis
-    restart: always
-    networks:
-      - agrivision_net
 
   # 3. MQTT Broker (The IoT Gateway for your future sensors)
   mqtt:
@@ -69,7 +62,6 @@ services:
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-agrivision}
       - ENABLE_TIMESCALEDB=${ENABLE_TIMESCALEDB:-true}
-      - REDIS_URL=redis://redis:6379/0
       - MQTT_BROKER=mqtt
       - MQTT_USERNAME=${MQTT_USERNAME:-}
       - MQTT_PASSWORD=${MQTT_PASSWORD:-}
@@ -106,8 +98,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      redis:
-        condition: service_started
       mqtt:
         condition: service_started
     networks:

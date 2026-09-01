@@ -10,7 +10,6 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "AgriVision API"
     ENVIRONMENT: str = "development"
     DATABASE_URL: str = "postgresql://admin:password@db:5432/agrivision"
-    REDIS_URL: str = "redis://redis:6379/0"
     ENABLE_TIMESCALEDB: bool = False
 
     FIREBASE_SERVICE_ACCOUNT_PATH: str = "firebase-credentials.json"

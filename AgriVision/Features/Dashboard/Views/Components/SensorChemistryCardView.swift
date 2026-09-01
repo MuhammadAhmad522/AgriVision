@@ -19,14 +19,28 @@ struct SensorChemistryCardView: View {
     }
 
     private var emptyState: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(spacing: 0) {
             header(subtitle: nil)
-            Spacer()
-            Text("No sensor paired")
-                .font(.system(size: 11))
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 14)
-                .padding(.bottom, 16)
+            
+            Spacer(minLength: 0)
+            
+            VStack(spacing: 8) {
+                Image(systemName: "antenna.radiowaves.left.and.right")
+                    .font(.system(size: 24))
+                    .foregroundColor(Theme.Colors.primaryMedium.opacity(0.4))
+                
+                Text("No Sensor Paired")
+                    .textStyle(.captionStrong)
+                    .foregroundColor(Theme.Colors.primary)
+                
+                Text("Connect an IoT soil probe to monitor live soil chemistry.")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
+            }
+            
+            Spacer(minLength: 0)
         }
     }
 

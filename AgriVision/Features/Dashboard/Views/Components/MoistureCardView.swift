@@ -35,10 +35,6 @@ struct MoistureCardView: View {
 
                 Spacer(minLength: 0)
 
-                MetricCardFooter(text: "Satellite estimate · Optimal 30-50%", bottomPadding: 0)
-
-                Spacer(minLength: 0)
-                
                 if #available(iOS 16.0, *) {
                     let chartData: [Double] = moisture.map { [Double($0)] } ?? []
                     Chart {
@@ -69,6 +65,24 @@ struct MoistureCardView: View {
                     .chartYScale(domain: 30...80)
                     .frame(height: 38)
                 }
+
+                Spacer(minLength: 0)
+                
+                VStack(spacing: 8) {
+                    Text("Satellite estimate")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.secondary)
+                    
+                    Text("Optimal: 30% – 50%")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(Theme.Colors.primaryMedium)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Theme.Colors.primaryMedium.opacity(0.12))
+                        .clipShape(Capsule())
+                }
+                .padding(.top, 4)
+                .padding(.bottom, 12)
             }
         }
     }
