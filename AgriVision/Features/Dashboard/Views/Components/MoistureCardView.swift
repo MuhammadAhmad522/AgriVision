@@ -35,38 +35,6 @@ struct MoistureCardView: View {
 
                 Spacer(minLength: 0)
 
-                if #available(iOS 16.0, *) {
-                    let chartData: [Double] = moisture.map { [Double($0)] } ?? []
-                    Chart {
-                        ForEach(0..<chartData.count, id: \.self) { index in
-                            LineMark(
-                                x: .value("Time", index),
-                                y: .value("Moisture", chartData[index])
-                            )
-                            .interpolationMethod(.catmullRom)
-                            .foregroundStyle(Theme.Colors.primaryMedium)
-                            
-                            AreaMark(
-                                x: .value("Time", index),
-                                y: .value("Moisture", chartData[index])
-                            )
-                            .interpolationMethod(.catmullRom)
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [Theme.Colors.primaryLight.opacity(0.3), Theme.Colors.primaryLight.opacity(0.0)],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
-                        }
-                    }
-                    .chartXAxis(.hidden)
-                    .chartYAxis(.hidden)
-                    .chartYScale(domain: 30...80)
-                    .frame(height: 38)
-                }
-
-                Spacer(minLength: 0)
                 
                 VStack(spacing: 8) {
                     Text("Satellite estimate")
@@ -81,8 +49,7 @@ struct MoistureCardView: View {
                         .background(Theme.Colors.primaryMedium.opacity(0.12))
                         .clipShape(Capsule())
                 }
-                .padding(.top, 4)
-                .padding(.bottom, 12)
+                .padding(.bottom, 16)
             }
         }
     }

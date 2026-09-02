@@ -10,6 +10,7 @@ final class SettingsViewModel: ObservableObject {
     @Published private(set) var satelliteStatus = "pending"
     @Published private(set) var profileName: String
     @Published private(set) var accountEmail: String
+    @Published private(set) var photoURL: URL?
     @Published private(set) var isGoogleLinked: Bool
     @Published private(set) var isLoading = false
     @Published private(set) var isRefreshing = false
@@ -61,6 +62,7 @@ final class SettingsViewModel: ObservableObject {
         self.fieldSessionStore = fieldSessionStore
         profileName = authService.currentUserDisplayName ?? ""
         accountEmail = authService.currentUserEmail ?? "Email unavailable"
+        photoURL = authService.currentUserPhotoURL
         isGoogleLinked = authService.isGoogleProviderLinked
         refreshInterval = preferencesService.dashboardRefreshInterval
         activeFieldId = fieldSessionStore?.activeFieldId ?? preferencesService.activeFieldId
@@ -122,24 +124,7 @@ final class SettingsViewModel: ObservableObject {
         presentSuccess("Dashboard refresh updated.")
     }
 
-    func updateDisplayName(_ proposedName: String) async -> Bool {
-        let normalized = proposedName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard (2...80).contains(normalized.count), !normalized.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else {
-            presentError("Enter a name between 2 and 80 characters.")
-            return false
-        }
-        isLoading = true
-        defer { isLoading = false }
-        do {
-            try await authService.updateDisplayName(normalized)
-            profileName = normalized
-            presentSuccess("Profile updated.")
-            return true
-        } catch {
-            presentError(error.userFacingMessage)
-            return false
-        }
-    }
+
 
     func pairAndAssignSensor(deviceID: String, name: String) async -> Bool {
         guard let fieldID = activeFieldId else {

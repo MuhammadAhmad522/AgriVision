@@ -121,6 +121,10 @@ struct SatelliteSnapshot: Decodable {
     let statistics: [String: VegetationStatistics]?
     let ndviImageURL: String?
     let truecolorImageURL: String?
+    let ndviTileURL: String?
+    let ndwiTileURL: String?
+    let eviTileURL: String?
+    let truecolorTileURL: String?
 
     enum CodingKeys: String, CodingKey {
         case statistics
@@ -130,6 +134,10 @@ struct SatelliteSnapshot: Decodable {
         case coveragePercent = "coverage_percent"
         case ndviImageURL = "ndvi_image_url"
         case truecolorImageURL = "truecolor_image_url"
+        case ndviTileURL = "ndvi_tile_url"
+        case ndwiTileURL = "ndwi_tile_url"
+        case eviTileURL = "evi_tile_url"
+        case truecolorTileURL = "truecolor_tile_url"
     }
 }
 

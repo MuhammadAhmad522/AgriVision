@@ -24,20 +24,30 @@ struct PHLevelCardView: View {
             
             Spacer(minLength: 0)
             
-            VStack(spacing: 8) {
-                Image(systemName: "antenna.radiowaves.left.and.right")
-                    .font(.system(size: 24))
-                    .foregroundColor(Theme.Colors.primaryMedium.opacity(0.4))
+            VStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Theme.Colors.primaryMedium.opacity(0.15))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: "sensor.tag.radiowaves.forward")
+                        .font(.system(size: 20, weight: .regular))
+                        .foregroundColor(Theme.Colors.primaryMedium)
+                }
                 
-                Text("No Sensor Paired")
-                    .textStyle(.captionStrong)
-                    .foregroundColor(Theme.Colors.primary)
+                VStack(spacing: 4) {
+                    Text("No Sensor Paired")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(Theme.Colors.primary)
+                    
+                    Text("Connect an IoT soil probe to monitor live pH levels.")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 12)
+                        .lineLimit(2)
+                }
                 
-                Text("Connect an IoT soil probe to monitor live pH levels.")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 16)
+
             }
             
             Spacer(minLength: 0)

@@ -7,7 +7,6 @@ struct SettingsView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var showDeleteConfirmation = false
-    @State private var showEditProfile = false
     @State private var showSensorSetup = false
 
     init(viewModel: SettingsViewModel, lastUpdated: Date? = nil, onBack: (() -> Void)? = nil) {
@@ -44,11 +43,6 @@ struct SettingsView: View {
         .toolbar(.hidden, for: .navigationBar)
         .overlay(alignment: .top) {
             toastOverlay.padding(.top, 72).padding(.horizontal)
-        }
-        .sheet(isPresented: $showEditProfile) {
-            EditProfileSheet(initialName: viewModel.accountName, isSaving: viewModel.isLoading) { name in
-                await viewModel.updateDisplayName(name)
-            }
         }
         .sheet(isPresented: $showSensorSetup) {
             SensorPairingSheet(
@@ -108,8 +102,19 @@ struct SettingsView: View {
 
     private var profileSection: some View {
         Section("Account") {
-            Button { showEditProfile = true } label: {
-                HStack(spacing: 14) {
+            HStack(spacing: 14) {
+                if let url = viewModel.photoURL {
+                    AsyncImage(url: url) { image in
+                        image.resizable().scaledToFill()
+                    } placeholder: {
+                        ZStack {
+                            Circle().fill(Theme.Colors.primary.opacity(0.14))
+                            ProgressView()
+                        }
+                    }
+                    .frame(width: 48, height: 48)
+                    .clipShape(Circle())
+                } else {
                     ZStack {
                         Circle().fill(Theme.Colors.primary.opacity(0.14))
                         Text(String(viewModel.accountName.prefix(1)).uppercased())
@@ -117,16 +122,15 @@ struct SettingsView: View {
                             .foregroundStyle(Theme.Colors.primary)
                     }
                     .frame(width: 48, height: 48)
-
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(viewModel.accountName).textStyle(.bodyStrong).foregroundStyle(Theme.Colors.textPrimary)
-                        Text(viewModel.accountEmail).textStyle(.caption).foregroundStyle(Theme.Colors.textSecondary)
-                    }
-                    Spacer()
-                    Image(systemName: "pencil").foregroundStyle(Theme.Colors.primary)
                 }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(viewModel.accountName).textStyle(.bodyStrong).foregroundStyle(Theme.Colors.textPrimary)
+                    Text(viewModel.accountEmail).textStyle(.caption).foregroundStyle(Theme.Colors.textSecondary)
+                }
+                Spacer()
             }
-            .buttonStyle(.plain)
+            .padding(.vertical, 4)
 
             SettingsInfoRow(
                 icon: "checkmark.shield",

@@ -88,14 +88,26 @@ struct AddFieldIntroView: View {
                 .position(x: width / 2, y: 60 + 20) // Approx top safe area + offset
                 
                 // Text Group
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Hi, \(viewModel.userName)")
-                        .textStyle(.title1) // Enlarged from 30
-                        .foregroundColor(Theme.Colors.primary)
-                        .shadow(color: Color.black.opacity(0.25), radius: 10, x: 0, y: 4)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Text("Hi,")
+                            .textStyle(.title1)
+                            .foregroundColor(Theme.Colors.primary)
+                        
+                        Text(viewModel.userName)
+                            .font(.system(size: 32, weight: .heavy, design: .rounded))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [Theme.Colors.primaryLight, Theme.Colors.primaryMedium],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                    }
+                    .shadow(color: Color.black.opacity(0.25), radius: 10, x: 0, y: 4)
                     
-                    Text("Lets Setup Your\nFarm Dashboard")
-                        .textStyle(.title1) // Enlarged from 30
+                    Text("Let's Setup Your\nFarm Dashboard")
+                        .textStyle(.title1)
                         .foregroundColor(Theme.Colors.primary)
                         .shadow(color: Color.black.opacity(0.25), radius: 10, x: 0, y: 4)
                         .lineLimit(2)
@@ -109,7 +121,7 @@ struct AddFieldIntroView: View {
                 Button(action: {
                     viewModel.addFieldAction()
                 }) {
-                    Text("Add Your First Field")
+                    Text("Register New Field")
                         .textStyle(.bodyStrong)
                         .foregroundColor(.white)
                         .frame(width: 326 * wRatio, height: 60)

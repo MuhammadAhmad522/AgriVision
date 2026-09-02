@@ -461,6 +461,7 @@ def get_dashboard(field_id: UUID, db: Session = Depends(get_db), current_user: U
         satellite_status = agro_status if provider_configured or agro_status == "unsupported" else "not_configured"
     else:
         satellite_status = "stale" if agro_status in {"pending", "unavailable"} else "available"
+    version_param = f"?v={int(scene.acquired_at.timestamp())}" if scene and scene.acquired_at else ""
     satellite = {
         "status": satellite_status,
         "last_updated": scene.acquired_at if scene else last_satellite_sync,
@@ -470,8 +471,12 @@ def get_dashboard(field_id: UUID, db: Session = Depends(get_db), current_user: U
             "cloud_percent": scene.cloud_percent,
             "coverage_percent": scene.coverage_percent,
             "statistics": scene.statistics,
-            "ndvi_image_url": f"/api/fields/{field.id}/satellite/latest/ndvi" if scene.ndvi_image_path else None,
-            "truecolor_image_url": f"/api/fields/{field.id}/satellite/latest/truecolor" if scene.truecolor_image_path else None,
+            "ndvi_image_url": f"/api/fields/{field.id}/satellite/latest/ndvi{version_param}" if scene.ndvi_image_path else None,
+            "truecolor_image_url": f"/api/fields/{field.id}/satellite/latest/truecolor{version_param}" if scene.truecolor_image_path else None,
+            "ndvi_tile_url": f"/api/fields/{field.id}/satellite/latest/tile/ndvi/{{z}}/{{x}}/{{y}}{version_param}" if scene.ndvi_image_path else None,
+            "ndwi_tile_url": f"/api/fields/{field.id}/satellite/latest/tile/ndwi/{{z}}/{{x}}/{{y}}{version_param}" if scene.ndvi_image_path else None,
+            "evi_tile_url": f"/api/fields/{field.id}/satellite/latest/tile/evi/{{z}}/{{x}}/{{y}}{version_param}" if scene.ndvi_image_path else None,
+            "truecolor_tile_url": f"/api/fields/{field.id}/satellite/latest/tile/truecolor/{{z}}/{{x}}/{{y}}{version_param}" if scene.ndvi_image_path else None,
         },
         "message": agro_error if provider_configured or agro_status == "unsupported" else "Satellite data is not connected yet.",
         "retryable": bool(agro_retryable and provider_configured),
