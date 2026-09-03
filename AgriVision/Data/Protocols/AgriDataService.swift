@@ -22,6 +22,8 @@ protocol AgriDataService {
     func pairSensor(deviceId: String) async throws -> (isPaired: Bool, message: String)
     func assignSensor(_ sensor: SensorConfig, to fieldId: UUID) async throws
     func fetchWeatherSoil(for fieldId: UUID) async throws -> FieldWeatherSoil
+    func fetchNotifications() async throws -> [UserNotification]
+    func markNotificationRead(id: UUID) async throws -> UserNotification
 }
 
 extension AgriDataService {

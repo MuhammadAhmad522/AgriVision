@@ -205,7 +205,7 @@ async def post_message(
     }
 
     # The provider call happens before persistence so failures cannot create invisible orphan messages.
-    response_text = await get_ai_provider().chat(normalized or "Assess the attached field image.", context, sanitized)
+    response_text = await get_ai_provider(db).chat(normalized or "Assess the attached field image.", context, sanitized)
     storage = get_chat_media_storage()
     stored_keys: list[str] = []
     try:

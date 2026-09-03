@@ -102,4 +102,42 @@ def transfer_field(
     )
     
     db.commit()
+    
     return {"status": "success", "message": f"Field transferred to {new_owner.email}"}
+
+
+from app.schemas.pydantic_schemas import AISettingsUpdate, AISettingsResponse
+from app.models.db_models import SystemSettings
+
+@router.get("/settings/ai", response_model=AISettingsResponse)
+def get_ai_settings(db: Session = Depends(get_db)):
+    settings_row = db.query(SystemSettings).filter(SystemSettings.key == "ai_configuration").first()
+    if not settings_row:
+        return AISettingsResponse(mode="free", model="gemini-3.7-flash")
+    data = settings_row.value
+    return AISettingsResponse(
+        mode=data.get("mode", "free"),
+        model=data.get("model", "gemini-3.7-flash"),
+    )
+
+@router.put("/settings/ai", response_model=AISettingsResponse)
+def update_ai_settings(
+    settings: AISettingsUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    settings_row = db.query(SystemSettings).filter(SystemSettings.key == "ai_configuration").first()
+    if not settings_row:
+        settings_row = SystemSettings(key="ai_configuration", value={})
+        db.add(settings_row)
+    
+    settings_row.value = {
+        "mode": settings.mode,
+        "model": settings.model,
+    }
+    db.commit()
+    db.refresh(settings_row)
+    return AISettingsResponse(
+        mode=settings_row.value.get("mode", "free"),
+        model=settings_row.value.get("model", "gemini-3.7-flash"),
+    )

@@ -181,3 +181,8 @@ export interface ChatMessage {
   created_at: string;
   attachments: ChatAttachment[];
 }
+
+export interface AISettings {
+  mode: string;
+  model: string;
+}

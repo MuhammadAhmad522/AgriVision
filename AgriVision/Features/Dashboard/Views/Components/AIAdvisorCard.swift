@@ -11,6 +11,7 @@ struct AIAdvisorCard: View {
     var advisorMessage: String? = nil
     var advisorDataQuality: String? = nil
     var onRetry: (() -> Void)? = nil
+    var onOutcome: ((UUID, String) -> Void)? = nil
 
     var body: some View {
         GlassCard(title: "🤖 AI Field Advisor") {
@@ -53,7 +54,7 @@ struct AIAdvisorCard: View {
                         )
                     }
                     ForEach(Array(recommendations.enumerated()), id: \.element.id) { index, rec in
-                        RecommendationRow(recommendation: rec)
+                        RecommendationRow(recommendation: rec, onOutcome: onOutcome)
                         if index < recommendations.count - 1 {
                             Divider()
                                 .background(Theme.Colors.primaryLight.opacity(0.2))
@@ -123,6 +124,7 @@ private struct AdvisorStaleBanner: View {
 
 private struct RecommendationRow: View {
     let recommendation: FieldRecommendation
+    var onOutcome: ((UUID, String) -> Void)? = nil
     @State private var isExpanded = false
 
     var priorityColor: Color {
@@ -284,6 +286,37 @@ private struct RecommendationRow: View {
                             .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.Colors.primary.opacity(0.2), lineWidth: 1))
                             .padding(.top, 4)
                         }
+                        
+                        // Action buttons if pending
+                        if recommendation.status == "pending" && (!recommendation.requiresExpertConfirmation || recommendation.expertStatus != "pending") {
+                            HStack(spacing: 8) {
+                                Button(action: { onOutcome?(recommendation.id, "implemented") }) {
+                                    HStack {
+                                        Image(systemName: "checkmark")
+                                        Text("Implement")
+                                    }
+                                    .font(.caption.bold())
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Color.green.opacity(0.2))
+                                    .foregroundColor(.green)
+                                    .cornerRadius(6)
+                                }
+                                Button(action: { onOutcome?(recommendation.id, "ignored") }) {
+                                    HStack {
+                                        Image(systemName: "xmark")
+                                        Text("Ignore")
+                                    }
+                                    .font(.caption.bold())
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Color.red.opacity(0.2))
+                                    .foregroundColor(.red)
+                                    .cornerRadius(6)
+                                }
+                            }
+                            .padding(.top, 8)
+                        }
                     }
                     .padding(.top, 2)
                 }
@@ -292,6 +325,7 @@ private struct RecommendationRow: View {
         .padding(.vertical, 6)
     }
 }
+
 
 // MARK: - Shimmer Placeholder
 

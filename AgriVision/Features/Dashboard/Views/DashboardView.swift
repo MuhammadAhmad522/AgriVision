@@ -46,7 +46,7 @@ struct DashboardView: View {
                                 profileImageURL: viewModel.profileImageURL,
                                 profileInitial: viewModel.profileInitial,
                                 showNotifications: $showingNotifications,
-                                notificationCount: 0,
+                                notificationCount: viewModel.unreadNotificationsCount,
                                 onSignOut: { viewModel.signOut() }
                             )
                             .padding(.horizontal, Theme.Spacing.large)
@@ -196,14 +196,50 @@ struct DashboardView: View {
                 }
                 .sheet(isPresented: $showingNotifications) {
                     NavigationStack {
-                        VStack {
-                            Image(systemName: "bell.slash")
-                                .font(.system(size: 40))
-                                .foregroundColor(.gray)
-                                .padding(.bottom, 8)
-                            Text("No new notifications")
-                                .textStyle(.body)
-                                .foregroundColor(.secondary)
+                        List(viewModel.notifications) { notification in
+                            Button(action: {
+                                if !notification.isRead {
+                                    viewModel.markNotificationRead(notification)
+                                }
+                                if notification.referenceType == "recommendation" {
+                                    showingNotifications = false
+                                    showingAlerts = true
+                                }
+                            }) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Text(notification.title)
+                                            .textStyle(.bodyStrong)
+                                            .foregroundColor(notification.isRead ? .secondary : Theme.Colors.primary)
+                                        Spacer()
+                                        if !notification.isRead {
+                                            Circle()
+                                                .fill(Color.blue)
+                                                .frame(width: 8, height: 8)
+                                        }
+                                    }
+                                    Text(notification.body)
+                                        .textStyle(.caption)
+                                        .foregroundColor(.secondary)
+                                    Text(notification.createdAt, style: .relative)
+                                        .font(.caption2)
+                                        .foregroundColor(.gray)
+                                }
+                                .padding(.vertical, 4)
+                            }
+                        }
+                        .overlay {
+                            if viewModel.notifications.isEmpty {
+                                VStack {
+                                    Image(systemName: "bell.slash")
+                                        .font(.system(size: 40))
+                                        .foregroundColor(.gray)
+                                        .padding(.bottom, 8)
+                                    Text("No new notifications")
+                                        .textStyle(.body)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
                         }
                         .navigationTitle("Notifications")
                         .navigationBarTitleDisplayMode(.inline)
@@ -213,7 +249,7 @@ struct DashboardView: View {
                             }
                         }
                     }
-                    .presentationDetents([.medium])
+                    .presentationDetents([.medium, .large])
                 }
             }
             .tabItem { Label("Home", systemImage: "house.fill") }

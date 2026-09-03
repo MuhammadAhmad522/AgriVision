@@ -96,16 +96,42 @@ struct AlertsBottomSheet: View {
                                 Text(recommendation.relativeCreatedAt).textStyle(.caption).foregroundStyle(.secondary)
                                 
                                 if recommendation.requiresExpertConfirmation {
-                                    Label("Expert confirmation required", systemImage: "person.badge.shield.checkmark")
-                                        .textStyle(.captionStrong).foregroundStyle(.orange)
+                                    if recommendation.expertStatus == "approved" {
+                                        Label("Verified by Agronomist", systemImage: "checkmark.seal.fill")
+                                            .textStyle(.captionStrong).foregroundStyle(.green)
+                                        if let notes = recommendation.expertNotes {
+                                            Text(notes)
+                                                .textStyle(.caption)
+                                                .foregroundStyle(.secondary)
+                                                .padding(6)
+                                                .background(Color.gray.opacity(0.1))
+                                                .cornerRadius(4)
+                                        }
+                                    } else if recommendation.expertStatus == "rejected" {
+                                        Label("Rejected by Agronomist", systemImage: "xmark.seal.fill")
+                                            .textStyle(.captionStrong).foregroundStyle(.red)
+                                        if let notes = recommendation.expertNotes {
+                                            Text(notes)
+                                                .textStyle(.caption)
+                                                .foregroundStyle(.secondary)
+                                                .padding(6)
+                                                .background(Color.gray.opacity(0.1))
+                                                .cornerRadius(4)
+                                        }
+                                    } else {
+                                        Label("Expert confirmation required", systemImage: "person.badge.shield.checkmark")
+                                            .textStyle(.captionStrong).foregroundStyle(.orange)
+                                    }
                                 }
                                 
-                                HStack {
-                                    Button("Implemented") { Task { await viewModel.updateFeedback(recommendation, status: "implemented") } }
-                                    Button("Ignore", role: .destructive) { Task { await viewModel.updateFeedback(recommendation, status: "ignored") } }
+                                if !recommendation.requiresExpertConfirmation || recommendation.expertStatus != "pending" {
+                                    HStack {
+                                        Button("Implemented") { Task { await viewModel.updateFeedback(recommendation, status: "implemented") } }
+                                        Button("Ignore", role: .destructive) { Task { await viewModel.updateFeedback(recommendation, status: "ignored") } }
+                                    }
+                                    .textStyle(.caption)
+                                    .buttonStyle(.borderless)
                                 }
-                                .textStyle(.caption)
-                                .buttonStyle(.borderless)
                             } else {
                                 if recommendation.status == "implemented" && recommendation.outcome == nil {
                                     Menu {

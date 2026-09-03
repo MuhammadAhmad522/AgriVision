@@ -27,6 +27,8 @@ final class DashboardViewModel: ObservableObject {
     @Published var profileImageURL: URL?
     @Published var profileInitial = "U"
     @Published var lastUpdatedAt: Date?
+    @Published var notifications: [UserNotification] = []
+    @Published var unreadNotificationsCount = 0
 
     let fieldSessionStore: FieldSessionStore
     let dataService: AgriDataService
@@ -194,6 +196,7 @@ final class DashboardViewModel: ObservableObject {
             // Best-effort: a missing crop journal (e.g. no plantation date set yet) is a normal
             // state, not a dashboard-load failure.
             seasonMemory = try? await dataService.fetchSeasonMemory(for: fieldID)
+            await refreshNotifications()
             lastUpdatedAt = Date()
         } catch is CancellationError {
         } catch {
@@ -299,6 +302,23 @@ final class DashboardViewModel: ObservableObject {
             ToastMessageAutoDismiss.schedule(expectedMessage: successMessage ?? "", currentMessage: { [weak self] in self?.successMessage }, clearMessage: { [weak self] in self?.successMessage = nil })
         } catch {
             presentError(error.userFacingMessage)
+        }
+    }
+
+    private func refreshNotifications() async {
+        guard let fetched = try? await dataService.fetchNotifications() else { return }
+        notifications = fetched
+        unreadNotificationsCount = fetched.filter { !$0.isRead }.count
+    }
+    
+    func markNotificationRead(_ notification: UserNotification) {
+        Task {
+            if let updated = try? await dataService.markNotificationRead(id: notification.id) {
+                if let index = notifications.firstIndex(where: { $0.id == updated.id }) {
+                    notifications[index] = updated
+                    unreadNotificationsCount = notifications.filter { !$0.isRead }.count
+                }
+            }
         }
     }
 

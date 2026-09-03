@@ -110,7 +110,7 @@ async def post_agronomist_message(
         "history": [{"role": item.role, "content": item.content} for item in history],
     }
 
-    response_text = await get_ai_provider().chat(body.message, context, None, audience="agronomist")
+    response_text = await get_ai_provider(db).chat(body.message, context, None, audience="agronomist")
     try:
         now = datetime.now(timezone.utc)
         user_message = AIChatMessage(

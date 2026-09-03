@@ -388,3 +388,30 @@ class AgronomyKnowledgeDocument(Base):
     published_at = Column(DateTime(timezone=True))
     approved = Column(Boolean, nullable=False, default=False, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class UserNotification(Base):
+    __tablename__ = "user_notifications"
+
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    title = Column(String(200), nullable=False)
+    body = Column(Text, nullable=False)
+    reference_id = Column(String(100), nullable=True) # e.g., recommendation_id
+    reference_type = Column(String(50), nullable=True) # e.g., "recommendation"
+    is_read = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    user = relationship("User")
+
+
+class SystemSettings(Base):
+    __tablename__ = "system_settings"
+
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    key = Column(String(100), unique=True, index=True, nullable=False)
+    value = Column(JSONB, nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    updated_by = Column(PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    updater = relationship("User")

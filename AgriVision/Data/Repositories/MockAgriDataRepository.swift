@@ -253,4 +253,12 @@ class MockAgriDataRepository: AgriDataService {
             )
         )
     }
+
+    func fetchNotifications() async throws -> [UserNotification] {
+        return []
+    }
+    
+    func markNotificationRead(id: UUID) async throws -> UserNotification {
+        return UserNotification(id: id, title: "Mock", body: "Mock", referenceId: nil, referenceType: nil, isRead: true, createdAt: Date())
+    }
 }

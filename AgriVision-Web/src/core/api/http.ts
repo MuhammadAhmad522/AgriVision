@@ -2,7 +2,9 @@ export class HttpClient {
   private baseURL: string;
 
   constructor() {
-    this.baseURL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+    // If VITE_API_URL is explicitly empty string, it will use relative paths (perfect for our Nginx reverse proxy)
+    const envUrl = import.meta.env.VITE_API_URL;
+    this.baseURL = envUrl !== undefined ? envUrl : 'http://127.0.0.1:8000';
   }
 
   getBaseURL(): string {
@@ -62,6 +64,21 @@ export class HttpClient {
     const res = await fetch(`${this.baseURL}${endpoint}`, {
       method: 'DELETE',
       headers: await this.getAuthHeaders()
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+
+    if (res.status === 204) return {} as T;
+    return await res.json();
+  }
+
+  async put<T>(endpoint: string, body?: any, options?: { headers?: Record<string, string> }): Promise<T> {
+    const res = await fetch(`${this.baseURL}${endpoint}`, {
+      method: 'PUT',
+      headers: { ...(await this.getAuthHeaders()), ...(options?.headers || {}) },
+      body: body ? JSON.stringify(body) : undefined
     });
 
     if (!res.ok) {

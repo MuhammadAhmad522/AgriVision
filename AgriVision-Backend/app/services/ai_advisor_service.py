@@ -285,9 +285,11 @@ def _season_memory_payload(response: Any) -> dict[str, Any]:
             payload = json.loads(candidate)
         except (json.JSONDecodeError, TypeError):
             continue
-        if isinstance(payload, dict) and isinstance(payload.get("narrative"), str) and payload["narrative"].strip():
+        if isinstance(payload, dict) and "narrative" in payload:
+            narr = payload.get("narrative")
+            payload["narrative"] = str(narr).strip() if narr and str(narr).strip() else "No significant updates."
             return payload
-    raise ValueError("Gemini returned an invalid season memory payload")
+    raise ValueError(f"Gemini returned an invalid season memory payload: {raw}")
 
 
 def _apply_safety_policy(item: dict[str, Any], approved_evidence: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -483,6 +485,9 @@ class UnavailableAIProvider(AIProvider):
         raise APIError(503, "ai_unavailable", "AI Advisor is not configured.", retryable=True)
 
 
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from google.genai.errors import APIError as GenAIAPIError
+
 class GeminiAIProvider(AIProvider):
     name = "vertex_gemini"
 
@@ -491,6 +496,12 @@ class GeminiAIProvider(AIProvider):
         self.model_name = model_name
         self.knowledge = knowledge
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type(Exception),
+        reraise=True
+    )
     async def recommendations(self, context: dict[str, Any]) -> dict[str, Any]:
         crop = str((context.get("field") or {}).get("crop_type") or "").lower()
         knowledge = await self.knowledge.retrieve(crop, "current crop stage risks irrigation nutrients disease monitoring")
@@ -565,9 +576,15 @@ class GeminiAIProvider(AIProvider):
         except APIError:
             raise
         except Exception as exc:
-            logger.warning("Gemini recommendation generation failed: %s", type(exc).__name__)
+            logger.exception("Gemini recommendation generation failed")
             raise APIError(503, "ai_provider_failed", "AI Advisor could not complete the analysis.", retryable=True) from exc
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type(Exception),
+        reraise=True
+    )
     async def summarize_season(
         self,
         existing_narrative: str | None,
@@ -613,16 +630,26 @@ class GeminiAIProvider(AIProvider):
                 ),
                 timeout=settings.AI_PROVIDER_TIMEOUT_SECONDS,
             )
-            payload = _season_memory_payload(response)
+            try:
+                payload = _season_memory_payload(response)
+            except ValueError as ve:
+                logger.warning("Season memory payload parsing failed: %s", ve)
+                return {"narrative": existing_narrative or "Field monitoring initiated.", "key_event": None}
             narrative = str(payload["narrative"]).strip()[:1200]
             key_event = str(payload.get("key_event") or "").strip()[:300] or None
             return {"narrative": narrative, "key_event": key_event}
         except APIError:
             raise
         except Exception as exc:
-            logger.warning("Gemini season memory update failed: %s", type(exc).__name__)
+            logger.exception("Gemini season memory update failed")
             raise APIError(503, "ai_provider_failed", "AI Advisor could not update the season memory.", retryable=True) from exc
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type(Exception),
+        reraise=True
+    )
     async def chat(self, message: str, context: dict[str, Any], images: list[Any] | None = None, audience: str = "farmer") -> str:
         crop = str((context.get("field") or {}).get("crop_type") or "").lower()
         knowledge = await self.knowledge.retrieve(crop, message)
@@ -663,48 +690,71 @@ class GeminiAIProvider(AIProvider):
                 return text[:8000]
             return _guard_chat_response(text, knowledge, bool(images))
         except Exception as exc:
-            logger.warning("Gemini chat failed: %s", type(exc).__name__)
+            logger.exception("Gemini chat failed")
             raise APIError(503, "ai_provider_failed", "AI Advisor could not answer right now.", retryable=True) from exc
 
 
 _provider: AIProvider | None = None
+_provider_config: dict[str, str] = {}
 
 
-def get_ai_provider() -> AIProvider:
-    global _provider
-    if _provider is not None:
-        return _provider
+def get_ai_provider(db: Any | None = None) -> AIProvider:
+    global _provider, _provider_config
     if genai is None:
         _provider = UnavailableAIProvider()
         return _provider
+
+    mode = "vertex" if settings.GOOGLE_GENAI_USE_VERTEXAI else "free"
+    model_name = settings.GOOGLE_AI_MODEL
+    
+    # These always come securely from .env
+    api_key = settings.GOOGLE_API_KEY.strip()
     project = settings.GOOGLE_CLOUD_PROJECT.strip()
-    key = settings.GOOGLE_API_KEY.strip()
+    datastore = settings.VERTEX_SEARCH_DATASTORE.strip() if settings.VERTEX_SEARCH_DATASTORE else ""
+    engine = settings.VERTEX_SEARCH_ENGINE.strip() if settings.VERTEX_SEARCH_ENGINE else ""
+
+    if db:
+        from app.models.db_models import SystemSettings
+        settings_row = db.query(SystemSettings).filter(SystemSettings.key == "ai_configuration").first()
+        if settings_row and settings_row.value:
+            val = settings_row.value
+            mode = val.get("mode", mode)
+            model_name = val.get("model", model_name)
+
+    current_config = {
+        "mode": mode,
+        "model": model_name,
+        "api_key": api_key,
+        "project": project,
+        "datastore": datastore,
+        "engine": engine,
+    }
+
+    if _provider is not None and _provider_config == current_config:
+        return _provider
+
     try:
-        if settings.GOOGLE_GENAI_USE_VERTEXAI:
+        if mode == "vertex":
             if not project:
                 _provider = UnavailableAIProvider()
-                return _provider
-            client = genai.Client(vertexai=True, project=project, location=settings.GOOGLE_CLOUD_LOCATION)
-        elif key:
-            client = genai.Client(api_key=key)
+            else:
+                client = genai.Client(vertexai=True, project=project, location=settings.GOOGLE_CLOUD_LOCATION)
+                knowledge = (
+                    VertexSearchKnowledgeProvider(project, datastore, engine, settings.GOOGLE_CLOUD_LOCATION)
+                    if datastore and engine
+                    else CuratedKnowledgeProvider()
+                )
+                _provider = GeminiAIProvider(client, model_name, knowledge)
         else:
-            _provider = UnavailableAIProvider()
-            return _provider
-        knowledge: KnowledgeProvider = (
-            VertexSearchKnowledgeProvider(project, settings.VERTEX_SEARCH_DATASTORE, settings.VERTEX_SEARCH_ENGINE, settings.GOOGLE_CLOUD_LOCATION)
-            if project and settings.VERTEX_SEARCH_DATASTORE and settings.VERTEX_SEARCH_ENGINE
-            else CuratedKnowledgeProvider()
-        )
-        _provider = GeminiAIProvider(client, settings.GOOGLE_AI_MODEL, knowledge)
+            if not api_key:
+                _provider = UnavailableAIProvider()
+            else:
+                client = genai.Client(api_key=api_key)
+                _provider = GeminiAIProvider(client, model_name, CuratedKnowledgeProvider())
+                
+        _provider_config = current_config
     except Exception as exc:
-        logger.warning("Google AI initialization failed: %s", type(exc).__name__)
+        logger.exception("Google AI initialization failed")
         _provider = UnavailableAIProvider()
+        _provider_config = current_config
     return _provider
-
-
-async def generate_field_recommendations(**kwargs) -> list[dict[str, Any]]:
-    return await get_ai_provider().recommendations(kwargs)
-
-
-async def chat_with_advisor(user_message: str, **kwargs) -> str:
-    return await get_ai_provider().chat(user_message, kwargs)

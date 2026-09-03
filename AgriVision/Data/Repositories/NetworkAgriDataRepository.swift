@@ -169,6 +169,14 @@ final class NetworkAgriDataRepository: AgriDataService {
         values.removeValue(forKey: id.uuidString.lowercased())
         if let data = try? encoder.encode(values) { UserDefaults.standard.set(data, forKey: boundaryCacheKey) }
     }
+
+    func fetchNotifications() async throws -> [UserNotification] {
+        return try await apiClient.send("/api/notifications")
+    }
+    
+    func markNotificationRead(id: UUID) async throws -> UserNotification {
+        return try await apiClient.send("/api/notifications/\(id)/read", method: "POST")
+    }
 }
 
 private struct FieldCreateRequest: Encodable {

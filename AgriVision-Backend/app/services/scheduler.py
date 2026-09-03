@@ -681,7 +681,7 @@ async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) ->
     else:
         data_quality = "insufficient"
     serializable_context["data_quality"] = data_quality
-    provider = get_ai_provider()
+    provider = get_ai_provider(db)
     fingerprint_payload = json.dumps(serializable_context, sort_keys=True, separators=(",", ":"))
     context_fingerprint = hashlib.sha256(fingerprint_payload.encode("utf-8")).hexdigest()
     duplicate = db.query(AIAnalysisRun).filter(

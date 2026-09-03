@@ -123,16 +123,27 @@ def expert_validate(
     db: Session = Depends(get_db),
     current_user: User = Depends(RequireRole(["agronomist"])),
 ):
+    from app.models.db_models import Field, UserNotification
     recommendation = db.query(FieldRecommendation).filter(FieldRecommendation.id == recommendation_id).first()
     if recommendation is None:
         raise APIError(404, "recommendation_not_found", "Recommendation not found.")
     # Staff can review any recommendation on a field they can read, not only ones the
     # AI already flagged with requires_expert_confirmation.
-    field_readable_by(db, current_user, recommendation.field_id)
+    field = field_readable_by(db, current_user, recommendation.field_id)
 
     recommendation.expert_status = validation.status
     if validation.notes is not None:
         recommendation.expert_notes = validation.notes
+
+    # Create a notification for the field owner
+    notif = UserNotification(
+        user_id=field.owner_id,
+        title=f"Expert {validation.status.capitalize()} AI Advice",
+        body=f"An agronomist has {validation.status} a recommendation for {field.name}.",
+        reference_id=str(recommendation.id),
+        reference_type="recommendation"
+    )
+    db.add(notif)
         
     db.commit()
     db.refresh(recommendation)

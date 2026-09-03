@@ -297,4 +297,14 @@ class InvitationResponse(BaseModel):
     role: str
     status: str
     created_at: datetime
+
+
+class AISettingsUpdate(BaseModel):
+    mode: str
+    model: str
+
+
+class AISettingsResponse(BaseModel):
+    mode: str
+    model: str
     model_config = ConfigDict(from_attributes=True)

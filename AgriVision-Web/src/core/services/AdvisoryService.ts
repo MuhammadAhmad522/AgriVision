@@ -1,5 +1,5 @@
 import { http } from '../api/http';
-import type { AIRecommendation, ChatMessage, SeasonMemory } from '../types';
+import type { AIRecommendation, ChatMessage, SeasonMemory, AISettings } from '../types';
 
 export class AdvisoryService {
   async getRecommendations(fieldId: string): Promise<AIRecommendation[]> {
@@ -54,6 +54,14 @@ export class AdvisoryService {
     return await http.post(`/api/fields/${fieldId}/agronomist-chat`, { message }, {
       headers: { 'Idempotency-Key': idempotencyKey },
     });
+  }
+
+  async getAISettings(): Promise<AISettings> {
+    return await http.get<AISettings>('/api/admin/settings/ai');
+  }
+
+  async updateAISettings(settings: AISettings): Promise<AISettings> {
+    return await http.put<AISettings>('/api/admin/settings/ai', settings);
   }
 }
 

@@ -101,15 +101,21 @@ class FieldDetailsViewModel: ObservableObject {
             .components(separatedBy: .controlCharacters)
             .joined()
             
-        if sanitizedName.count > 50 {
-            sanitizedName = String(sanitizedName.prefix(50)).trimmingCharacters(in: .whitespaces)
-        }
-        
         // Update the UI with the sanitized name
         name = sanitizedName
         
-        guard !name.isEmpty else {
+        guard !sanitizedName.isEmpty else {
             errorMessage = "Please enter a valid field name."
+            ToastMessageAutoDismiss.schedule(
+                expectedMessage: errorMessage ?? "",
+                currentMessage: { [weak self] in self?.errorMessage },
+                clearMessage: { [weak self] in self?.errorMessage = nil }
+            )
+            return
+        }
+        
+        guard sanitizedName.count <= 50 else {
+            errorMessage = "Field name cannot exceed 50 characters."
             ToastMessageAutoDismiss.schedule(
                 expectedMessage: errorMessage ?? "",
                 currentMessage: { [weak self] in self?.errorMessage },

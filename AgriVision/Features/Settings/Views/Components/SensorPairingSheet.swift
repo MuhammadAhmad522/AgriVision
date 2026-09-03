@@ -17,6 +17,15 @@ struct SensorPairingSheet: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 }
+                
+                if name.count > 50 || code.count > 36 {
+                    Section {
+                        Text(name.count > 50 ? "Sensor name cannot exceed 50 characters." : "Pairing code cannot exceed 36 characters.")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                }
+                
                 Section {
                     Text("The sensor must be powered on and reporting to MQTT before it can be paired.")
                         .font(.caption).foregroundStyle(.secondary)
@@ -27,9 +36,9 @@ struct SensorPairingSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Pair") {
-                        Task { if await onPair(code, name) { dismiss() } }
+                        Task { if await onPair(code.trimmingCharacters(in: .whitespacesAndNewlines), name.trimmingCharacters(in: .whitespacesAndNewlines)) { dismiss() } }
                     }
-                    .disabled(isPairing)
+                    .disabled(isPairing || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || name.count > 50 || code.count > 36)
                 }
             }
         }

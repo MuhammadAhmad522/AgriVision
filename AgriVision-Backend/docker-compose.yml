@@ -76,6 +76,7 @@ services:
       - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT:-}
       - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-global}
       - GOOGLE_GENAI_USE_VERTEXAI=${GOOGLE_GENAI_USE_VERTEXAI:-true}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
       - GOOGLE_AI_MODEL=${GOOGLE_AI_MODEL:-gemini-3.7-flash}
       - VERTEX_SEARCH_DATASTORE=${VERTEX_SEARCH_DATASTORE:-}
       - VERTEX_SEARCH_ENGINE=${VERTEX_SEARCH_ENGINE:-}
@@ -103,7 +104,24 @@ services:
     networks:
       - agrivision_net
 
-  # 6. Container Management (Portainer CE)
+  # 6. The Frontend Web App (React + Vite + Nginx)
+  web:
+    build:
+      context: ../AgriVision-Web
+      dockerfile: Dockerfile
+    container_name: agrivision_web
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_started
+      db:
+        condition: service_healthy
+    networks:
+      - agrivision_net
+
+  # 7. Container Management (Portainer CE)
   portainer:
     image: portainer/portainer-ce:latest
     container_name: agrivision_portainer
