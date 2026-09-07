@@ -13,4 +13,7 @@ export default defineConfig({
       "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
     },
   },
+  optimizeDeps: {
+    exclude: ['maplibre-gl']
+  }
 })

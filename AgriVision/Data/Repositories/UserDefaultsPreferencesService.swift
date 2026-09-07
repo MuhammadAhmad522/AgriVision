@@ -24,14 +24,19 @@ final class UserDefaultsPreferencesService: PreferencesService {
         }
     }
 
+    // 5s is the live setting and the default: the ESP32 firmware samples and publishes on a
+    // 5s cycle, so polling faster than this re-fetches rows that have not changed yet.
+    static let allowedRefreshIntervals: [TimeInterval] = [5, 15, 30, 60]
+    static let defaultRefreshInterval: TimeInterval = 5
+
     var dashboardRefreshInterval: TimeInterval {
         get {
             let stored = UserDefaults.standard.double(forKey: "dashboard_refresh_interval")
-            return [15.0, 30.0, 60.0].contains(stored) ? stored : 30
+            return Self.allowedRefreshIntervals.contains(stored) ? stored : Self.defaultRefreshInterval
         }
         set {
-            let allowed = [15.0, 30.0, 60.0]
-            UserDefaults.standard.set(allowed.contains(newValue) ? newValue : 30, forKey: "dashboard_refresh_interval")
+            let resolved = Self.allowedRefreshIntervals.contains(newValue) ? newValue : Self.defaultRefreshInterval
+            UserDefaults.standard.set(resolved, forKey: "dashboard_refresh_interval")
         }
     }
 }

@@ -1,6 +1,6 @@
 import React from 'react';
 import { AuthProvider, useAuth } from './core/auth/AuthContext';
-import { FarmProvider, useFarm } from './core/context/FarmContext';
+import { FarmDataSync } from './core/context/FarmContext';
 import { Sidebar } from './components/layout/Sidebar';
 import { TopHeader } from './components/layout/TopHeader';
 import { LoginView } from './views/LoginView';
@@ -13,13 +13,14 @@ import { UsersView } from './views/UsersView';
 import { InviteAcceptView } from './views/InviteAcceptView';
 import { RequirePermission } from './core/rbac/RequireRole';
 import { GlassCard } from './components/ui/GlassCard';
+import { useUIStore } from './core/store/uiStore';
 
 const AppContent: React.FC = () => {
   const { user, initialLoad, signOut } = useAuth();
-  const { activeTab } = useFarm();
+  const activeTab = useUIStore(s => s.activeTab);
 
   if (initialLoad) {
-    return <div className="min-h-screen bg-bg-main" />;
+    return <GISMapView />;
   }
 
   if (window.location.pathname === '/invite/accept') {
@@ -102,13 +103,26 @@ const AppContent: React.FC = () => {
   );
 };
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
 export function App() {
   return (
-    <AuthProvider>
-      <FarmProvider>
-        <AppContent />
-      </FarmProvider>
-    </AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <FarmDataSync>
+          <AppContent />
+        </FarmDataSync>
+      </AuthProvider>
+    </QueryClientProvider>
   );
 }
 

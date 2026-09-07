@@ -40,9 +40,11 @@ def _coordinates_to_wkt(coordinates) -> str:
 
 
 def field_to_response(field: Field, db: Session) -> FieldResponse:
-    from app.models.db_models import FieldProviderLink
+    from app.models.db_models import FieldProviderLink, User
     link = db.query(FieldProviderLink).filter(FieldProviderLink.field_id == field.id, FieldProviderLink.provider == "agromonitoring").first()
     
+    owner_email = db.query(User.email).filter(User.id == field.owner_id).scalar()
+
     raw = db.query(ST_AsGeoJSON(Field.boundary)).filter(Field.id == field.id).scalar()
     coordinates: list[dict[str, float]] = []
     if raw:
@@ -54,6 +56,7 @@ def field_to_response(field: Field, db: Session) -> FieldResponse:
     return FieldResponse(
         id=field.id,
         owner_id=field.owner_id,
+        owner_email=owner_email,
         name=field.name,
         coordinates=coordinates,
         area_ha=field.area_ha,
@@ -375,8 +378,11 @@ async def refresh_field_data(
 
 @router.get("/{field_id}/dashboard")
 def get_dashboard(field_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    field = owned_field(db, current_user, field_id)
-    sensors = db.query(Sensor).filter(Sensor.field_id == field.id, Sensor.owner_id == current_user.id).all()
+    # Read-only endpoint, so staff may open any field. Sensors are scoped to the field's
+    # owner rather than the caller — an agronomist viewing a farmer's field must see that
+    # farmer's hardware, not their own (which would always be empty).
+    field = field_readable_by(db, current_user, field_id)
+    sensors = db.query(Sensor).filter(Sensor.field_id == field.id, Sensor.owner_id == field.owner_id).all()
     sensor_ids = [sensor.id for sensor in sensors]
     latest_readings = []
     if sensor_ids:

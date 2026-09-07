@@ -58,6 +58,19 @@ def delete_user(
     for field in user_fields:
         queue_field_deletion(db, field, background_tasks)
 
+    # 1.5 Handle Foreign Key constraints (Invitations and Sensors)
+    from app.models.db_models import Invitation, UserRole
+    other_admin = db.query(User).filter(User.role == UserRole.admin, User.id != target_user.id).first()
+    if other_admin:
+        db.query(Invitation).filter(Invitation.invited_by_id == target_user.id).update(
+            {"invited_by_id": other_admin.id}, synchronize_session=False
+        )
+    else:
+        db.query(Invitation).filter(Invitation.invited_by_id == target_user.id).delete(synchronize_session=False)
+
+    # Delete sensors (this automatically cascades to delete all SensorReadings to prevent data leaks)
+    db.query(Sensor).filter(Sensor.owner_id == target_user.id).delete(synchronize_session=False)
+
     # 2. Delete user from Postgres
     db.delete(target_user)
     db.commit()

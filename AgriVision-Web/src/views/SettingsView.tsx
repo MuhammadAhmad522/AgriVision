@@ -4,34 +4,32 @@ import { MetricBadge } from '../components/ui/MetricBadge';
 import { apiClient } from '../core/api/client';
 import { Server, Globe, BrainCircuit, Save } from 'lucide-react';
 import { useAuth } from '../core/auth/AuthContext';
-import { advisoryService } from '../core/services/AdvisoryService';
+import { useAISettings, useUpdateAISettings } from '../core/hooks/useAdvisoryHooks';
 import type { AISettings } from '../core/types';
 
 export const SettingsView: React.FC = () => {
   const apiUrl = apiClient.getBaseURL();
   const { user } = useAuth();
   
+  const isAdmin = user?.role === 'admin';
+  const { data: fetchedSettings } = useAISettings(isAdmin);
+  const updateSettings = useUpdateAISettings();
   const [aiSettings, setAiSettings] = useState<AISettings | null>(null);
-  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (user?.role === 'admin') {
-      advisoryService.getAISettings().then(setAiSettings).catch(console.error);
+    if (fetchedSettings && !aiSettings) {
+      setAiSettings(fetchedSettings);
     }
-  }, [user]);
+  }, [fetchedSettings, aiSettings]);
 
   const handleSaveAI = async () => {
     if (!aiSettings) return;
-    setSaving(true);
     try {
-      const updated = await advisoryService.updateAISettings(aiSettings);
-      setAiSettings(updated);
+      await updateSettings.mutateAsync(aiSettings);
       alert('AI Configuration saved successfully! It is now active globally.');
     } catch (err) {
       alert('Failed to save AI configuration');
       console.error(err);
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -157,11 +155,11 @@ export const SettingsView: React.FC = () => {
             <div className="flex justify-end mt-2">
               <button
                 onClick={handleSaveAI}
-                disabled={saving}
-                className="flex items-center gap-2 bg-accent-purple hover:bg-accent-purple/80 text-white px-4 py-2 rounded-md font-semibold text-sm transition-colors disabled:opacity-50"
+                disabled={updateSettings.isPending}
+                className="btn-primary bg-accent-purple hover:bg-accent-purple/80 border-accent-purple/50 transition-colors"
               >
                 <Save size={16} />
-                {saving ? 'Saving globally...' : 'Save Configuration'}
+                {updateSettings.isPending ? 'Saving globally...' : 'Save Configuration'}
               </button>
             </div>
           </div>

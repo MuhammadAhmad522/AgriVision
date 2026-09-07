@@ -38,7 +38,16 @@ final class NetworkAgriDataRepository: AgriDataService {
     }
 
     func fetchSensorReadings(for fieldId: UUID) async throws -> [SensorReading] {
-        try await apiClient.send(APIConstants.Endpoints.readings(fieldId))
+        // Explicit window: the endpoint defaults to limit=100, which at the firmware's 5s
+        // cadence is only ~8 minutes of history rather than the 24h the default implies.
+        try await apiClient.send(
+            APIConstants.Endpoints.readings(fieldId),
+            query: [
+                URLQueryItem(name: "granularity", value: "raw"),
+                URLQueryItem(name: "hours", value: "1"),
+                URLQueryItem(name: "limit", value: "240")
+            ]
+        )
     }
 
     func fetchSensors(for fieldId: UUID) async throws -> [FieldSensor] {

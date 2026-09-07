@@ -375,7 +375,7 @@ async def test_ai_run_marks_stale_runs_failed():
         db.commit()
 
         stale_run_id = uuid.uuid4().hex
-        old_time = datetime.now(timezone.utc) - timedelta(minutes=5)
+        old_time = datetime.now(timezone.utc) - timedelta(minutes=15)
         db.execute(
             text("""INSERT INTO ai_analysis_runs (id, field_id, provider, status, started_at)
                      VALUES (:id, :fid, :prov, :status, :started)"""),

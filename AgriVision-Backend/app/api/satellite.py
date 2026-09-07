@@ -111,9 +111,22 @@ async def fetch_tile(field_id: UUID, layer_type: str, z: int, x: int, y: int, v:
         
         # Match the scene by timestamp
         target_scene = next((img for img in images if img.get("dt") == int(scene.acquired_at.timestamp())), images[0])
-        tile_url_template = target_scene.get("tile", {}).get(layer_type)
+        
+        # Agromonitoring uses 'truecolor' or 'true_color' and 'falsecolor' or 'false_color'
+        aliases = {
+            "truecolor": ["truecolor", "true_color"],
+            "falsecolor": ["falsecolor", "false_color"]
+        }
+        keys_to_try = aliases.get(layer_type, [layer_type])
+        
+        tile_url_template = None
+        for key in keys_to_try:
+            tile_url_template = target_scene.get("tile", {}).get(key)
+            if tile_url_template:
+                break
+                
         if not tile_url_template:
-            raise APIError(404, "tile_unavailable", "Tile URL not available in scene data.")
+            raise APIError(404, "tile_unavailable", f"Tile URL for {layer_type} not available in scene data.")
         
         # Build the specific tile URL. Agromonitoring already includes the appid in the template.
         actual_url = tile_url_template.replace("{z}", str(z)).replace("{x}", str(x)).replace("{y}", str(y))

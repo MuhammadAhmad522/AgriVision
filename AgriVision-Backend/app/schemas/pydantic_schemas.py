@@ -105,6 +105,7 @@ class FieldUpdate(StrictModel):
 class FieldResponse(BaseModel):
     id: UUID
     owner_id: UUID
+    owner_email: Optional[str] = None
     name: str
     coordinates: list[PointCoordinates] = PydanticField(default_factory=list)
     area_ha: float

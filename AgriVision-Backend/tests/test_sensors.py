@@ -49,7 +49,7 @@ def test_get_sensor_readings_returns_readings(client):
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_current_user] = lambda: user
 
-    with patch("app.api.sensors.owned_field", return_value=MagicMock()):
+    with patch("app.api.sensors.field_readable_by", return_value=MagicMock()):
         response = client.get(f"/api/fields/{field_id}/sensor-readings")
 
     assert response.status_code == 200
@@ -68,7 +68,7 @@ def test_get_sensor_readings_with_no_sensors_returns_empty(client):
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_current_user] = lambda: user
 
-    with patch("app.api.sensors.owned_field", return_value=MagicMock()):
+    with patch("app.api.sensors.field_readable_by", return_value=MagicMock()):
         response = client.get(f"/api/fields/{field_id}/sensor-readings")
 
     assert response.status_code == 200
@@ -186,3 +186,35 @@ def test_pair_sensor_with_offline_sensor_returns_409(client):
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "sensor_not_online"
+
+
+def test_get_sensor_readings_allows_staff_on_another_users_field(client):
+    """Agronomists oversee farmers' fields, so telemetry reads must not be owner-scoped.
+
+    Regression guard: this endpoint used owned_field, which 404'd for every staff user on
+    every field they did not personally own — making the web portal's charts always empty.
+    """
+    from app.models.db_models import UserRole
+
+    farmer_id = uuid4()
+    staff = _mock_user()
+    staff.role = UserRole.agronomist
+
+    field = MagicMock()
+    field.id = uuid4()
+    field.owner_id = farmer_id  # deliberately not the caller
+
+    db = _mock_db()
+    field_query = MagicMock()
+    field_query.filter.return_value.first.return_value = field
+    sensor_query = MagicMock()
+    sensor_query.filter.return_value.all.return_value = []
+    db.query = MagicMock(side_effect=[field_query, sensor_query])
+
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: staff
+
+    response = client.get(f"/api/fields/{field.id}/sensor-readings")
+
+    assert response.status_code == 200
+    assert response.json() == []

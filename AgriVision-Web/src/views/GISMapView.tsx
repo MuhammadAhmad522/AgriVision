@@ -1,237 +1,271 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useFarm } from '../core/context/FarmContext';
-import { GlassCard } from '../components/ui/GlassCard';
-import { MetricBadge } from '../components/ui/MetricBadge';
-import { Eye, Layers, Activity, Droplet, Thermometer } from 'lucide-react';
-import L from 'leaflet';
 import clsx from 'clsx';
+import { useFleetStore, selectFilteredFields } from '../core/store/fleetStore';
+import { useIoTStore } from '../core/store/iotStore';
+import { useUIStore } from '../core/store/uiStore';
+import * as maplibregl from 'maplibre-gl';
+import { GISToolbar } from '../components/gis/GISToolbar';
+import { GISInspectorDrawer } from '../components/gis/GISInspectorDrawer';
+import { useMapLayers } from '../core/hooks/useMapLayers';
 
 export const GISMapView: React.FC = () => {
-  const { fields, activeField, setActiveField, dashboardData } = useFarm();
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<L.Map | null>(null);
-  const [activeLayer, setActiveLayer] = useState<'satellite' | 'ndvi' | 'moisture'>('ndvi');
-
-  const ndviStats = dashboardData?.sources.satellite.data?.statistics?.ndvi;
-  const moisture = dashboardData?.sources.soil.data?.moisture;
-  const soilTemp = dashboardData?.sources.soil.data?.surface_temp_c;
+  const fields = useFleetStore(selectFilteredFields);
+  const activeField = useFleetStore(s => s.activeField);
+  const setActiveField = useFleetStore(s => s.setActiveField);
+  const sensors = useIoTStore(s => s.sensors);
+  const fieldsRef = useRef(fields);
 
   useEffect(() => {
-    if (!mapContainerRef.current) return;
+    fieldsRef.current = fields;
+  }, [fields]);
 
-    if (!mapInstanceRef.current) {
-      // Centered on Punjab, Pakistan
-      const map = L.map(mapContainerRef.current, {
-        center: [31.5204, 74.3587],
-        zoom: 13,
-        zoomControl: false
-      });
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<maplibregl.Map | null>(null);
+  const [activeLayer, setActiveLayer] = useState<string>('satellite');
+  const [mapLoaded, setMapLoaded] = useState(false);
+  const [is3D, setIs3D] = useState(true);
 
-      L.control.zoom({ position: 'bottomright' }).addTo(map);
+  // Initialize MapLibre GL JS
+  useEffect(() => {
+    if (!mapContainerRef.current || mapInstanceRef.current) return;
 
-      // Satellite Tile Layer (Esri World Imagery)
-      L.tileLayer(
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        {
-          attribution: 'Esri, Maxar, Earthstar Geographics',
-          maxZoom: 18
+    const map = new maplibregl.Map({
+      container: mapContainerRef.current,
+      style: {
+        version: 8,
+        sources: {
+          'esri-satellite': {
+            type: 'raster',
+            tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+            tileSize: 256
+          }
+        },
+        layers: [
+          {
+            id: 'satellite-layer',
+            type: 'raster',
+            source: 'esri-satellite',
+            minzoom: 0,
+            maxzoom: 22
+          }
+        ]
+      },
+      center: [74.3587, 31.5204],
+      zoom: 12,
+      pitch: 60,
+      bearing: -10,
+      attributionControl: false,
+      maxPitch: 85,
+      transformRequest: (url, resourceType) => {
+        // If the URL is hitting our own backend for tiles, inject the Firebase JWT
+        if (resourceType === 'Tile' && url.includes('/api/fields/')) {
+          return (async () => {
+            let token = '';
+            try {
+              const { auth } = await import('../core/auth/firebase');
+              if (auth.currentUser) {
+                token = await auth.currentUser.getIdToken();
+              }
+            } catch (e) {
+              console.warn('Failed to fetch auth token for tile', e);
+            }
+            
+            return {
+              url,
+              headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+            };
+          })();
         }
-      ).addTo(map);
-
-      mapInstanceRef.current = map;
-    }
-
-    const map = mapInstanceRef.current;
-
-    // Clear previous vector layers
-    map.eachLayer((layer) => {
-      if (layer instanceof L.Polygon || layer instanceof L.Marker) {
-        map.removeLayer(layer);
+        return { url };
       }
     });
 
-    // Render Field Boundary Polygons
-    fields.forEach((f) => {
-      const isSelected = f.id === activeField?.id;
-      const latlngs: L.LatLngExpression[] = f.coordinates.map((c) => {
-        const lat = c.lat ?? c.latitude ?? 0;
-        const lng = c.lng ?? c.longitude ?? 0;
-        return [lat, lng];
+    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
+    mapInstanceRef.current = map;
+
+    const resizeObserver = new ResizeObserver(() => {
+      map.resize();
+    });
+    resizeObserver.observe(mapContainerRef.current);
+
+    map.on('load', () => {
+      // Add 3D Terrain DEM source
+      map.addSource('terrain', {
+        type: 'raster-dem',
+        tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
+        encoding: 'terrarium',
+        tileSize: 256,
+        maxzoom: 15
+      });
+      map.setTerrain({ source: 'terrain', exaggeration: 1.2 });
+      map.addControl(new maplibregl.TerrainControl({ source: 'terrain', exaggeration: 1.2 }), 'bottom-right');
+
+      // Add source for fields GeoJSON
+      map.addSource('fields', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
       });
 
-      const ndviColor = (f.ndvi_score || 0.7) > 0.7 ? '#568c48' : (f.ndvi_score || 0.7) > 0.4 ? '#fb923c' : '#f87171';
-
-      const polygon = L.polygon(latlngs, {
-        color: isSelected ? '#9ad46c' : ndviColor,
-        weight: isSelected ? 3 : 2,
-        fillColor: ndviColor,
-        fillOpacity: isSelected ? 0.45 : 0.25
-      }).addTo(map);
-
-      polygon.on('click', () => {
-        setActiveField(f);
+      // Add fill layer for fields
+      map.addLayer({
+        id: 'fields-fill',
+        type: 'fill',
+        source: 'fields',
+        paint: {
+          'fill-color': ['get', 'color'],
+          'fill-opacity': ['case', ['boolean', ['get', 'isActive'], false], 0.35, 0.15]
+        }
       });
 
-      // Add Field Label Tooltip
-      polygon.bindTooltip(
-        `<b>${f.name}</b><br/>Crop: ${f.crop_type} • ${f.area_ha} ha<br/>NDVI: ${f.ndvi_score || '0.76'}`,
-        { permanent: isSelected, direction: 'center', className: 'field-tooltip' }
-      );
+      // Add outline layer for fields
+      map.addLayer({
+        id: 'fields-outline',
+        type: 'line',
+        source: 'fields',
+        paint: {
+          'line-color': '#ffffff',
+          'line-width': ['case', ['boolean', ['get', 'isActive'], false], 3, 1]
+        }
+      });
+
+      // Add source for sensors
+      map.addSource('sensors', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
+      });
+
+      // Add pulse halo for sensors
+      map.addLayer({
+        id: 'sensors-halo',
+        type: 'circle',
+        source: 'sensors',
+        paint: {
+          'circle-radius': 14,
+          'circle-color': '#38bdf8',
+          'circle-opacity': 0.3
+        }
+      });
+
+      // Add solid core for sensors
+      map.addLayer({
+        id: 'sensors-core',
+        type: 'circle',
+        source: 'sensors',
+        paint: {
+          'circle-radius': 6,
+          'circle-color': '#38bdf8',
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#ffffff'
+        }
+      });
+
+      // Interactions
+      map.on('click', 'fields-fill', (e: any) => {
+        if (e.features && e.features.length > 0) {
+          const fieldId = e.features[0].properties.id;
+          const clickedField = fieldsRef.current.find(f => f.id === fieldId);
+          if (clickedField) {
+            setActiveField(clickedField);
+            useUIStore.getState().setInspectorOpen(true);
+          }
+        }
+      });
+
+      map.on('click', (e) => {
+        const features = map.queryRenderedFeatures(e.point, { layers: ['fields-fill'] });
+        if (!features.length) {
+          setActiveField(null);
+        }
+      });
+
+      map.on('mouseenter', 'fields-fill', () => {
+        map.getCanvas().style.cursor = 'pointer';
+      });
+
+      map.on('mouseleave', 'fields-fill', () => {
+        map.getCanvas().style.cursor = '';
+      });
+
+      // Ensure canvas is resized correctly
+      setTimeout(() => map.resize(), 100);
+
+      setMapLoaded(true);
     });
 
-    // Add Sensor Markers
-    if (activeField && activeField.coordinates.length > 0) {
-      const center = activeField.coordinates[0];
-      const lat = center.lat ?? center.latitude ?? 0;
-      const lng = center.lng ?? center.longitude ?? 0;
-      
-      const sensorPin = L.circleMarker([lat + 0.002, lng + 0.002], {
-        radius: 8,
-        fillColor: '#38bdf8',
-        color: '#ffffff',
-        weight: 2,
-        fillOpacity: 0.9
-      }).addTo(map);
+    return () => {
+      resizeObserver.disconnect();
+      map.remove();
+      mapInstanceRef.current = null;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once for setup, handle updates separately
 
-      sensorPin.bindPopup(`
-        <div class="font-body p-1">
-          <h4 class="text-[13px] font-bold mb-1 text-[#16331e]">📡 Probe AGRI-01</h4>
-          <p class="text-[11px] my-0.5"><b>Moisture:</b> ${moisture ? `${Math.round(moisture * 100)}%` : '38%'}</p>
-          <p class="text-[11px] my-0.5"><b>Surface Temp:</b> ${soilTemp ? `${soilTemp.toFixed(1)}°C` : '26.2°C'}</p>
-          <p class="text-[11px] my-0.5"><b>Status:</b> Telemetry Active</p>
-        </div>
-      `);
+  const fitToAllFields = () => {
+    if (!mapInstanceRef.current || !fieldsRef.current || fieldsRef.current.length === 0) return;
+    
+    const bounds = new maplibregl.LngLatBounds();
+    let hasCoords = false;
+    fieldsRef.current.forEach(f => {
+      if (f.coordinates) {
+        f.coordinates.forEach(c => {
+          bounds.extend([c.lng ?? c.longitude ?? 0, c.lat ?? c.latitude ?? 0]);
+          hasCoords = true;
+        });
+      }
+    });
 
-      map.flyTo([lat, lng], 14, { duration: 1.2 });
+    if (hasCoords) {
+      // Add significant right padding to ensure the 340px UI panel doesn't cover the fields
+      mapInstanceRef.current.fitBounds(bounds, { padding: { top: 80, bottom: 80, left: 80, right: 400 }, duration: 1500, maxZoom: 14 });
     }
-  }, [fields, activeField, moisture, soilTemp]);
+  };
+
+  // Map layers and markers logic extracted to custom hook
+  useMapLayers({
+    mapInstance: mapInstanceRef,
+    mapLoaded,
+    fields,
+    activeField,
+    sensors,
+    activeLayer,
+    fitToAllFields
+  });
+
+  const toggle3D = () => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    if (is3D) {
+      map.easeTo({ pitch: 0, bearing: 0, duration: 1000 });
+      setIs3D(false);
+    } else {
+      map.easeTo({ pitch: 45, bearing: -10, duration: 1000 });
+      setIs3D(true);
+    }
+  };
+
+  const isInspectorOpen = useUIStore(s => s.isInspectorOpen);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-5 h-[calc(100vh-110px)]">
-      {/* Map Glass Canvas */}
-      <div className="relative h-full rounded-xl overflow-hidden shadow-glass border border-border-glass">
-        <div ref={mapContainerRef} className="w-full h-full" />
-
-        {/* Map Layer Switcher Controls */}
-        <div className="absolute top-4 left-4 z-[1000] flex gap-2 bg-[#0a170d]/85 backdrop-blur-md p-1.5 rounded-md border border-border-glass">
-          <button
-            onClick={() => setActiveLayer('ndvi')}
-            className={clsx(
-              "px-3 py-1.5 rounded-sm border-none text-xs font-semibold cursor-pointer flex items-center gap-1.5 transition-colors",
-              activeLayer === 'ndvi' ? "bg-primary text-white" : "bg-transparent text-white hover:bg-white/10"
-            )}
-          >
-            <Eye size={13} />
-            NDVI Raster
-          </button>
-
-          <button
-            onClick={() => setActiveLayer('satellite')}
-            className={clsx(
-              "px-3 py-1.5 rounded-sm border-none text-xs font-semibold cursor-pointer flex items-center gap-1.5 transition-colors",
-              activeLayer === 'satellite' ? "bg-primary text-white" : "bg-transparent text-white hover:bg-white/10"
-            )}
-          >
-            <Layers size={13} />
-            TrueColor RGB
-          </button>
-        </div>
-
-        {/* Map Legend Overlay */}
-        <div className="absolute bottom-5 left-5 z-[1000] bg-[#0a170d]/85 backdrop-blur-md px-4 py-3 rounded-md border border-border-glass text-[11px]">
-          <p className="font-bold mb-1.5 text-text-main">Sentinel-2 NDVI Scale</p>
-          <div className="flex items-center gap-2">
-            <span className="text-red-400">0.0 Stress</span>
-            <div className="w-[120px] h-2 rounded-full bg-gradient-to-r from-red-400 via-orange-400 to-[#9ad46c]" />
-            <span className="text-[#9ad46c]">1.0 Dense</span>
-          </div>
-        </div>
+    <div className="h-full flex relative overflow-hidden">
+      <div 
+        className={clsx(
+          "flex-1 min-h-[400px] rounded-lg overflow-hidden relative border border-border-glass shadow-lg bg-[#111] transition-all duration-300",
+          isInspectorOpen ? "md:mr-[340px]" : "mr-0"
+        )}
+      >
+        {/* Map Container */}
+        <div ref={mapContainerRef} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%' }} />
+        
+        <GISToolbar 
+          activeLayer={activeLayer}
+          setActiveLayer={setActiveLayer}
+          is3D={is3D}
+          toggle3D={toggle3D}
+          fitToAllFields={fitToAllFields}
+        />
       </div>
 
-      {/* Field Inspection Side Drawer */}
-      <div className="flex flex-col gap-4 overflow-y-auto pr-1 custom-scrollbar">
-        {/* Selected Field Hero */}
-        <GlassCard glow className="p-4">
-          <div className="flex justify-between items-start mb-3">
-            <div>
-              <p className="text-[11px] text-text-muted font-semibold">Active Geo-Zone</p>
-              <h2 className="text-lg font-extrabold text-text-main">{activeField?.name || 'Loading Zone'}</h2>
-            </div>
-            <MetricBadge label={activeField?.crop_type || 'Crop'} variant="success" />
-          </div>
-
-          <div className="grid grid-cols-2 gap-2.5 mt-3.5">
-            <div className="p-2.5 bg-black/20 rounded-sm">
-              <p className="text-[11px] text-text-muted">Polygon Area</p>
-              <p className="text-base font-bold text-accent-lime">
-                {activeField?.area_ha || 0} ha
-              </p>
-            </div>
-
-            <div className="p-2.5 bg-black/20 rounded-sm">
-              <p className="text-[11px] text-text-muted">Sentinel NDVI</p>
-              <p className="text-base font-bold text-text-main">
-                {ndviStats?.mean ? ndviStats.mean.toFixed(2) : (activeField?.ndvi_score || 0.76).toFixed(2)}
-              </p>
-            </div>
-          </div>
-        </GlassCard>
-
-        {/* Live Satellite Vigor Stats */}
-        <GlassCard className="p-4">
-          <div className="flex items-center gap-2 mb-3.5">
-            <Activity size={16} className="text-primary-light" />
-            <h3 className="text-sm font-bold text-text-main">Sentinel-2 Multispectral Scene</h3>
-          </div>
-
-          <div className="flex flex-col gap-2.5">
-            <div className="flex justify-between text-xs">
-              <span className="text-text-muted">Peak Vigor (Max NDVI):</span>
-              <span className="font-bold text-accent-lime">{ndviStats?.max ? ndviStats.max.toFixed(3) : '0.890'}</span>
-            </div>
-
-            <div className="flex justify-between text-xs">
-              <span className="text-text-muted">Stressed Pixels (Min NDVI):</span>
-              <span className="font-bold text-red-400">{ndviStats?.min ? ndviStats.min.toFixed(3) : '0.580'}</span>
-            </div>
-
-            <div className="flex justify-between text-xs">
-              <span className="text-text-muted">Spatial Homogeneity:</span>
-              <span className="font-bold text-text-main">94.2% Uniform</span>
-            </div>
-          </div>
-        </GlassCard>
-
-        {/* Live In-Situ Telemetry Summary */}
-        <GlassCard className="p-4">
-          <div className="flex items-center gap-2 mb-3.5">
-            <Droplet size={16} className="text-accent-cyan" />
-            <h3 className="text-sm font-bold text-text-main">Live Soil Telemetry</h3>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="flex items-center gap-2">
-              <Droplet size={18} className="text-accent-cyan" />
-              <div>
-                <p className="text-[10px] text-text-muted">Moisture</p>
-                <p className="text-sm font-bold text-text-main">
-                  {moisture ? `${Math.round(moisture * 100)}%` : '36%'}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Thermometer size={18} className="text-accent-orange" />
-              <div>
-                <p className="text-[10px] text-text-muted">Soil Temp</p>
-                <p className="text-sm font-bold text-text-main">
-                  {soilTemp ? `${soilTemp.toFixed(1)}°C` : '26.2°C'}
-                </p>
-              </div>
-            </div>
-          </div>
-        </GlassCard>
-      </div>
+      <GISInspectorDrawer />
     </div>
   );
 };

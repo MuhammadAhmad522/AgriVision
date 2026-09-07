@@ -187,6 +187,7 @@ struct SettingsView: View {
                 get: { viewModel.refreshInterval },
                 set: viewModel.setRefreshInterval
             )) {
+                Text("5 seconds (live)").tag(TimeInterval(5))
                 Text("15 seconds").tag(TimeInterval(15))
                 Text("30 seconds").tag(TimeInterval(30))
                 Text("60 seconds").tag(TimeInterval(60))

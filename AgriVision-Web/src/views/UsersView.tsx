@@ -303,7 +303,7 @@ export const UsersView: React.FC = () => {
                           {u.id !== user.uid ? (
                             <button 
                               onClick={() => handleDeleteUser(u.id)}
-                              className="opacity-0 group-hover:opacity-100 p-1.5 text-text-dim hover:text-red-400 hover:bg-red-400/10 rounded transition-all"
+                              className="opacity-0 group-hover:opacity-100 btn-icon text-text-dim hover:text-accent-red hover:bg-red-400/10"
                               title="Delete User"
                             >
                               <Trash2 size={16} />
@@ -363,7 +363,7 @@ export const UsersView: React.FC = () => {
                                             
                                             <button 
                                               onClick={() => handleDeleteField(f.id)}
-                                              className="p-1.5 text-text-dim hover:text-red-400 hover:bg-red-400/10 rounded transition-all"
+                                              className="btn-icon text-text-dim hover:text-accent-red hover:bg-red-400/10"
                                               title="Delete Field"
                                             >
                                               <Trash2 size={15} />

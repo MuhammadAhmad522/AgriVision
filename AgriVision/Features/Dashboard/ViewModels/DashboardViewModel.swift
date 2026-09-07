@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import UIKit
 
 @MainActor
 final class DashboardViewModel: ObservableObject {
@@ -37,6 +38,11 @@ final class DashboardViewModel: ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
     private var dashboardRequestToken: UUID?
 
+    // The app is hosted by UIKit (AppDelegate/SceneDelegate + UIHostingController), so
+    // SwiftUI's @Environment(\.scenePhase) is never populated and cannot gate polling.
+    // Track foreground state from UIApplication notifications instead.
+    private var isAppActive = true
+
     // Matches the backend's own external-data scan cadence (AGRO_WORKER_SCAN_SECONDS in
     // AgriVision-Backend). Polling faster than the backend itself checks for new satellite/
     // weather/soil data or reconsiders AI recommendations cannot surface anything newer —
@@ -65,6 +71,22 @@ final class DashboardViewModel: ObservableObject {
             .sink { [weak self] _ in
                 self?.clearFieldData()
                 Task { await self?.refreshData() }
+            }
+            .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)
+            .sink { _ in
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    self.isAppActive = true
+                    await self.catchUpAfterForeground()
+                }
+            }
+            .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)
+            .sink { _ in
+                Task { @MainActor [weak self] in self?.isAppActive = false }
             }
             .store(in: &cancellables)
     }
@@ -115,6 +137,9 @@ final class DashboardViewModel: ObservableObject {
     }
 
     func pollUntilCancelled() async {
+        // Seed once so the fast tier knows whether any sensors are configured before its
+        // first tick — otherwise sensorCount is still 0 and that tick is wasted.
+        await refreshData()
         async let sensors: Void = pollSensorReadings()
         async let dashboard: Void = pollFullDashboard()
         _ = await (sensors, dashboard)
@@ -122,15 +147,29 @@ final class DashboardViewModel: ObservableObject {
 
     private func pollSensorReadings() async {
         while !Task.isCancelled {
-            await refreshSensorReadingsOnly()
             try? await Task.sleep(for: .seconds(preferencesService.dashboardRefreshInterval))
+            guard !Task.isCancelled, isAppActive else { continue }
+            await refreshSensorReadingsOnly()
         }
     }
 
     private func pollFullDashboard() async {
         while !Task.isCancelled {
-            await refreshData()
             try? await Task.sleep(for: .seconds(Self.fullDashboardRefreshInterval))
+            guard !Task.isCancelled, isAppActive else { continue }
+            await refreshData()
+        }
+    }
+
+    /// Returning from the background can leave readings arbitrarily stale, so catch up
+    /// immediately rather than waiting out the remainder of the poll interval.
+    private func catchUpAfterForeground() async {
+        guard fieldSessionStore.activeFieldId != nil else { return }
+        let age = lastUpdatedAt.map { Date().timeIntervalSince($0) } ?? .greatestFiniteMagnitude
+        if age >= Self.fullDashboardRefreshInterval {
+            await refreshData()
+        } else {
+            await refreshSensorReadingsOnly()
         }
     }
 
@@ -176,7 +215,12 @@ final class DashboardViewModel: ObservableObject {
             advisorStatus = snapshot.advisor?.status ?? (recommendations.isEmpty ? "pending" : "available")
             advisorMessage = snapshot.advisor?.message
             advisorDataQuality = snapshot.advisor?.dataQuality
-            readings = snapshot.sources.sensors.data ?? []
+            // The 5s telemetry tier owns `readings` once it has data. The dashboard snapshot
+            // carries a different, smaller window (50 rows vs the telemetry endpoint's 240),
+            // so overwriting here made the charts visibly shrink every full refresh.
+            if readings.isEmpty {
+                readings = snapshot.sources.sensors.data ?? []
+            }
             sensorFleet = snapshot.sources.sensorFleet
             sensorCount = snapshot.sources.sensors.configuredCount ?? Set(readings.map(\.sensor_id)).count
             sensorStatus = snapshot.sources.sensors.status

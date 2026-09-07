@@ -36,11 +36,9 @@ static String deviceId;
 /**
  * @brief Initializes the unique device identifier.
  * 
- * In PROD mode:
- *  - Uses DEVICE_ID from config.h if defined.
- *  - Otherwise, derives a unique ID from the last 3 octets of the WiFi STA MAC address.
- * In DEV mode:
- *  - Uses DEVICE_ID from config.h or falls back to "ESP32_FIELD_NODE_1".
+ * Uses DEVICE_ID from config.h when set; otherwise derives a unique ID from the last 3
+ * octets of the WiFi STA MAC address. This is the same in both PROD and DEV builds — there
+ * is no mode-specific fallback.
  */
 static void _init_device_id() {
   if (strlen(DEVICE_ID) > 0) {
@@ -67,7 +65,8 @@ constexpr uint8_t TEMP_PIN = 6;
 // --- ADC Calibration Values (12-bit ADC: 0 - 4095) ---
 constexpr int DRY_VALUE = 4095;                   // Raw ADC value in completely dry soil / open air (0% moisture)
 constexpr int WET_VALUE = 1200;                   // Raw ADC value fully submerged in water (100% moisture)
-constexpr int DISCONNECTED_RAW_THRESHOLD = 500;   // Raw ADC values below this indicate a disconnected / floating pin
+// Fault thresholds live in config.h so they can be calibrated per probe:
+// MOISTURE_OPEN_CIRCUIT_RAW (dry rail = unplugged) and MOISTURE_SHORT_CIRCUIT_RAW.
 
 // =============================================================================
 // Network & Timing Configuration (PROD Mode Only)
@@ -189,8 +188,13 @@ static float _read_moisture() {
   }
   int raw = sum / 10;
 
-  // A connected capacitive sensor outputs >= ~1000 in water; near-0 indicates floating / unconnected pin
-  if (raw < DISCONNECTED_RAW_THRESHOLD) {
+  // TEMP CALIBRATION LOGGING — remove once MOISTURE_OPEN_CIRCUIT_RAW is set for real.
+  Serial.printf("[calibration] moisture raw=%d\n", raw);
+
+  // Reject both rails. Wet pulls this reading DOWN, so an unplugged probe rests at the dry
+  // rail — reporting that as 0% would be an assertion of bone-dry soil rather than an
+  // admission of no data, and downstream that reads as a reason to irrigate.
+  if (raw >= MOISTURE_OPEN_CIRCUIT_RAW || raw <= MOISTURE_SHORT_CIRCUIT_RAW) {
     return NAN;
   }
 

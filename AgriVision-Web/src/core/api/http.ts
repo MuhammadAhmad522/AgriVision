@@ -1,3 +1,5 @@
+import { auth } from '../auth/firebase';
+
 export class HttpClient {
   private baseURL: string;
 
@@ -18,7 +20,6 @@ export class HttpClient {
     };
 
     try {
-      const { auth } = await import('../auth/firebase');
       const user = auth.currentUser;
       if (user) {
         const token = await user.getIdToken();

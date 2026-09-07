@@ -1,5 +1,5 @@
 @import "tailwindcss";
-
+@import "maplibre-gl/dist/maplibre-gl.css";
 
 
 @theme {
@@ -220,11 +220,20 @@
     transition: all 0.2s ease;
   }
 
-  .btn-primary:hover {
+  .btn-primary:hover:not(:disabled) {
     filter: brightness(1.15);
     border-color: var(--brand-lime-green);
     transform: translateY(-1px);
     box-shadow: 0 6px 20px rgba(176, 209, 130, 0.4);
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: var(--bg-surface-elevated);
+    border-color: var(--border-glass);
+    color: var(--text-dim);
+    box-shadow: none;
   }
 
   .btn-secondary {
@@ -243,9 +252,64 @@
     transition: all 0.2s ease;
   }
 
-  .btn-secondary:hover {
+  .btn-secondary:hover:not(:disabled) {
     background: rgba(244, 241, 234, 0.12);
     border-color: var(--border-glass-bright);
+  }
+
+  .btn-secondary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-danger {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    background: rgba(248, 113, 113, 0.15);
+    color: var(--accent-red);
+    font-family: var(--font-heading);
+    font-weight: 600;
+    font-size: 14px;
+    border: 1px solid rgba(248, 113, 113, 0.3);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .btn-danger:hover:not(:disabled) {
+    background: rgba(248, 113, 113, 0.25);
+    border-color: rgba(248, 113, 113, 0.5);
+    color: #fca5a5;
+  }
+
+  .btn-danger:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .btn-icon:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-main);
+  }
+
+  .btn-icon:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   /* Animations */

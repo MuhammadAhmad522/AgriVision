@@ -7,7 +7,6 @@ private enum DashboardLayout {
 }
 
 struct DashboardView: View {
-        @Environment(\ .scenePhase) private var scenePhase
     @ObservedObject var viewModel: DashboardViewModel
     @ObservedObject var settingsViewModel: SettingsViewModel
     @State private var selectedTab: DashboardTab = .home
@@ -311,12 +310,11 @@ struct DashboardView: View {
         }
         .tint(Theme.Colors.primaryMedium)
         .toolbar(.hidden, for: .navigationBar)
-        .task(id: scenePhase) {
-            guard scenePhase == .active else { return }
+        .task {
+            // pollUntilCancelled() seeds an initial refreshData() and then owns both poll
+            // tiers; foreground/background is handled from UIApplication notifications in
+            // the view model, and a field switch is picked up by its activeFieldId sink.
             await viewModel.pollUntilCancelled()
-        }
-        .task(id: viewModel.fieldSessionStore.activeFieldId) {
-            await viewModel.refreshData()
         }
         .overlay(alignment: .top) {
             if let error = viewModel.errorMessage {

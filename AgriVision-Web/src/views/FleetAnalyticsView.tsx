@@ -1,5 +1,7 @@
 import React from 'react';
-import { useFarm } from '../core/context/FarmContext';
+import { useFleetStore } from '../core/store/fleetStore';
+import { useIoTStore } from '../core/store/iotStore';
+import { useAnalyticsData } from '../core/hooks/useAnalyticsData';
 import { GlassCard } from '../components/ui/GlassCard';
 import { MetricBadge } from '../components/ui/MetricBadge';
 import {
@@ -15,57 +17,123 @@ import {
   Tooltip,
   ResponsiveContainer
 } from 'recharts';
-import { Sprout, Droplets, FlaskConical, Thermometer, CloudRain, ArrowUpRight } from 'lucide-react';
+import { Sprout, Droplets, FlaskConical, Thermometer, CloudRain, ArrowUpRight, AlertTriangle } from 'lucide-react';
 
 export const FleetAnalyticsView: React.FC = () => {
-  const { fields, activeField, dashboardData } = useFarm();
+  const fields = useFleetStore(s => s.allFields);
+  const activeField = useFleetStore(s => s.activeField);
+  const dashboardData = useIoTStore(s => s.dashboardData);
 
-  const [moistureHistory, setMoistureHistory] = React.useState<any[]>([]);
-  const [npkData, setNpkData] = React.useState<any[]>([]);
-  const [soilTempData, setSoilTempData] = React.useState<any[]>([]);
-
-  React.useEffect(() => {
-    if (!activeField) return;
-    
-    // Dynamically import to avoid circular dependency if any, or just use the global
-    import('../core/services/SensorService').then(({ sensorService }) => {
-      sensorService.getFieldReadings<any>(activeField.id, 720, 'daily').then((dailyReadings) => {
-        // Map 30-day moisture (720 hours = 30 days)
-        const mappedMoisture = dailyReadings.slice(0, 30).reverse().map((r) => ({
-          day: new Date(r.bucket).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-          moisture: r.moisture_avg || 0,
-          targetMin: 30,
-          targetMax: 50
-        }));
-        setMoistureHistory(mappedMoisture);
-      }).catch(console.error);
-
-      sensorService.getFieldReadings<any>(activeField.id, 24, 'hourly').then((hourlyReadings) => {
-        // Map 24-hour soil temp
-        const mappedTemp = hourlyReadings.slice(0, 24).reverse().map((r) => ({
-          time: new Date(r.bucket).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }),
-          surface: r.temperature_avg || 0,
-          depth10cm: (r.temperature_avg || 0) - 2.1 // Simulate depth gradient if not explicitly provided
-        }));
-        setSoilTempData(mappedTemp);
-
-        // Map NPK from most recent reading
-        if (hourlyReadings.length > 0) {
-          const latest = hourlyReadings[0];
-          setNpkData([
-            { element: 'Nitrogen (N)', current: latest.npk_n_avg || 0, target: 120, unit: 'mg/kg' },
-            { element: 'Phosphorus (P)', current: latest.npk_p_avg || 0, target: 45, unit: 'mg/kg' },
-            { element: 'Potassium (K)', current: latest.npk_k_avg || 0, target: 180, unit: 'mg/kg' },
-            { element: 'EC Salinity', current: latest.ec_avg || 0, target: 1.5, unit: 'mS/cm' }
-          ]);
-        }
-      }).catch(console.error);
-    });
-  }, [activeField]);
+  const { data: analytics } = useAnalyticsData(activeField?.id);
+  const moistureHistory = analytics?.moistureHistory || [];
+  const npkData = analytics?.npkData || [];
+  const soilTempData = analytics?.soilTempData || [];
 
   const forecast = dashboardData?.sources.weather.data?.forecast_days || [];
 
   const totalAcreage = fields.reduce((acc, f) => acc + (f.area_ha * 2.471), 0).toFixed(1);
+
+  if (!activeField) {
+    // Sort fields by health score (lowest first)
+    const sortedFields = [...fields].sort((a, b) => {
+      const scoreA = a.latest_health_score ?? 100;
+      const scoreB = b.latest_health_score ?? 100;
+      return scoreA - scoreB;
+    });
+
+    const activeFields = fields.filter(f => f.status === 'active');
+    const needsAttention = sortedFields.filter(f => (f.latest_health_score ?? 100) < 70);
+
+    return (
+      <div className="flex flex-col gap-6 pb-10 animate-in fade-in">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h2 className="text-2xl font-extrabold text-text-main">Fleet Risk Triage</h2>
+            <p className="text-sm text-text-muted mt-1">Macro-level overview of all active fields sorted by crop health risk.</p>
+          </div>
+          <div className="flex gap-4">
+            <GlassCard className="px-4 py-2 flex items-center gap-3 border-accent-lime/30">
+              <Sprout size={18} className="text-accent-lime" />
+              <div>
+                <div className="text-lg font-bold text-text-main leading-tight">{activeFields.length}</div>
+                <div className="text-[10px] text-text-muted">Active Fields</div>
+              </div>
+            </GlassCard>
+            <GlassCard className="px-4 py-2 flex items-center gap-3 border-accent-red/30">
+              <AlertTriangle size={18} className="text-accent-red" />
+              <div>
+                <div className="text-lg font-bold text-accent-red leading-tight">{needsAttention.length}</div>
+                <div className="text-[10px] text-accent-red/80">At Risk (&lt;70)</div>
+              </div>
+            </GlassCard>
+          </div>
+        </div>
+
+        <GlassCard className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm text-text-main">
+              <thead className="bg-[#112616] text-text-muted text-xs uppercase border-b border-border-glass">
+                <tr>
+                  <th className="px-6 py-4 font-semibold">Field Name</th>
+                  <th className="px-6 py-4 font-semibold">Crop</th>
+                  <th className="px-6 py-4 font-semibold">Overall Health</th>
+                  <th className="px-6 py-4 font-semibold hidden md:table-cell">AI Rationale</th>
+                  <th className="px-6 py-4 font-semibold text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-glass">
+                {sortedFields.map((field) => {
+                  const score = field.latest_health_score ?? 100;
+                  const isRisk = score < 70;
+                  const setField = useFleetStore.getState().setActiveField;
+                  
+                  return (
+                    <tr 
+                      key={field.id} 
+                      className="hover:bg-[#1a3a23]/50 transition-colors cursor-pointer group"
+                      onClick={() => setField(field)}
+                    >
+                      <td className="px-6 py-4 font-medium flex items-center gap-3">
+                        <div className={`w-2 h-2 rounded-full ${isRisk ? 'bg-accent-red shadow-[0_0_8px_rgba(248,113,113,0.8)]' : 'bg-accent-lime'}`} />
+                        {field.name}
+                      </td>
+                      <td className="px-6 py-4 text-text-muted capitalize">{field.crop_type}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-24 h-2 bg-black/40 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full ${isRisk ? 'bg-gradient-to-r from-accent-orange to-accent-red' : 'bg-gradient-to-r from-primary-medium to-accent-lime'}`} 
+                              style={{ width: `${score}%` }} 
+                            />
+                          </div>
+                          <span className={`font-bold ${isRisk ? 'text-accent-orange' : 'text-accent-lime'}`}>{score.toFixed(1)}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-xs text-text-muted hidden md:table-cell max-w-[250px] truncate" title={field.latest_health_rationale || 'Optimal growing conditions'}>
+                        {field.latest_health_rationale || 'Optimal growing conditions'}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button className="text-accent-lime text-xs font-semibold hover:text-white transition-colors flex items-center gap-1 justify-end w-full">
+                          Analyze <ArrowUpRight size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {sortedFields.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-12 text-center text-text-muted">
+                      No fields available. Use the interactive map to register a new field.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </GlassCard>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6 pb-10">

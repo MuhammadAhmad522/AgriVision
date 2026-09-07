@@ -1,52 +1,25 @@
 import React, { useState } from 'react';
-import { useFarm } from '../core/context/FarmContext';
+import { useFleetStore } from '../core/store/fleetStore';
+import { useIoTStore } from '../core/store/iotStore';
 import { GlassCard } from '../components/ui/GlassCard';
 import { MetricBadge } from '../components/ui/MetricBadge';
 import { Radio, Battery, Wifi, Plus, Terminal } from 'lucide-react';
-
-// Live tier: raw IoT telemetry only. 10s matches the fast end of iOS's sensor-refresh
-// range (DashboardViewModel's dashboardRefreshInterval) — this is the one kind of data
-// in the app that's genuinely real-time (MQTT-pushed), so a short fixed interval is
-// correct here, unlike a full dashboard/recommendation re-fetch.
-const SENSOR_POLL_INTERVAL_MS = 10000;
+import { useRealtimeTelemetry } from '../core/hooks/useRealtimeTelemetry';
 
 export const IoTHardwareView: React.FC = () => {
-  const { sensors, fields, activeField } = useFarm();
+  const fields = useFleetStore(s => s.allFields);
+  const activeField = useFleetStore(s => s.activeField);
+  const sensors = useIoTStore(s => s.sensors);
   const [showPairModal, setShowPairModal] = useState(false);
   const [newDeviceId, setNewDeviceId] = useState('');
 
-  const [mqttPackets, setMqttPackets] = useState<any[]>([]);
-
-  // Poll for raw readings to simulate live MQTT stream
-  React.useEffect(() => {
-    let interval: number | ReturnType<typeof setTimeout>;
-
-    const fetchLatest = () => {
-      const fieldId = activeField?.id ?? fields[0]?.id; // fall back only if nothing is selected yet
-      if (!fieldId) return;
-
-      import('../core/services/SensorService').then(({ sensorService }) => {
-        sensorService.getFieldReadings<any>(fieldId, 1, 'raw').then((readings) => {
-          const formatted = readings.slice(0, 10).map((r) => ({
-            topic: `agri/sensors/${r.sensor_id}/telemetry`,
-            payload: JSON.stringify({ temp: r.temperature, moist: r.moisture, ph: r.ph, n: r.npk_n }),
-            time: new Date(r.time).toLocaleTimeString(undefined, { hour12: false })
-          }));
-          setMqttPackets(formatted);
-        }).catch(console.error);
-      });
-    };
-
-    fetchLatest();
-    interval = setInterval(fetchLatest, SENSOR_POLL_INTERVAL_MS);
-
-    return () => clearInterval(interval);
-  }, [fields, activeField]);
+  const targetFieldId = activeField?.id ?? fields[0]?.id;
+  const mqttPackets = useRealtimeTelemetry(targetFieldId, 10000);
 
   return (
     <div className="flex flex-col gap-6 pb-10">
       {/* Header with Provision Button */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-[22px] font-extrabold text-text-main">IoT Hardware & Sensor Fleet</h2>
           <p className="text-[13px] text-text-muted mt-1">

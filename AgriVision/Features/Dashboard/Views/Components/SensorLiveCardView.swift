@@ -113,8 +113,17 @@ struct SensorLiveCardView: View {
         .padding(.top, 16)
     }
 
-    @ViewBuilder
+    // Relative timestamps are computed at render time, so without a periodic tick a reading
+    // stays labelled "Updated now" for as long as no new data arrives — exactly when the
+    // caption most needs to be honest. Re-render on a timer independent of the poll loop.
     private func statusCaption(for entry: SensorFleetEntry) -> some View {
+        TimelineView(.periodic(from: .now, by: 30)) { _ in
+            captionText(for: entry)
+        }
+    }
+
+    @ViewBuilder
+    private func captionText(for entry: SensorFleetEntry) -> some View {
         if let reading = entry.reading, !entry.isOnline {
             Text("Offline · last seen \(reading.time.formatted(.relative(presentation: .named)))")
                 .font(.system(size: 11))

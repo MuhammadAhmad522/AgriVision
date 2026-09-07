@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func as sa_func
 from sqlalchemy.orm import Session
 
-from app.api.fields import owned_field
+from app.api.fields import field_readable_by
 from app.core.auth import get_current_user
 from app.core.config import settings
 from app.core.errors import APIError
@@ -39,8 +39,10 @@ def get_field_readings(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    owned_field(db, current_user, field_id)
-    sensor_ids = [row[0] for row in db.query(Sensor.id).filter(Sensor.field_id == field_id, Sensor.owner_id == current_user.id).all()]
+    # Read-only, so staff may read any field's telemetry; sensors belong to the field's
+    # owner, not the caller.
+    field = field_readable_by(db, current_user, field_id)
+    sensor_ids = [row[0] for row in db.query(Sensor.id).filter(Sensor.field_id == field_id, Sensor.owner_id == field.owner_id).all()]
     if not sensor_ids:
         return []
 
@@ -138,3 +140,27 @@ async def pair_sensor(
     db.commit()
     db.refresh(sensor)
     return SensorPairResponse(message="Sensor paired and ready to assign to a field.", sensor=sensor)
+
+
+@router.delete("/sensors/{device_id}", status_code=204)
+def unpair_sensor(
+    device_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Un-pair a sensor by deleting its record completely.
+    
+    This cascades and wipes all historical telemetry data for this sensor, ensuring
+    no data is leaked to the next owner. The physical sensor will automatically recreate
+    an unowned record on its next MQTT heartbeat.
+    """
+    sensor = db.query(Sensor).filter(Sensor.device_id == device_id).with_for_update().first()
+    if sensor is None:
+        raise APIError(404, "sensor_not_found", "Sensor not found.")
+    
+    if sensor.owner_id != current_user.id:
+        raise APIError(403, "forbidden", "You can only un-pair your own sensors.")
+        
+    db.delete(sensor)
+    db.commit()
+    return None

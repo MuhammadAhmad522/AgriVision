@@ -92,17 +92,17 @@ action itself.
 If the field's expected_harvest_date is null or missing, it means the farmer expects the system to decide when the crop is ready. If evidence from the crop's growing cycle, NDVI, and season memory indicates maturity, issue a high-priority recommendation with the category 'Harvest Timing' and safety_level 'routine' informing the farmer that the crop is ready to harvest."""
 
 RECOMMENDATION_SCHEMA = {
-    "type": "object",
+    "type": "OBJECT",
     "properties": {
         "recommendations": {
-            "type": "array",
+            "type": "ARRAY",
             "minItems": 1,
             "maxItems": 3,
             "items": {
-                "type": "object",
+                "type": "OBJECT",
                 "properties": {
                     "category": {
-                        "type": "string",
+                        "type": "STRING",
                         "enum": [
                             "Irrigation",
                             "Plant Health",
@@ -113,39 +113,39 @@ RECOMMENDATION_SCHEMA = {
                             "Field Monitoring",
                         ],
                     },
-                    "priority": {"type": "string", "enum": ["low", "medium", "high"]},
+                    "priority": {"type": "STRING", "enum": ["low", "medium", "high"]},
                     "advice": {
-                        "type": "string",
+                        "type": "STRING",
                         "description": (
                             "The concrete action, in plain everyday language for a smallholder farmer. "
                             "No sensor units, index names, or jargon (no NDVI, EC, m3/m3, kg/ha, bare numbers)."
                         ),
                     },
                     "rationale": {
-                        "type": "string",
+                        "type": "STRING",
                         "description": "The technical evidence behind the advice (readings, index values, sources). Farmers who expand the recommendation card see this separately from the plain-language advice.",
                     },
-                    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
-                    "confidence_reason": {"type": "string"},
-                    "evidence_urls": {"type": "array", "items": {"type": "string"}},
-                    "safety_level": {"type": "string", "enum": ["routine", "guarded", "high_risk"]},
-                    "requires_expert_confirmation": {"type": "boolean"},
+                    "confidence": {"type": "NUMBER", "minimum": 0, "maximum": 1},
+                    "confidence_reason": {"type": "STRING"},
+                    "evidence_urls": {"type": "ARRAY", "items": {"type": "STRING"}},
+                    "safety_level": {"type": "STRING", "enum": ["routine", "guarded", "high_risk"]},
+                    "requires_expert_confirmation": {"type": "BOOLEAN"},
                 },
                 "required": ["category", "priority", "advice", "rationale", "confidence", "confidence_reason", "evidence_urls", "safety_level", "requires_expert_confirmation"],
             },
         },
         "field_health": {
-            "type": "object",
+            "type": "OBJECT",
             "properties": {
                 "score": {
-                    "type": "number",
+                    "type": "NUMBER",
                     "minimum": 0,
                     "maximum": 100,
                     "description": "Holistic 0-100 field condition assessment — NOT a rescaled NDVI value. Reason across all evidence, crop growth stage, and active risks.",
                 },
-                "label": {"type": "string", "enum": ["excellent", "good", "needs_attention", "at_risk", "insufficient_data"]},
+                "label": {"type": "STRING", "enum": ["excellent", "good", "needs_attention", "at_risk", "insufficient_data"]},
                 "rationale": {
-                    "type": "string",
+                    "type": "STRING",
                     "description": "1-3 plain-language sentences a farmer can read, explaining why.",
                 },
             },
@@ -166,14 +166,14 @@ RECOMMENDATION_CATEGORIES = (
 )
 
 SEASON_MEMORY_SCHEMA = {
-    "type": "object",
+    "type": "OBJECT",
     "properties": {
         "narrative": {
-            "type": "string",
+            "type": "STRING",
             "description": "The updated whole-season crop journal, compressed (not appended), capped around 1200 characters.",
         },
         "key_event": {
-            "type": "string",
+            "type": "STRING",
             "description": "A short description of this update's milestone, only if genuinely significant. Empty string if nothing milestone-worthy happened.",
         },
     },

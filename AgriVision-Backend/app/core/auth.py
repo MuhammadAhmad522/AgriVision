@@ -77,26 +77,30 @@ async def get_current_user(
 
     if user is None:
         client = request.headers.get("X-Client", "unknown").lower()
-        if client == "web":
-            # Allow if they have a pending invitation
-            from app.models.db_models import Invitation
-            pending_invite = None
-            if email:
-                pending_invite = db.query(Invitation).filter(
-                    Invitation.email == email,
-                    Invitation.status == "pending"
-                ).first()
-                
-            if not pending_invite:
-                # Unauthorized web signup. Delete the orphaned Firebase user to keep the console clean.
-                try:
-                    auth.delete_user(uid)
-                except Exception as e:
-                    logger.warning(f"Failed to delete unauthorized Firebase user {uid}: {e}")
-                raise APIError(403, "forbidden", "Access Denied. You are not authorized to access this portal.")
+        
+        from app.models.db_models import Invitation, UserRole
+        pending_invite = None
+        if email:
+            pending_invite = db.query(Invitation).filter(
+                Invitation.email == email,
+                Invitation.status == "pending"
+            ).first()
+
+        if client == "web" and not pending_invite:
+            # Unauthorized web signup. Delete the orphaned Firebase user to keep the console clean.
+            try:
+                auth.delete_user(uid)
+            except Exception as e:
+                logger.warning(f"Failed to delete unauthorized Firebase user {uid}: {e}")
+            raise APIError(403, "forbidden", "Access Denied. You are not authorized to access this portal.")
             
-        user = User(firebase_uid=uid, email=email)
+        role = pending_invite.role if pending_invite else UserRole.mobile_user
+        user = User(firebase_uid=uid, email=email, role=role)
         db.add(user)
+        
+        if pending_invite:
+            pending_invite.status = "accepted"
+            
         db.commit()
         db.refresh(user)
     elif email and user.email != email:

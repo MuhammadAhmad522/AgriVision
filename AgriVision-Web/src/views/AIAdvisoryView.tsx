@@ -1,20 +1,31 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useFarm } from '../core/context/FarmContext';
+import React, { useState, useEffect } from 'react';
+import { useFleetStore } from '../core/store/fleetStore';
+import { useIoTStore } from '../core/store/iotStore';
+import { useDashboard } from '../core/hooks/useFarmQueries';
 import { useAuth } from '../core/auth/AuthContext';
-import { advisoryService } from '../core/services/AdvisoryService';
+import { 
+  usePendingRecommendations, 
+  useValidateRecommendation, 
+  useTriggerReEvaluation,
+  useSeasonMemory,
+  useChatHistory,
+  useGuidanceHistory,
+  useSendGuidance
+} from '../core/hooks/useAdvisoryHooks';
 import { GlassCard } from '../components/ui/GlassCard';
 import { MetricBadge } from '../components/ui/MetricBadge';
-import { Sparkles, CheckCircle, Brain, Zap, AlertTriangle, Clock, ExternalLink, MessageSquare, Send, BookOpen } from 'lucide-react';
-import type { AIRecommendation, ChatMessage, SeasonMemory } from '../core/types';
+import { Sparkles, Brain, Zap, AlertTriangle, Clock, ExternalLink, MessageSquare, Send, BookOpen } from 'lucide-react';
 import clsx from 'clsx';
 
 const CATEGORY_FILTERS = ['all', 'irrigation', 'plant_health', 'weather_alert', 'fertilizer_window', 'harvest_timing', 'pest_risk', 'field_monitoring'];
 
 export const AIAdvisoryView: React.FC = () => {
-  const { dashboardData, activeField, refreshActiveFieldData } = useFarm();
+  const activeField = useFleetStore(s => s.activeField);
+  const dashboardData = useIoTStore(s => s.dashboardData);
+  const dashboardQuery = useDashboard(activeField?.id || null);
+  const refreshActiveFieldData = () => dashboardQuery.refetch();
   const { user } = useAuth();
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
-  const [agronomistRecs, setAgronomistRecs] = useState<AIRecommendation[]>([]);
   const [validating, setValidating] = useState<string | null>(null);
   const [validationNotes, setValidationNotes] = useState('');
   const [showQueue, setShowQueue] = useState(false);
@@ -23,16 +34,13 @@ export const AIAdvisoryView: React.FC = () => {
   const isAgronomist = user?.role === 'agronomist';
   const isStaff = user?.role === 'admin' || user?.role === 'agronomist';
 
-  useEffect(() => {
-    if (isAgronomist && showQueue) {
-      advisoryService.getExpertPendingRecommendations().then(setAgronomistRecs).catch(console.error);
-    }
-  }, [isAgronomist, showQueue]);
+  const { data: agronomistRecs = [] } = usePendingRecommendations();
+  const validateMutation = useValidateRecommendation();
+  const triggerMutation = useTriggerReEvaluation();
 
   const handleValidate = async (id: string, status: 'approved' | 'rejected') => {
     try {
-      await advisoryService.validateRecommendation(id, status, validationNotes);
-      setAgronomistRecs(prev => prev.filter(r => r.id !== id));
+      await validateMutation.mutateAsync({ id, status, notes: validationNotes });
       setValidating(null);
       setValidationNotes('');
       await refreshActiveFieldData();
@@ -45,23 +53,12 @@ export const AIAdvisoryView: React.FC = () => {
   const handleForceReEvaluation = async () => {
     if (!activeField) return;
     setReEvaluating(true);
-    // The backend runs the actual re-analysis as an async background job — a single fetch
-    // right after triggering would almost always show stale advice. Poll (via a direct
-    // service call, not context state, to avoid a stale-closure read) until a recommendation
-    // created after this trigger actually shows up, or the attempt budget runs out.
-    const triggeredAt = Date.now();
     try {
-      const ok = await advisoryService.triggerAIReasoning(activeField.id);
-      if (!ok) {
-        alert('Could not trigger AI re-evaluation. It may be rate-limited — try again shortly.');
-        return;
-      }
-      for (let attempt = 0; attempt < 8; attempt++) {
-        if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 3000));
-        const recs = await advisoryService.getRecommendations(activeField.id);
-        if (recs.some((r) => new Date(r.created_at).getTime() > triggeredAt)) break;
-      }
+      await triggerMutation.mutateAsync(activeField.id);
       await refreshActiveFieldData();
+    } catch (e: any) {
+      console.error(e);
+      alert(e.message || 'Could not trigger AI re-evaluation.');
     } finally {
       setReEvaluating(false);
     }
@@ -231,13 +228,13 @@ export const AIAdvisoryView: React.FC = () => {
                         onChange={(e) => setValidationNotes(e.target.value)}
                         rows={2}
                       />
-                      <div className="flex gap-2">
-                        <button className="btn-primary py-1 px-2 text-xs" onClick={() => handleValidate(rec.id, 'approved')}>
-                          <CheckCircle size={14} />
-                          Approve
+                      <div className="flex gap-2 flex-wrap">
+                        <button className="btn-primary py-1 px-2 text-xs bg-gradient-to-r from-accent-lime to-[#4ade80] hover:brightness-110 border-transparent text-[#0a170d]" onClick={() => handleValidate(rec.id, 'approved')}>
+                          <Send size={14} />
+                          Approve & Publish to iOS
                         </button>
-                        <button className="btn-secondary py-1 px-2 text-xs text-red-400" onClick={() => handleValidate(rec.id, 'rejected')}>Reject</button>
-                        <button className="text-xs text-text-muted hover:text-text-main" onClick={() => { setValidating(null); setValidationNotes(''); }}>Cancel</button>
+                        <button className="btn-danger py-1 px-2 text-xs" onClick={() => handleValidate(rec.id, 'rejected')}>Reject & Discard</button>
+                        <button className="text-xs text-text-muted hover:text-text-main px-2 py-1" onClick={() => { setValidating(null); setValidationNotes(''); }}>Cancel</button>
                       </div>
                     </div>
                   ) : (
@@ -260,17 +257,9 @@ export const AIAdvisoryView: React.FC = () => {
 };
 
 const SeasonMemoryPanel: React.FC<{ fieldId: string }> = ({ fieldId }) => {
-  const [memory, setMemory] = useState<SeasonMemory | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: memory, isLoading } = useSeasonMemory(fieldId);
 
-  useEffect(() => {
-    setLoading(true);
-    advisoryService.getSeasonMemory(fieldId)
-      .then(setMemory)
-      .finally(() => setLoading(false));
-  }, [fieldId]);
-
-  if (!loading && !memory?.narrative) return null;
+  if (!isLoading && !memory?.narrative) return null;
 
   return (
     <GlassCard className="p-5">
@@ -282,13 +271,13 @@ const SeasonMemoryPanel: React.FC<{ fieldId: string }> = ({ fieldId }) => {
         The AI's compressed, whole-season narrative for this field's current crop cycle — fusing satellite,
         sensor, and farmer-reported context over time.
       </p>
-      {loading && <p className="text-text-muted text-xs">Loading…</p>}
-      {!loading && memory?.narrative && (
+      {isLoading && <p className="text-text-muted text-xs">Loading…</p>}
+      {!isLoading && memory?.narrative && (
         <>
           <p className="text-[13px] text-text-main leading-relaxed">{memory.narrative}</p>
           {memory.key_events.length > 0 && (
             <div className="flex flex-col gap-1 mt-3">
-              {memory.key_events.map((event, i) => (
+              {memory.key_events.map((event: any, i: number) => (
                 <p key={i} className="text-[12px] text-text-muted">• {event.description}</p>
               ))}
             </div>
@@ -300,22 +289,12 @@ const SeasonMemoryPanel: React.FC<{ fieldId: string }> = ({ fieldId }) => {
 };
 
 const FieldChatPanel: React.FC<{ fieldId: string }> = ({ fieldId }) => {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const { data: messages = [], isLoading } = useChatHistory(open ? fieldId : undefined);
 
   useEffect(() => {
     setOpen(false);
   }, [fieldId]);
-
-  useEffect(() => {
-    if (!open) return;
-    setLoading(true);
-    advisoryService.getFieldChatHistory(fieldId)
-      .then(setMessages)
-      .catch((e) => { console.error(e); setMessages([]); })
-      .finally(() => setLoading(false));
-  }, [fieldId, open]);
 
   return (
     <GlassCard className="p-5">
@@ -328,9 +307,9 @@ const FieldChatPanel: React.FC<{ fieldId: string }> = ({ fieldId }) => {
       </button>
       {open && (
         <div className="mt-4 flex flex-col gap-2 max-h-96 overflow-y-auto">
-          {loading && <p className="text-text-muted text-xs">Loading…</p>}
-          {!loading && messages.length === 0 && <p className="text-text-muted text-xs">No chat history for this field yet.</p>}
-          {messages.map((m) => (
+          {isLoading && <p className="text-text-muted text-xs">Loading…</p>}
+          {!isLoading && messages.length === 0 && <p className="text-text-muted text-xs">No chat history for this field yet.</p>}
+          {messages.map((m: any) => (
             <div key={m.id} className={clsx('rounded-lg p-2.5 text-[13px] max-w-[85%]', m.role === 'user' ? 'bg-primary-medium/15 self-end text-text-main' : 'bg-white/5 self-start text-text-main')}>
               <p className="text-[10px] text-text-dim mb-0.5">{m.role === 'user' ? 'Farmer' : 'Advisor'} • {new Date(m.created_at).toLocaleString()}</p>
               <p>{m.content}</p>
@@ -343,29 +322,17 @@ const FieldChatPanel: React.FC<{ fieldId: string }> = ({ fieldId }) => {
 };
 
 const AgronomistGuidancePanel: React.FC<{ fieldId: string }> = ({ fieldId }) => {
-  const { refreshActiveFieldData } = useFarm();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const dashboardQuery = useDashboard(fieldId);
+  const refreshActiveFieldData = () => dashboardQuery.refetch();
+  const { data: messages = [], isLoading } = useGuidanceHistory(fieldId);
+  const sendGuidance = useSendGuidance();
   const [draft, setDraft] = useState('');
-  const [sending, setSending] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(() => {
-    setLoading(true);
-    advisoryService.getAgronomistGuidanceHistory(fieldId)
-      .then(setMessages)
-      .catch((e) => { console.error(e); setMessages([]); })
-      .finally(() => setLoading(false));
-  }, [fieldId]);
-
-  useEffect(() => { load(); }, [load]);
 
   const handleSend = async () => {
     const text = draft.trim();
-    if (!text || sending) return;
-    setSending(true);
+    if (!text || sendGuidance.isPending) return;
     try {
-      const turn = await advisoryService.sendAgronomistGuidance(fieldId, text);
-      setMessages((prev) => [...prev, turn.user_message, turn.assistant_message]);
+      await sendGuidance.mutateAsync({ fieldId, text });
       setDraft('');
       // Give the backend's fingerprint-triggered AI reconsideration a moment, then nudge one
       // extra dashboard refresh instead of waiting for the normal 5-minute reactive-tier poll.
@@ -373,8 +340,6 @@ const AgronomistGuidancePanel: React.FC<{ fieldId: string }> = ({ fieldId }) => 
     } catch (e) {
       console.error(e);
       alert('Failed to send guidance to the AI.');
-    } finally {
-      setSending(false);
     }
   };
 
@@ -389,9 +354,9 @@ const AgronomistGuidancePanel: React.FC<{ fieldId: string }> = ({ fieldId }) => 
         it cannot override safety rules (approved sources, expert confirmation) on its own.
       </p>
       <div className="flex flex-col gap-2 max-h-80 overflow-y-auto mb-3">
-        {loading && <p className="text-text-muted text-xs">Loading…</p>}
-        {!loading && messages.length === 0 && <p className="text-text-muted text-xs">No guidance sent yet for this field.</p>}
-        {messages.map((m) => (
+        {isLoading && <p className="text-text-muted text-xs">Loading…</p>}
+        {!isLoading && messages.length === 0 && <p className="text-text-muted text-xs">No guidance sent yet for this field.</p>}
+        {messages.map((m: any) => (
           <div key={m.id} className={clsx('rounded-lg p-2.5 text-[13px] max-w-[90%]', m.role === 'user' ? 'bg-primary-medium/15 self-end text-text-main' : 'bg-white/5 self-start text-text-main')}>
             <p className="text-[10px] text-text-dim mb-0.5">{m.role === 'user' ? 'You' : 'AI'} • {new Date(m.created_at).toLocaleString()}</p>
             <p>{m.content}</p>
@@ -407,7 +372,7 @@ const AgronomistGuidancePanel: React.FC<{ fieldId: string }> = ({ fieldId }) => 
           rows={2}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
         />
-        <button className="btn-primary px-3" onClick={handleSend} disabled={sending || !draft.trim()}>
+        <button className="btn-primary px-3" onClick={handleSend} disabled={sendGuidance.isPending || !draft.trim()}>
           <Send size={16} />
         </button>
       </div>

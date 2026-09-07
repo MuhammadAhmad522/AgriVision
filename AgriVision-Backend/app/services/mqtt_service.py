@@ -28,6 +28,11 @@ _event_loop: asyncio.AbstractEventLoop | None = None
 
 BATCH_SIZE = 50
 
+# How far a publisher-reported sample time may sit from the broker's own clock before it is
+# rejected. Wide enough to absorb ordinary drift on a device without an RTC, tight enough
+# that a replayed backlog or a badly wrong clock cannot rewrite history.
+MAX_SAMPLE_CLOCK_SKEW_SECONDS = 300
+
 
 def _accept_device_message(device_id: str, limit: int = 120, window_seconds: int = 60) -> bool:
     now = time.monotonic()
@@ -72,7 +77,7 @@ def on_message(client, userdata, msg):
             raise ValueError("MQTT payload must be an object")
 
         reading_fields = {"temperature", "moisture", "humidity", "ph", "ec", "npk_n", "npk_p", "npk_k"}
-        allowed = reading_fields | {"device_id"}
+        allowed = reading_fields | {"device_id", "sampled_at"}
         unexpected = set(payload) - allowed
         if unexpected:
             raise ValueError(f"MQTT payload contains additional fields: {', '.join(sorted(unexpected))}")
@@ -88,8 +93,26 @@ def on_message(client, userdata, msg):
                     raise ValueError(f"Reading {key} is outside the accepted range")
             values[key] = value
 
+        # Prefer the sample time reported by the publisher. The backend's own clock also
+        # carries MQTT transit, queue wait and batch-flush delay, so using it silently
+        # folds pipeline latency into the time series — and that cannot be repaired later.
+        # Anything implausible (bad clock, replayed backlog) falls back to ingestion time.
         now = datetime.now(timezone.utc)
-        item = {"device_id": device_id, "values": values, "timestamp": now}
+        timestamp = now
+        sampled_at = payload.get("sampled_at")
+        if sampled_at is not None:
+            try:
+                parsed = datetime.fromisoformat(str(sampled_at))
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=timezone.utc)
+                if abs((now - parsed).total_seconds()) <= MAX_SAMPLE_CLOCK_SKEW_SECONDS:
+                    timestamp = parsed
+                else:
+                    logger.warning("MQTT: sampled_at outside accepted skew — using ingestion time")
+            except ValueError:
+                logger.warning("MQTT: unparseable sampled_at — using ingestion time")
+
+        item = {"device_id": device_id, "values": values, "timestamp": timestamp}
         if _event_loop and _reading_queue:
             _event_loop.call_soon_threadsafe(_reading_queue.put_nowait, item)
         else:

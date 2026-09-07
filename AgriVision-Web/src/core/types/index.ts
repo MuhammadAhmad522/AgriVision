@@ -8,6 +8,7 @@ export interface Coordinate {
 export interface Field {
   id: string;
   owner_id?: string;
+  owner_email?: string;
   name: string;
   crop_type: string;
   area_ha: number;
@@ -16,6 +17,9 @@ export interface Field {
   coordinates: Coordinate[];
   status: string;
   ndvi_score?: number;
+  latest_health_score?: number;
+  latest_health_label?: string;
+  latest_health_rationale?: string;
 }
 
 export interface SensorReading {

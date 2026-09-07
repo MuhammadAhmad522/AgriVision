@@ -5,6 +5,7 @@ import json
 import paho.mqtt.client as mqtt
 import time
 import sys
+from datetime import datetime, timezone
 
 # --- Configuration ---
 DEFAULT_SERIAL_PORT = os.environ.get("SERIAL_PORT", "/dev/cu.usbserial-A5069RR4")
@@ -110,9 +111,15 @@ def start_bridge():
                 try:
                     data = json.loads(line)
                     device_id = data.get("device_id", "ESP32_FIELD_NODE_1")
+                    # Stamp the sample here rather than letting the backend use its own
+                    # ingestion time. This loop reads the port continuously, so this clock
+                    # is within ~0.1s of the sample, while the backend's time also carries
+                    # MQTT transit, queue wait, and batch-flush delay.
+                    data["sampled_at"] = datetime.now(timezone.utc).isoformat()
+                    payload = json.dumps(data)
                     topic = f"agrivision/sensors/{device_id}/readings"
-                    client.publish(topic, line)
-                    print(f"📤 MQTT Out: {topic} -> {line}")
+                    client.publish(topic, payload)
+                    print(f"📤 MQTT Out: {topic} -> {payload}")
                 except json.JSONDecodeError:
                     pass
             

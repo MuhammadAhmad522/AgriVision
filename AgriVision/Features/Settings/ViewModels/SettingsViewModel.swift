@@ -117,8 +117,8 @@ final class SettingsViewModel: ObservableObject {
     }
 
     func setRefreshInterval(_ interval: TimeInterval) {
-        let allowed: [TimeInterval] = [15, 30, 60]
-        let resolved = allowed.contains(interval) ? interval : 30
+        let allowed = UserDefaultsPreferencesService.allowedRefreshIntervals
+        let resolved = allowed.contains(interval) ? interval : UserDefaultsPreferencesService.defaultRefreshInterval
         refreshInterval = resolved
         preferencesService.dashboardRefreshInterval = resolved
         presentSuccess("Dashboard refresh updated.")
