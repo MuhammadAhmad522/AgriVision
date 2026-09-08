@@ -56,7 +56,8 @@ final class DashboardViewModelTests: XCTestCase {
             id: UUID(), ownerId: UUID(), name: "Test",
             coordinates: nil, areaHa: 10, createdAt: Date(),
             cropType: "Wheat", plantationDate: nil, expectedHarvestDate: nil,
-            ndviScore: 0.85, lastSatelliteSync: nil
+            ndviScore: 0.85, lastSatelliteSync: nil,
+            latestHealthScore: 0.85, latestHealthLabel: "healthy", latestHealthRationale: "Optimal canopy and moisture"
         )
         let auth = MockAuthService(isLoggedIn: true)
         let store = FieldSessionStore(dataService: MockAgriDataRepository(), authService: auth)
@@ -69,8 +70,8 @@ final class DashboardViewModelTests: XCTestCase {
             fieldSessionStore: store
         )
         XCTAssertEqual(vm.healthSummary?.score, 0.85)
-        XCTAssertEqual(vm.healthSummary?.message, "Excellent Crop Health")
-        XCTAssertEqual(vm.healthSummary?.color, "green")
+        XCTAssertEqual(vm.healthSummary?.label, "healthy")
+        XCTAssertEqual(vm.healthSummary?.rationale, "Optimal canopy and moisture")
     }
 
     func test_healthSummary_monitor() {
@@ -78,7 +79,8 @@ final class DashboardViewModelTests: XCTestCase {
             id: UUID(), ownerId: UUID(), name: "Test",
             coordinates: nil, areaHa: 10, createdAt: Date(),
             cropType: "Wheat", plantationDate: nil, expectedHarvestDate: nil,
-            ndviScore: 0.55, lastSatelliteSync: nil
+            ndviScore: 0.55, lastSatelliteSync: nil,
+            latestHealthScore: 0.55, latestHealthLabel: "monitor", latestHealthRationale: "Moderate moisture stress"
         )
         let auth = MockAuthService(isLoggedIn: true)
         let store = FieldSessionStore(dataService: MockAgriDataRepository(), authService: auth)
@@ -90,8 +92,9 @@ final class DashboardViewModelTests: XCTestCase {
             preferencesService: MockPreferencesService(),
             fieldSessionStore: store
         )
-        XCTAssertEqual(vm.healthSummary?.message, "Monitor Crop Health")
-        XCTAssertEqual(vm.healthSummary?.color, "orange")
+        XCTAssertEqual(vm.healthSummary?.score, 0.55)
+        XCTAssertEqual(vm.healthSummary?.label, "monitor")
+        XCTAssertEqual(vm.healthSummary?.rationale, "Moderate moisture stress")
     }
 
     func test_healthSummary_inspect() {
@@ -99,7 +102,8 @@ final class DashboardViewModelTests: XCTestCase {
             id: UUID(), ownerId: UUID(), name: "Test",
             coordinates: nil, areaHa: 10, createdAt: Date(),
             cropType: "Wheat", plantationDate: nil, expectedHarvestDate: nil,
-            ndviScore: 0.2, lastSatelliteSync: nil
+            ndviScore: 0.2, lastSatelliteSync: nil,
+            latestHealthScore: 0.2, latestHealthLabel: "critical", latestHealthRationale: "Severe stress detected"
         )
         let auth = MockAuthService(isLoggedIn: true)
         let store = FieldSessionStore(dataService: MockAgriDataRepository(), authService: auth)
@@ -111,8 +115,9 @@ final class DashboardViewModelTests: XCTestCase {
             preferencesService: MockPreferencesService(),
             fieldSessionStore: store
         )
-        XCTAssertEqual(vm.healthSummary?.message, "Inspection Recommended")
-        XCTAssertEqual(vm.healthSummary?.color, "red")
+        XCTAssertEqual(vm.healthSummary?.score, 0.2)
+        XCTAssertEqual(vm.healthSummary?.label, "critical")
+        XCTAssertEqual(vm.healthSummary?.rationale, "Severe stress detected")
     }
 
     func test_signOut_clearsStore() {

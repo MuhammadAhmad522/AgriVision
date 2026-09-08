@@ -8,6 +8,8 @@ constexpr const char* WIFI_PASSWORD = "YOUR_PASSWORD";
 constexpr const char* MQTT_HOST = "192.168.1.100";
 constexpr uint16_t MQTT_PORT = 1883;
 constexpr const char* MQTT_TOPIC_PREFIX = "agrivision/sensors";
+constexpr const char* MQTT_USER = "";
+constexpr const char* MQTT_PASS = "";
 
 // Device identity.
 // Must match the device_id of the sensor row this node is paired to, otherwise the backend

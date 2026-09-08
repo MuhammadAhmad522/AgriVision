@@ -42,11 +42,21 @@ class SensorResponse(BaseModel):
     sensor_type: str
     battery_level: Optional[float]
     last_seen: Optional[datetime]
+    # Staff manage hardware across many farmers, so a probe must say whose it is and
+    # where it sits without a second lookup per row.
+    owner_id: Optional[UUID] = None
+    owner_email: Optional[str] = None
+    owner_name: Optional[str] = None
+    field_name: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 
 class SensorPairRequest(StrictModel):
     device_id: Annotated[str, PydanticField(min_length=3, max_length=100, pattern=r"^[A-Za-z0-9._:-]+$")]
+    # Staff pair hardware on a farmer's behalf. Without this the web app could only ever
+    # claim a probe for the signed-in agronomist, who owns no fields — leaving it
+    # permanently unassignable.
+    owner_id: Optional[UUID] = None
 
 
 class SensorPairResponse(BaseModel):
@@ -106,6 +116,7 @@ class FieldResponse(BaseModel):
     id: UUID
     owner_id: UUID
     owner_email: Optional[str] = None
+    owner_name: Optional[str] = None
     name: str
     coordinates: list[PointCoordinates] = PydanticField(default_factory=list)
     area_ha: float
@@ -195,6 +206,32 @@ class RecommendationResponse(BaseModel):
     expires_at: Optional[datetime] = None
     outcome: Optional[str] = None
     outcome_notes: Optional[str] = None
+    analysis_run_id: Optional[UUID] = None
+    reviewed_by_id: Optional[UUID] = None
+    reviewed_by_email: Optional[str] = None
+    reviewed_at: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AnalysisRunDetailResponse(BaseModel):
+    """The evidence behind one AI recommendation: what model and rules produced it, and
+    what data it actually saw. Kept as a separate on-demand fetch rather than embedded in
+    every recommendation, since context_snapshot/evidence can be a large blob and the
+    expert queue lists many recommendations at once."""
+
+    id: UUID
+    field_id: UUID
+    provider: str
+    status: str
+    model_name: Optional[str] = None
+    prompt_version: Optional[str] = None
+    policy_version: Optional[str] = None
+    data_quality: Optional[str] = None
+    context_snapshot: Optional[Any] = None
+    evidence: Optional[Any] = None
+    error: Optional[str] = None
+    started_at: datetime
+    completed_at: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -281,9 +318,18 @@ class ErrorBody(BaseModel):
 class ErrorEnvelope(BaseModel):
     error: ErrorBody
 
+_EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
+
 class InvitationCreate(StrictModel):
     email: str
     role: str
+
+    @field_validator("email")
+    def validate_email(cls, v: str) -> str:
+        v = v.strip().lower()
+        if not _EMAIL_REGEX.match(v) or len(v) > 320:
+            raise ValueError("Invalid email format")
+        return v
 
     @field_validator("role")
     def validate_role(cls, v):
@@ -300,12 +346,24 @@ class InvitationResponse(BaseModel):
     created_at: datetime
 
 
-class AISettingsUpdate(BaseModel):
-    mode: str
-    model: str
+class AISettingsUpdate(StrictModel):
+    # "vertex" is what the portal sends for paid enterprise mode; "paid" is kept as a
+    # legacy alias (older DB rows / tests) and normalized to vertex in get_ai_provider.
+    mode: Literal["free", "vertex", "paid", "gemini", "mock"]
+    model: Annotated[str, PydanticField(min_length=2, max_length=100)]
 
 
 class AISettingsResponse(BaseModel):
     mode: str
     model: str
     model_config = ConfigDict(from_attributes=True)
+
+
+class AIHealthResponse(BaseModel):
+    ok: bool
+    mode: str
+    model: str
+    provider: str
+    knowledge: str
+    latency_ms: int | None = None
+    detail: str

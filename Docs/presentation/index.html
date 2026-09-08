@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgriVision — Technical Presentation Slide Deck</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #07130e;
+      --bg-surface: #0e221a;
+      --bg-surface-elevated: #152f24;
+      --border-subtle: #1e4535;
+      --border-bright: #2d664f;
+      --emerald-accent: #10b981;
+      --emerald-glow: rgba(16, 185, 129, 0.25);
+      --mint-accent: #34d399;
+      --cyan-accent: #06b6d4;
+      --amber-accent: #f59e0b;
+      --rose-accent: #f43f5e;
+      --text-white: #ffffff;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --font-main: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-white);
+      font-family: var(--font-main);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+    }
+
+    /* Background Ambient Gradients */
+    .ambient-glow-1 {
+      position: fixed;
+      top: -10vw;
+      left: -10vw;
+      width: 45vw;
+      height: 45vw;
+      background: radial-gradient(circle, rgba(16, 185, 129, 0.12) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .ambient-glow-2 {
+      position: fixed;
+      bottom: -15vw;
+      right: -10vw;
+      width: 50vw;
+      height: 50vw;
+      background: radial-gradient(circle, rgba(6, 182, 212, 0.08) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Header Bar */
+    header.deck-header {
+      height: 54px;
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-subtle);
+      background: rgba(7, 19, 14, 0.85);
+      backdrop-filter: blur(12px);
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-weight: 700;
+      font-size: 1.05rem;
+      letter-spacing: -0.01em;
+    }
+
+    .brand-badge {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: #042617;
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+    }
+
+    .deck-nav-controls {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .control-btn {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      padding: 0.4rem 0.8rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+
+    .control-btn:hover {
+      background: var(--bg-surface-elevated);
+      color: var(--text-white);
+      border-color: var(--emerald-accent);
+    }
+
+    .control-btn.accent {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: #052317;
+      border: none;
+      font-weight: 700;
+    }
+
+    .control-btn.accent:hover {
+      box-shadow: 0 0 16px var(--emerald-glow);
+      filter: brightness(1.1);
+    }
+
+    /* Slide Stage */
+    main.deck-stage {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem 2rem;
+      z-index: 10;
+    }
+
+    .slide {
+      position: absolute;
+      width: 92%;
+      max-width: 1400px;
+      height: 94%;
+      max-height: 820px;
+      background: rgba(14, 34, 26, 0.75);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 2.5rem 3rem;
+      backdrop-filter: blur(16px);
+      display: flex;
+      flex-direction: column;
+      opacity: 0;
+      pointer-events: none;
+      transform: scale(0.97) translateY(12px);
+      transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+    }
+
+    .slide.active {
+      opacity: 1;
+      pointer-events: auto;
+      transform: scale(1) translateY(0);
+    }
+
+    /* Slide Header */
+    .slide-header {
+      margin-bottom: 1.5rem;
+    }
+
+    .slide-tag {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--mint-accent);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.5rem;
+      background: rgba(52, 211, 153, 0.1);
+      padding: 0.25rem 0.6rem;
+      border-radius: 4px;
+      border-left: 3px solid var(--emerald-accent);
+    }
+
+    .slide-title {
+      font-size: 1.85rem;
+      font-weight: 800;
+      color: var(--text-white);
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+
+    .slide-subtitle {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      margin-top: 0.4rem;
+      font-weight: 500;
+    }
+
+    /* Slide Content Grids */
+    .slide-body {
+      flex: 1;
+      display: grid;
+      gap: 1.25rem;
+      overflow-y: auto;
+      padding-right: 0.5rem;
+    }
+
+    .slide-body::-webkit-scrollbar {
+      width: 6px;
+    }
+    .slide-body::-webkit-scrollbar-thumb {
+      background: var(--border-subtle);
+      border-radius: 3px;
+    }
+
+    .grid-3-col {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    .grid-2-col {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .grid-left-heavy {
+      grid-template-columns: 1.15fr 0.85fr;
+    }
+
+    /* Cards */
+    .feature-card {
+      background: rgba(21, 47, 36, 0.6);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      transition: border-color 0.2s, background 0.2s, transform 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--card-accent, var(--emerald-accent));
+      opacity: 0.8;
+    }
+
+    .feature-card:hover {
+      border-color: var(--border-bright);
+      background: rgba(21, 47, 36, 0.85);
+      transform: translateY(-2px);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+
+    .card-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text-white);
+    }
+
+    .card-badge {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--card-accent, var(--mint-accent));
+      border: 1px solid var(--border-subtle);
+    }
+
+    .card-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+
+    .card-list li strong {
+      color: var(--mint-accent);
+      font-weight: 600;
+    }
+
+    .card-list.cyan li strong {
+      color: var(--cyan-accent);
+    }
+
+    .card-list.amber li strong {
+      color: var(--amber-accent);
+    }
+
+    .card-list.rose li strong {
+      color: var(--rose-accent);
+    }
+
+    /* Embedded Diagram Previews */
+    .diagram-container {
+      background: rgba(10, 24, 18, 0.9);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: zoom-in;
+      position: relative;
+      overflow: hidden;
+      height: 100%;
+    }
+
+    .diagram-container img {
+      max-width: 100%;
+      max-height: 420px;
+      object-fit: contain;
+      border-radius: 8px;
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .diagram-container:hover img {
+      transform: scale(1.02);
+    }
+
+    .diagram-label {
+      margin-top: 0.75rem;
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      color: var(--mint-accent);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    /* Title Slide Specifics */
+    .title-slide-content {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      height: 100%;
+      gap: 1.75rem;
+    }
+
+    .title-badge-top {
+      align-self: flex-start;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid var(--emerald-accent);
+      color: var(--mint-accent);
+      padding: 0.4rem 1rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-family: var(--font-mono);
+    }
+
+    .title-hero {
+      font-size: 3.2rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      background: linear-gradient(135deg, #ffffff 40%, var(--mint-accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .title-sub {
+      font-size: 1.35rem;
+      font-weight: 600;
+      color: var(--emerald-accent);
+      line-height: 1.3;
+    }
+
+    .title-desc {
+      font-size: 1.05rem;
+      color: var(--text-muted);
+      max-width: 900px;
+      line-height: 1.55;
+    }
+
+    .title-meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-top: 0.5rem;
+    }
+
+    .title-meta-box {
+      background: rgba(21, 47, 36, 0.6);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+    }
+
+    .meta-role {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--cyan-accent);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .meta-val {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--text-white);
+      margin-top: 0.2rem;
+    }
+
+    .meta-sub {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 0.2rem;
+    }
+
+    /* Footer Bar */
+    footer.deck-footer {
+      height: 48px;
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid var(--border-subtle);
+      background: rgba(7, 19, 14, 0.85);
+      backdrop-filter: blur(12px);
+      z-index: 100;
+      font-size: 0.8rem;
+      color: var(--text-dim);
+    }
+
+    .progress-bar-wrap {
+      flex: 1;
+      max-width: 400px;
+      height: 5px;
+      background: var(--bg-surface-elevated);
+      border-radius: 9999px;
+      overflow: hidden;
+      margin: 0 1.5rem;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--emerald-accent), var(--mint-accent));
+      width: 9%;
+      transition: width 0.3s ease;
+    }
+
+    .slide-counter {
+      font-family: var(--font-mono);
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    /* Lightbox Modal */
+    .lightbox-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(4, 12, 9, 0.92);
+      backdrop-filter: blur(16px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+      padding: 2rem;
+    }
+
+    .lightbox-modal.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .lightbox-modal img {
+      max-width: 92vw;
+      max-height: 88vh;
+      object-fit: contain;
+      border-radius: 12px;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.8);
+      border: 1px solid var(--border-bright);
+    }
+
+    .lightbox-close {
+      position: absolute;
+      top: 1.5rem;
+      right: 2rem;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-bright);
+      color: var(--text-white);
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    /* Print & Responsive */
+    @media print {
+      body {
+        overflow: visible;
+        height: auto;
+        background: #07130e !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      header.deck-header, footer.deck-footer, .ambient-glow-1, .ambient-glow-2 {
+        display: none !important;
+      }
+      main.deck-stage {
+        display: block !important;
+        padding: 0 !important;
+      }
+      .slide {
+        position: relative !important;
+        opacity: 1 !important;
+        transform: none !important;
+        page-break-after: always;
+        break-after: page;
+        width: 100% !important;
+        height: 100vh !important;
+        max-width: none !important;
+        max-height: none !important;
+        margin: 0 !important;
+        border: none !important;
+        border-radius: 0 !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="ambient-glow-1"></div>
+  <div class="ambient-glow-2"></div>
+
+  <!-- Header -->
+  <header class="deck-header">
+    <div class="brand">
+      <span class="brand-badge">AGRIVISION</span>
+      <span>Precision Agriculture & Agronomic Intelligence</span>
+    </div>
+    <div class="deck-nav-controls">
+      <button class="control-btn" id="prevBtn" title="Previous Slide (← / PageUp)">← Prev</button>
+      <button class="control-btn" id="nextBtn" title="Next Slide (→ / Space / PageDown)">Next →</button>
+      <button class="control-btn" id="fsBtn" title="Toggle Fullscreen (F)">⛶ Fullscreen</button>
+      <a href="AgriVision_Presentation.pptx" download="AgriVision_Presentation.pptx" class="control-btn accent" title="Download editable PPTX presentation">
+        ⬇ Download PPTX
+      </a>
+    </div>
+  </header>
+
+  <!-- Stage Container -->
+  <main class="deck-stage">
+
+    <!-- SLIDE 1: Title -->
+    <section class="slide active" data-slide="1">
+      <div class="title-slide-content">
+        <div class="title-badge-top">Enterprise Agronomic Intelligence & Autonomous Governance</div>
+        <div>
+          <h1 class="title-hero">AgriVision</h1>
+          <h2 class="title-sub">Software Architecture, Multi-Spectral Remote Sensing & HITL Guardrails</h2>
+          <p class="title-desc">
+            A tri-source precision agriculture platform orchestrating satellite Earth observation, edge IoT telemetry, and autonomous Gemini AI reasoning governed by Human-in-the-Loop clinical safety guardrails.
+          </p>
+        </div>
+        <div class="title-meta-grid">
+          <div class="title-meta-box">
+            <div class="meta-role">Sole Developer & Systems Architect</div>
+            <div class="meta-val">Muhammad Ahmad</div>
+            <div class="meta-sub">Firmware • Distributed Backend • Spatial GIS • iOS Mobile</div>
+          </div>
+          <div class="title-meta-box">
+            <div class="meta-role">Engineering Ecosystem</div>
+            <div class="meta-val">SwiftUI • React 19 • FastAPI • ESP32-S3</div>
+            <div class="meta-sub">TimescaleDB • PostGIS • Vertex AI Search • Docker Compose</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 2: Mission & Scope -->
+    <section class="slide" data-slide="2">
+      <div class="slide-header">
+        <span class="slide-tag">Strategic Foundation</span>
+        <h2 class="slide-title">Platform Mission & Architectural Scope</h2>
+        <p class="slide-subtitle">Synthesizing macro satellite earth observation, micro IoT edge telemetry, and multimodal visual diagnostics.</p>
+      </div>
+      <div class="slide-body grid-3-col">
+        <div class="feature-card" style="--card-accent: var(--emerald-accent);">
+          <div class="card-header">
+            <h3 class="card-title">Tri-Source Synthesis</h3>
+            <span class="card-badge">CORE MISSION</span>
+          </div>
+          <ul class="card-list">
+            <li><strong>Macro Telemetry (Satellite):</strong> Automated synchronization with Sentinel-2 & AgroMonitoring for 8 spectral indices (NDVI, NDWI, EVI, DSWI).</li>
+            <li><strong>Micro Telemetry (IoT Sensors):</strong> In-situ root-zone moisture & thermal telemetry captured via ESP32-S3 industrial nodes.</li>
+            <li><strong>Visual Telemetry (Multimodal):</strong> Native mobile camera diagnostics feeding Gemini 1.5 vision models for foliar disease pathology.</li>
+            <li><strong>Unified Agronomic Core:</strong> Eradicates diagnostic blind spots by fusing orbital and sub-surface evidence into single actionable insights.</li>
+          </ul>
+        </div>
+        <div class="feature-card" style="--card-accent: var(--cyan-accent);">
+          <div class="card-header">
+            <h3 class="card-title">Target Stakeholders</h3>
+            <span class="card-badge">USER ROLES</span>
+          </div>
+          <ul class="card-list cyan">
+            <li><strong>Field Farmers (iOS Native):</strong> Intuitive, offline-first mobile app for farm drafting, real-time alerts, and one-tap camera diagnostic triage.</li>
+            <li><strong>Certified Agronomists (Web Portal):</strong> High-density GIS workstation for spatial raster inspection, index time-series analysis, and clinical HITL steering.</li>
+            <li><strong>System Administrators:</strong> Fleet hardware provisioning, MQTT broker health telemetry, worker queue monitoring, and RBAC audit logs.</li>
+            <li><strong>Multi-Tenant Collaboration:</strong> Strict role-based isolation permitting granular field-level delegation between farmers and agronomists.</li>
+          </ul>
+        </div>
+        <div class="feature-card" style="--card-accent: var(--amber-accent);">
+          <div class="card-header">
+            <h3 class="card-title">Multi-Tier Scope</h3>
+            <span class="card-badge">SYSTEM STACK</span>
+          </div>
+          <ul class="card-list amber">
+            <li><strong>iOS Mobile Client:</strong> Swift 5.10 / SwiftUI adopting MVVM-Coordinator, Combine reactive pipelines, and MapKit vector rendering.</li>
+            <li><strong>Cloud Backend API:</strong> High-concurrency async FastAPI, TimescaleDB hypertable telemetry storage, PostGIS spatial queries, and Celery workers.</li>
+            <li><strong>Web GIS Portal:</strong> Modern React 19 + TypeScript dashboard leveraging TanStack Query, Leaflet / MapLibre raster overlays, and Tailwind CSS.</li>
+            <li><strong>Edge Firmware:</strong> ESP32-S3 dual-core firmware in PlatformIO/C++ implementing MQTT QoS 1 telemetry and hardware fault protection.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 3: Edge Sensing & IoT -->
+    <section class="slide" data-slide="3">
+      <div class="slide-header">
+        <span class="slide-tag">Edge & Embedded Telemetry</span>
+        <h2 class="slide-title">Edge Sensing & IoT Hardware Telemetry Pipeline</h2>
+        <p class="slide-subtitle">Industrial-grade ESP32-S3 sensor nodes with fault protection, MQTT broker ingestion, and TimescaleDB hypertable rollups.</p>
+      </div>
+      <div class="slide-body grid-left-heavy">
+        <div style="display: flex; flex-direction: column; gap: 1rem;">
+          <div class="feature-card" style="--card-accent: var(--emerald-accent);">
+            <div class="card-header">
+              <h3 class="card-title">Embedded Node Specifications</h3>
+              <span class="card-badge">ESP32-S3 / C++</span>
+            </div>
+            <ul class="card-list">
+              <li><strong>Microcontroller:</strong> ESP32-S3 dual-core Xtensa LX7 @ 240MHz with 512KB SRAM and integrated 2.4GHz Wi-Fi/BLE radio.</li>
+              <li><strong>Analog Moisture (GPIO 5):</strong> Capacitive soil sensor with ADC calibration and open/short-circuit detection (&lt;50mV or &gt;3250mV flags hardware wire breaks).</li>
+              <li><strong>Temperature (GPIO 6):</strong> Dallas DS18B20 1-Wire digital probe (-55°C to +125°C, ±0.5°C accuracy) with pull-up line integrity validation.</li>
+            </ul>
+          </div>
+          <div class="feature-card" style="--card-accent: var(--cyan-accent);">
+            <div class="card-header">
+              <h3 class="card-title">Ingestion & Rollup Safeguards</h3>
+              <span class="card-badge">INGESTION PIPELINE</span>
+            </div>
+            <ul class="card-list cyan">
+              <li><strong>Ingestion Topology:</strong> Eclipse Mosquitto broker (QoS 1) → Async FastAPI queue consumer → TimescaleDB hypertable batch writer.</li>
+              <li><strong>Batching & Conflicts:</strong> Batches up to 50 rows via bulk INSERT with ON CONFLICT DO NOTHING on composite (sensor_id, time).</li>
+              <li><strong>Per-Device Flood Limit:</strong> Token-bucket rate limiter enforces maximum 120 messages per 60 seconds per device ID to prevent runaway loops.</li>
+              <li><strong>Clock-Skew & Retention:</strong> Rejects timestamps with &gt;5 min clock skew. Continuous aggregates compute hourly min/max/mean rollups; 14-day raw pruning.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="diagram-container" onclick="openLightbox('../srs/diagrams/07_seq_iot_telemetry.png')">
+          <img src="../srs/diagrams/07_seq_iot_telemetry.png" alt="IoT Telemetry Sequence Diagram">
+          <div class="diagram-label">🔍 Click to zoom: Telemetry Ingestion Sequence Flow</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 4: Satellite Remote Sensing -->
+    <section class="slide" data-slide="4">
+      <div class="slide-header">
+        <span class="slide-tag">Earth Observation & Spatial GIS</span>
+        <h2 class="slide-title">Multi-Spectral Satellite Remote Sensing & GIS Engine</h2>
+        <p class="slide-subtitle">Automated Sentinel-2 / AgroMonitoring synchronization, topological boundary validation, and 8 spectral index rasters.</p>
+      </div>
+      <div class="slide-body grid-3-col">
+        <div class="feature-card" style="--card-accent: var(--emerald-accent);">
+          <div class="card-header">
+            <h3 class="card-title">Vector Boundary Validation</h3>
+            <span class="card-badge">POSTGIS ENGINE</span>
+          </div>
+          <ul class="card-list">
+            <li><strong>PostGIS Georeferencing:</strong> Fields stored as ST_Polygon in SRID 4326 (WGS 84), transformed to planar EPSG:3857 for accurate calculations.</li>
+            <li><strong>Topological Integrity Checks:</strong> Rigorous geometry validation via ST_IsValid() rejects self-intersecting polygons, spikes, and duplicate vertices.</li>
+            <li><strong>Surface Area Enforcing:</strong> Farm surface areas strictly validated between 1.0 ha and 3,000.0 ha using ST_Area(geography).</li>
+            <li><strong>Centroid Computation:</strong> Automated computation of visual centroids for weather station binding and satellite search windows.</li>
+          </ul>
+        </div>
+        <div class="feature-card" style="--card-accent: var(--cyan-accent);">
+          <div class="card-header">
+            <h3 class="card-title">Constellation Synchronization</h3>
+            <span class="card-badge">SENTINEL-2 / AGRO</span>
+          </div>
+          <ul class="card-list cyan">
+            <li><strong>Automated Ingestion Pipeline:</strong> Celery beat workers query ESA Sentinel-2 passes via AgroMonitoring APIs every 5 days.</li>
+            <li><strong>Cloud Coverage Threshold:</strong> Ingests only scenes with &lt; 20% cloud cover to guarantee spectral purity and eliminate false cloud anomalies.</li>
+            <li><strong>8 Multi-Spectral Indices:</strong> NDVI (Vigour), NDWI (Water Stress), EVI/EVI2 (Canopy Structure), Truecolor (RGB), Falsecolor (NIR), NRI (Nitrogen Index), and DSWI (Drought Stress).</li>
+            <li><strong>Historic Trajectory:</strong> Builds 12-month rolling index baselines to detect anomalous crop vegetation drops.</li>
+          </ul>
+        </div>
+        <div class="feature-card" style="--card-accent: var(--amber-accent);">
+          <div class="card-header">
+            <h3 class="card-title">Dynamic Tile Delivery</h3>
+            <span class="card-badge">CLIENT RASTER PROXY</span>
+          </div>
+          <ul class="card-list amber">
+            <li><strong>Authenticated Tile Proxy:</strong> Dedicated FastAPI proxy endpoints (/api/v1/satellite/tiles/{field_id}/{layer}/{z}/{x}/{y}) securely stream raster data.</li>
+            <li><strong>Secret Key Isolation:</strong> Upstream provider API credentials remain strictly confidential within backend environment boundaries.</li>
+            <li><strong>Low-Latency Memory Cache:</strong> In-memory caching stores rendered 256×256 Web Mercator raster tiles, lowering latency from 850ms to &lt; 25ms.</li>
+            <li><strong>Dual-Platform Rendering:</strong> Harmonized tile delivery seamlessly consumed by React 19 Leaflet and iOS MapKit MKTileOverlay.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 5: Generative AI & RAG -->
+    <section class="slide" data-slide="5">
+      <div class="slide-header">
+        <span class="slide-tag">Generative AI & Agronomic Reasoning</span>
+        <h2 class="slide-title">Autonomous Generative AI Advisory & RAG Pipeline</h2>
+        <p class="slide-subtitle">Multimodal plant pathology, localized Punjabi agricultural grounding via Vertex AI Search, and rolling seasonal memory.</p>
+      </div>
+      <div class="slide-body grid-3-col">
+        <div class="feature-card" style="--card-accent: var(--emerald-accent);">
+          <div class="card-header">
+            <h3 class="card-title">Multimodal Camera Diagnostics</h3>
+            <span class="card-badge">GEMINI VISION</span>
+          </div>
+          <ul class="card-list">
+            <li><strong>Native iOS Camera Capture:</strong> Farmers snap high-resolution leaf or pest photos directly in the field with AVFoundation controls.</li>
+            <li><strong>Privacy & Security Filter:</strong> Server-side stripping of sensitive EXIF metadata (GPS coords, camera serials, timestamps) prior to model ingestion.</li>
+            <li><strong>Image Optimization:</strong> Automatic bilinear downscaling to max 2048px dimension with progressive JPEG re-encoding, reducing bandwidth by 85%.</li>
+            <li><strong>Gemini 1.5 Pathology:</strong> Identifies foliar lesions, rust fungal spores, insect boreholes, and chlorosis symptoms with high confidence.</li>
+          </ul>
+        </div>
+        <div class="feature-card" style="--card-accent: var(--cyan-accent);">
+          <div class="card-header">
+            <h3 class="card-title">Grounded RAG Retrieval</h3>
+            <span class="card-badge">VERTEX AI SEARCH</span>
+          </div>
+          <ul class="card-list cyan">
+            <li><strong>Authoritative Local Grounding:</strong> Vector search indexed against official Punjab Agricultural Extension guides, disease pathology manuals, and fertilizer tables.</li>
+            <li><strong>Dosage & Chemistry Verification:</strong> Cross-references recommended chemical treatments against certified provincial agrochemical registries.</li>
+            <li><strong>Zero Hallucination Policy:</strong> Rigid system prompts prohibit ungrounded synthetic chemical formulations or untested home remedies.</li>
+            <li><strong>Field State Augmentation:</strong> AI prompt injects current soil moisture, 5-day weather forecast, crop growth stage, and NDVI indices into context.</li>
+          </ul>
+        </div>
+        <div class="feature-card" style="--card-accent: var(--amber-accent);">
+          <div class="card-header">
+            <h3 class="card-title">Long-Term Context Retention</h3>
+            <span class="card-badge">ROLLING FIELD MEMORY</span>
+          </div>
+          <ul class="card-list amber">
+            <li><strong>Dedicated Season Memory:</strong> field_season_memory table maintains an autonomous 1,200-character rolling context digest per field.</li>
+            <li><strong>Multi-Month Awareness:</strong> Remembers prior pesticide sprays, historical fertilizer applications, soil moisture trends, and agronomist steering notes.</li>
+            <li><strong>Autonomous Consolidation:</strong> Background LLM summarizer condenses multi-turn diagnostic sessions after every consultation cycle.</li>
+            <li><strong>Cross-Season Continuity:</strong> Guarantees that diagnostic advice given in September respects chemical treatments and soil exhaustion from May.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 6: HITL Safety -->
+    <section class="slide" data-slide="6">
+      <div class="slide-header">
+        <span class="slide-tag">Safety Guardrails & Clinical Governance</span>
+        <h2 class="slide-title">Human-in-the-Loop (HITL) Safety & Expert Steering</h2>
+        <p class="slide-subtitle">Rule-based chemical policy interception, agronomist clinical triage queue, and authoritative expert steering drawer.</p>
+      </div>
+      <div class="slide-body grid-left-heavy">
+        <div style="display: flex; flex-direction: column; gap: 1rem;">
+          <div class="feature-card" style="--card-accent: var(--rose-accent);">
+            <div class="card-header">
+              <h3 class="card-title">Chemical Interception & Quarantine</h3>
+              <span class="card-badge">CLINICAL GATE</span>
+            </div>
+            <ul class="card-list rose">
+              <li><strong>Deterministic Interceptor:</strong> Policy engine parses all raw AI outputs for restricted chemical compounds (organophosphates, synthetic pyrethroids, systemic fungicides).</li>
+              <li><strong>Forced High-Risk Tagging:</strong> Any recommendation involving active chemical dosages automatically receives safety_level = "high_risk".</li>
+              <li><strong>Quarantine from Mobile:</strong> Recommendations are held as expert_status = "pending" and strictly suppressed from the farmer's mobile UI until approved.</li>
+            </ul>
+          </div>
+          <div class="feature-card" style="--card-accent: var(--emerald-accent);">
+            <div class="card-header">
+              <h3 class="card-title">Agronomist Clinical Queue & Steering</h3>
+              <span class="card-badge">STEERING DRAWER</span>
+            </div>
+            <ul class="card-list">
+              <li><strong>Dedicated Triage Portal:</strong> Web GIS AIAdvisoryView displays pending recommendations with full field telemetry, NDVI overlays, and farmer photos.</li>
+              <li><strong>Agronomist Sign-Off Actions:</strong> Certified experts can: [1] Approve as-is, [2] Edit dosage/chemistry with clinical notes, or [3] Reject and prescribe alternate remedies.</li>
+              <li><strong>Authoritative Steering Injection:</strong> Expert steering drawer injects agronomist clinical directives directly into field_season_memory, steering future AI runs.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="diagram-container" onclick="openLightbox('../srs/diagrams/08_seq_ai_reasoning_hitl.png')">
+          <img src="../srs/diagrams/08_seq_ai_reasoning_hitl.png" alt="HITL Review Sequence Diagram">
+          <div class="diagram-label">🔍 Click to zoom: HITL Interception & Clinical Approval Flow</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 7: Methodology & Resourcing -->
+    <section class="slide" data-slide="7">
+      <div class="slide-header">
+        <span class="slide-tag">Development Methodology & Quality Gates</span>
+        <h2 class="slide-title">Software Engineering Methodology & Resourcing</h2>
+        <p class="slide-subtitle">High-discipline single-lane Kanban execution across 5 tech stacks with dual-tier automated test verification.</p>
+      </div>
+      <div class="slide-body grid-3-col">
+        <div class="feature-card" style="--card-accent: var(--cyan-accent);">
+          <div class="card-header">
+            <h3 class="card-title">Solo Execution Constraints</h3>
+            <span class="card-badge">5 TECH STACKS</span>
+          </div>
+          <ul class="card-list cyan">
+            <li><strong>Single-Resource Architecture:</strong> 100% designed, coded, tested, and containerized by sole developer Muhammad Ahmad.</li>
+            <li><strong>Polyglot Technology Mastery:</strong> Seamless coordination across ESP32-S3 C++, Python FastAPI, PostGIS SQL, Swift/SwiftUI, and React 19.</li>
+            <li><strong>Strict Contract Decoupling:</strong> OpenAPI specs and TypeScript interfaces prevented frontend/backend regressions.</li>
+            <li><strong>Full DevOps Pipeline:</strong> Single-handedly provisioned Docker Compose, TimescaleDB migrations, and CI workflows.</li>
+          </ul>
+        </div>
+        <div class="feature-card" style="--card-accent: var(--amber-accent);">
+          <div class="card-header">
+            <h3 class="card-title">Work Discipline & Kanban</h3>
+            <span class="card-badge">WIP LIMIT = 1</span>
+          </div>
+          <ul class="card-list amber">
+            <li><strong>Single-Lane Kanban Cadence:</strong> Strict Work-In-Progress (WIP) limit of 1 active subsystem at a time to prevent multitasking overhead.</li>
+            <li><strong>Vertical-Slice Delivery:</strong> Every milestone delivered a verifiable end-to-end slice (sensor → broker → DB → API → UI).</li>
+            <li><strong>Defect-First Resolution:</strong> Architectural anomalies or regression failures halted new development until completely fixed.</li>
+            <li><strong>Full Traceability:</strong> Every PRD requirement directly traces to an SRS functional ID and automated test assertion.</li>
+          </ul>
+        </div>
+        <div class="feature-card" style="--card-accent: var(--emerald-accent);">
+          <div class="card-header">
+            <h3 class="card-title">Quality Assurance Gates</h3>
+            <span class="card-badge">392 AUTOMATED TESTS</span>
+          </div>
+          <ul class="card-list">
+            <li><strong>Comprehensive Test Suite:</strong> 179 Pytest backend test cases (API routes, GIS math, worker tasks) + 213 XCTest iOS client tests.</li>
+            <li><strong>Strict Static Analysis:</strong> Zero-tolerance oxlint linting and zero-warning strict tsc -b build enforcement on Web GIS.</li>
+            <li><strong>AI-Assisted Pair Audits:</strong> Utilized Claude and GitHub Copilot audit branches for deep reviews of concurrency, locks, and memory leaks.</li>
+            <li><strong>Regression Immunity:</strong> Automated pre-commit hooks ensure zero compilation or type failures across all repository targets.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 8: Multi-Tier System Architecture -->
+    <section class="slide" data-slide="8">
+      <div class="slide-header">
+        <span class="slide-tag">Distributed System Architecture</span>
+        <h2 class="slide-title">Multi-Tier System Architecture</h2>
+        <p class="slide-subtitle">6-tier decoupled topology with isolated container networks, Firebase JWT auth, and least-privilege security.</p>
+      </div>
+      <div class="slide-body grid-left-heavy">
+        <div class="feature-card" style="--card-accent: var(--emerald-accent);">
+          <div class="card-header">
+            <h3 class="card-title">6 Architectural Tiers & Security Hardening</h3>
+            <span class="card-badge">TIER BREAKDOWN</span>
+          </div>
+          <ul class="card-list">
+            <li><strong>Tier 1 - Client Presentation:</strong> iOS 17+ Native app (SwiftUI/MVVM-C) + Web GIS Clinical Workstation (React 19, TypeScript).</li>
+            <li><strong>Tier 2 - Edge Hardware Nodes:</strong> ESP32-S3 microcontroller publishing encrypted telemetry over Wi-Fi via MQTT with ADC fault guards.</li>
+            <li><strong>Tier 3 - Ingestion & Gateway:</strong> Eclipse Mosquitto MQTT Broker + FastAPI ASGI Gateway handling JWT verification and rate limiting.</li>
+            <li><strong>Tier 4 - Domain Services & Workers:</strong> Celery background workers executing satellite raster fetches, weather ingestion, and rollups.</li>
+            <li><strong>Tier 5 - Persistent Storage:</strong> PostgreSQL 16 + PostGIS (spatial vectors) + TimescaleDB (sensor hypertables) + Redis (cache/broker).</li>
+            <li><strong>Tier 6 - External Cloud Services:</strong> Vertex AI Search, Google Gemini Vision 1.5, AgroMonitoring Satellite APIs, Firebase Auth.</li>
+            <li><strong>Network Isolation & Security:</strong> Docker bridge network (agrivision_net) isolates persistence; non-root user execution; Firebase asymmetric JWT verification on all endpoints.</li>
+          </ul>
+        </div>
+        <div class="diagram-container" onclick="openLightbox('../srs/diagrams/04_logical_architecture.png')">
+          <img src="../srs/diagrams/04_logical_architecture.png" alt="Logical Architecture Diagram">
+          <div class="diagram-label">🔍 Click to zoom: Logical System Architecture & Data Flows</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 9: Data Persistence & ERD Topology -->
+    <section class="slide" data-slide="9">
+      <div class="slide-header">
+        <span class="slide-tag">Relational & Time-Series Persistence</span>
+        <h2 class="slide-title">Data Persistence & ERD Topology</h2>
+        <p class="slide-subtitle">22-entity hybrid relational, spatial, and hypertable time-series schema engineered for high-throughput precision agronomy.</p>
+      </div>
+      <div class="slide-body grid-left-heavy">
+        <div class="feature-card" style="--card-accent: var(--cyan-accent);">
+          <div class="card-header">
+            <h3 class="card-title">Core Entities & Polyglot Database</h3>
+            <span class="card-badge">22 CORE ENTITIES</span>
+          </div>
+          <ul class="card-list cyan">
+            <li><strong>Spatial Entities (fields, zones):</strong> PostGIS GEOMETRY(Polygon, 4326) with GiST spatial indexing for rapid spatial containment and polygon overlap queries.</li>
+            <li><strong>Time-Series Hypertables (sensor_readings):</strong> TimescaleDB chunked hypertable partitioned on (time, sensor_id) with automated compression policies.</li>
+            <li><strong>Identity & Multi-Tenancy (users, user_roles, invitations):</strong> Role-based access control linking Firebase UIDs to domain permissions.</li>
+            <li><strong>Edge Registry (devices, sensors, device_health):</strong> Hardware asset tracking logging firmware versions, battery voltages, and MAC addresses.</li>
+            <li><strong>AI & Clinical Governance (ai_analysis_runs, field_recommendations):</strong> Full audit records of prompts, RAG sources, intercepted risk levels, and agronomist approval notes.</li>
+            <li><strong>Continuous Rollups (sensor_readings_hourly):</strong> Materialized views computing hourly min/max/mean metrics for instant dashboard graph rendering.</li>
+          </ul>
+        </div>
+        <div class="diagram-container" onclick="openLightbox('../srs/diagrams/03_database_erd.png')">
+          <img src="../srs/diagrams/03_database_erd.png" alt="Database ERD Topology Diagram">
+          <div class="diagram-label">🔍 Click to zoom: 22-Entity Database ERD Topology</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 10: Roadmap -->
+    <section class="slide" data-slide="10">
+      <div class="slide-header">
+        <span class="slide-tag">Delivery Roadmap & Execution Timeline</span>
+        <h2 class="slide-title">Deliverables & Milestones Roadmap</h2>
+        <p class="slide-subtitle">10-month systematic milestone execution spanning Jan 2026 to Oct 2026 across all core subsystems.</p>
+      </div>
+      <div class="slide-body grid-left-heavy">
+        <div class="feature-card" style="--card-accent: var(--amber-accent);">
+          <div class="card-header">
+            <h3 class="card-title">Subsystem Execution Milestones</h3>
+            <span class="card-badge">JAN 2026 – OCT 2026</span>
+          </div>
+          <ul class="card-list amber">
+            <li><strong>Phase 1 (Jan – Feb 2026): Foundation & Mobile Architecture</strong><br>Setup FastAPI skeleton, Docker Compose, PostgreSQL/PostGIS spatial storage, and native iOS SwiftUI architecture.</li>
+            <li><strong>Phase 2 (Mar – Apr 2026): Edge Hardware & Telemetry Ingestion</strong><br>ESP32-S3 sensor firmware development, Mosquitto MQTT broker configuration, and TimescaleDB hypertable ingestion pipelines.</li>
+            <li><strong>Phase 3 (May – Jun 2026): Satellite Remote Sensing & GIS Engine</strong><br>AgroMonitoring API integration, automated Sentinel-2 synchronization, PostGIS vector validation, and raster tile proxy endpoints.</li>
+            <li><strong>Phase 4 (Jul – Aug 2026): AI Advisory, RAG & HITL Interception</strong><br>Gemini Vision multimodal model integration, Vertex AI Search RAG knowledge grounding, and clinical safety interception gate.</li>
+            <li><strong>Phase 5 (Sep 2026): Agronomist Web GIS Portal (React 19)</strong><br>Web GIS dashboard with raster layer overlays, interactive NDVI curves, and the clinical recommendation triage review queue.</li>
+            <li><strong>Phase 6 (Oct 2026): Comprehensive QA, Hardening & Deployment</strong><br>Complete automated test suite execution (392 tests), security audits, and production container deployment.</li>
+          </ul>
+        </div>
+        <div class="diagram-container" onclick="openLightbox('../srs/diagrams/02_gantt_schedule.png')">
+          <img src="../srs/diagrams/02_gantt_schedule.png" alt="Gantt Schedule Diagram">
+          <div class="diagram-label">🔍 Click to zoom: Project Gantt Schedule & Milestones</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 11: Summary & Impact -->
+    <section class="slide" data-slide="11">
+      <div class="slide-header">
+        <span class="slide-tag">Executive Summary & Future Outlook</span>
+        <h2 class="slide-title">Summary & System Impact</h2>
+        <p class="slide-subtitle">Delivering state-of-the-art agronomic intelligence with zero-compromise safety, spatial rigor, and production readiness.</p>
+      </div>
+      <div class="slide-body grid-2-col">
+        <div class="feature-card" style="--card-accent: var(--emerald-accent);">
+          <div class="card-header">
+            <h3 class="card-title">Key Engineering Achievements</h3>
+            <span class="card-badge">CORE ACCOMPLISHMENTS</span>
+          </div>
+          <ul class="card-list">
+            <li><strong>Operational Tri-Source Telemetry:</strong> Seamlessly unified satellite Earth observation (8 spectral layers), sub-surface IoT sensors (ESP32-S3), and mobile camera capture into one cohesive platform.</li>
+            <li><strong>Safety-Guarded Autonomous AI Advisory:</strong> Gemini multimodal reasoning grounded with official Punjabi agricultural guides and strictly gated behind an agronomist HITL approval workflow.</li>
+            <li><strong>High-Performance Spatial & Time-Series Core:</strong> Sub-millisecond GIS polygon validation via PostGIS and scalable time-series hypertable aggregation via TimescaleDB.</li>
+            <li><strong>Dual-Client Enterprise Experience:</strong> Frictionless offline-first native iOS mobile app for field operations combined with an advanced React 19 GIS clinical workstation for agronomists.</li>
+            <li><strong>Robust Software Engineering Rigor:</strong> 392 automated test cases verifying 100% of critical domain services, zero-leak telemetry ingestion, and strict type safety.</li>
+          </ul>
+        </div>
+        <div class="feature-card" style="--card-accent: var(--cyan-accent);">
+          <div class="card-header">
+            <h3 class="card-title">Future Enhancements & Scalability</h3>
+            <span class="card-badge">NEXT-PHASE ROADMAP</span>
+          </div>
+          <ul class="card-list cyan">
+            <li><strong>Remote Push Notifications (APNs / FCM):</strong> Implement real-time background push alerts notifying farmers immediately upon critical frost warnings, drought stress, or agronomist prescription releases.</li>
+            <li><strong>Automated Hardware Diagnostics & OTA:</strong> Roll out remote firmware updates over MQTT/HTTPS with automatic rollback and predictive battery failure warnings.</li>
+            <li><strong>Edge ML Pathogen Detection:</strong> Deploy quantized TinyML vision models directly onto ESP32-CAM devices for offline real-time pest trap monitoring.</li>
+            <li><strong>Automated Variable-Rate Irrigation:</strong> Direct integration with motorized solenoid valves to trigger closed-loop precision irrigation based on real-time soil moisture rollups.</li>
+            <li><strong>Multi-Regional RAG Expansion:</strong> Expand vector retrieval databases to encompass Sindh, KPK, and international agronomic extension authorities.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer Navigation -->
+  <footer class="deck-footer">
+    <div>AgriVision Platform • Technical Architecture & SRS Specification</div>
+    <div class="progress-bar-wrap">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+    <div class="slide-counter" id="slideCounter">01 / 11</div>
+  </footer>
+
+  <!-- Lightbox Modal for Diagrams -->
+  <div class="lightbox-modal" id="lightboxModal" onclick="closeLightbox()">
+    <button class="lightbox-close" onclick="closeLightbox()">✕ Close (ESC)</button>
+    <img id="lightboxImg" src="" alt="Enlarged Diagram">
+  </div>
+
+  <!-- Deck Navigation Script -->
+  <script>
+    const slides = document.querySelectorAll('.slide');
+    const totalSlides = slides.length;
+    let currentSlide = 1;
+
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const fsBtn = document.getElementById('fsBtn');
+    const slideCounter = document.getElementById('slideCounter');
+    const progressFill = document.getElementById('progressFill');
+    const lightboxModal = document.getElementById('lightboxModal');
+    const lightboxImg = document.getElementById('lightboxImg');
+
+    function updateSlide(newSlide) {
+      if (newSlide < 1) newSlide = 1;
+      if (newSlide > totalSlides) newSlide = totalSlides;
+      currentSlide = newSlide;
+
+      slides.forEach((slide, idx) => {
+        if (idx + 1 === currentSlide) {
+          slide.classList.add('active');
+        } else {
+          slide.classList.remove('active');
+        }
+      });
+
+      slideCounter.textContent = `${String(currentSlide).padStart(2, '0')} / ${String(totalSlides).padStart(2, '0')}`;
+      progressFill.style.width = `${(currentSlide / totalSlides) * 100}%`;
+    }
+
+    function nextSlide() {
+      if (currentSlide < totalSlides) updateSlide(currentSlide + 1);
+    }
+
+    function prevSlide() {
+      if (currentSlide > 1) updateSlide(currentSlide - 1);
+    }
+
+    prevBtn.addEventListener('click', prevSlide);
+    nextBtn.addEventListener('click', nextSlide);
+
+    fsBtn.addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => alert(err.message));
+        fsBtn.textContent = '✕ Exit Fullscreen';
+      } else {
+        document.exitFullscreen();
+        fsBtn.textContent = '⛶ Fullscreen';
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (lightboxModal.classList.contains('open')) {
+        if (e.key === 'Escape') closeLightbox();
+        return;
+      }
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        e.preventDefault();
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        e.preventDefault();
+        prevSlide();
+      } else if (e.key === 'f' || e.key === 'F') {
+        fsBtn.click();
+      } else if (e.key === 'Home') {
+        updateSlide(1);
+      } else if (e.key === 'End') {
+        updateSlide(totalSlides);
+      }
+    });
+
+    function openLightbox(src) {
+      lightboxImg.src = src;
+      lightboxModal.classList.add('open');
+    }
+
+    function closeLightbox() {
+      lightboxModal.classList.remove('open');
+    }
+
+    // Initialize
+    updateSlide(1);
+  </script>
+</body>
+</html>

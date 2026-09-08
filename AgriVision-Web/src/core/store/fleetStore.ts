@@ -4,73 +4,58 @@ import type { Field } from '../types';
 export interface Client {
   id: string;
   email: string;
+  /** Farmer's display name; may be undefined — UI falls back to email. */
+  name?: string | null;
 }
 
-interface FleetState {
-  allFields: Field[];
-  activeClient: Client | null;
-  activeField: Field | null;
-  loading: boolean;
-  
-  // Actions
-  setAllFields: (fields: Field[]) => void;
-  setActiveClient: (client: Client | null) => void;
+/** How a farmer should be labelled in the UI: their name if known, otherwise their email. */
+export function clientLabel(c: Pick<Client, 'email' | 'name'> | null | undefined): string {
+  if (!c) return '';
+  return (c.name && c.name.trim()) || c.email || 'Unknown User';
+}
+
+/**
+ * Selection state only.
+ *
+ * This store deliberately holds no server data. It previously mirrored the whole field
+ * list (and the sensor list, and the dashboard payload) out of TanStack Query via
+ * useEffect, which created two sources of truth for the same rows. The visible symptom
+ * was a stale active field: `activeField` was an object snapshot taken at click time, so
+ * when the fields query refetched and a field's `latest_health_score` changed, the map
+ * and the inspector kept rendering the score from whenever the user last clicked. The
+ * mirror also swallowed query error state, so a failed /api/fields request was
+ * indistinguishable from an empty estate.
+ *
+ * The selection is now an id. `useActiveField()` resolves it against the live query data
+ * on every render, so what you see is always the current row.
+ */
+interface FleetSelectionState {
+  activeFieldId: string | null;
+  activeClientId: string | null;
+
   setActiveField: (field: Field | null) => void;
-  setLoading: (loading: boolean) => void;
+  setActiveFieldId: (id: string | null) => void;
+  setActiveClient: (client: Client | null) => void;
+  reset: () => void;
 }
 
-export const useFleetStore = create<FleetState>((set) => ({
-  allFields: [],
-  activeClient: null,
-  activeField: null,
-  loading: false,
+export const useFleetStore = create<FleetSelectionState>((set, get) => ({
+  activeFieldId: null,
+  activeClientId: null,
 
-  setAllFields: (fields) => set({ allFields: fields }),
-  
-  setActiveClient: (client) => set((state) => {
-    // If we switch clients, and the active field doesn't belong to the new client, clear it
-    let newActiveField = state.activeField;
-    if (client && newActiveField && newActiveField.owner_id !== client.id) {
-      newActiveField = null;
-    }
-    return { activeClient: client, activeField: newActiveField };
-  }),
-  
-  setActiveField: (field) => set((state) => {
-    if (field && field.owner_id && state.activeClient?.id !== field.owner_id) {
-      return { 
-        activeField: field, 
-        activeClient: { id: field.owner_id, email: field.owner_email || 'Unknown User' } 
-      };
-    }
-    return { activeField: field };
-  }),
-  setLoading: (loading) => set({ loading }),
+  // Selecting a field also focuses its owner, so the header dropdown follows a map click.
+  setActiveField: (field) =>
+    set(
+      field
+        ? { activeFieldId: field.id, activeClientId: field.owner_id ?? get().activeClientId }
+        : { activeFieldId: null }
+    ),
+
+  setActiveFieldId: (id) => set({ activeFieldId: id }),
+
+  // No imperative "clear the field if it belongs to someone else" here: that
+  // reconciliation is derived in useActiveField, where the field list is available.
+  setActiveClient: (client) => set({ activeClientId: client?.id ?? null }),
+
+  reset: () => set({ activeFieldId: null, activeClientId: null }),
 }));
-
-import { createSelector } from 'reselect';
-
-// Derived Selectors
-export const selectAllFields = (state: FleetState) => state.allFields;
-export const selectActiveClient = (state: FleetState) => state.activeClient;
-
-export const selectClients = createSelector(
-  [selectAllFields],
-  (allFields): Client[] => {
-    const map = new Map<string, string>();
-    allFields.forEach(f => {
-      if (f.owner_id && f.owner_email) {
-        map.set(f.owner_id, f.owner_email);
-      }
-    });
-    return Array.from(map.entries()).map(([id, email]) => ({ id, email }));
-  }
-);
-
-export const selectFilteredFields = createSelector(
-  [selectAllFields, selectActiveClient],
-  (allFields, activeClient): Field[] => {
-    if (!activeClient) return allFields;
-    return allFields.filter(f => f.owner_id === activeClient.id);
-  }
-);

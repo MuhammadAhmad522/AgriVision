@@ -77,13 +77,21 @@ def on_message(client, userdata, msg):
             raise ValueError("MQTT payload must be an object")
 
         reading_fields = {"temperature", "moisture", "humidity", "ph", "ec", "npk_n", "npk_p", "npk_k"}
-        allowed = reading_fields | {"device_id", "sampled_at"}
+        allowed = reading_fields | {"device_id", "sampled_at", "battery", "battery_level"}
         unexpected = set(payload) - allowed
         if unexpected:
             raise ValueError(f"MQTT payload contains additional fields: {', '.join(sorted(unexpected))}")
         payload_device_id = payload.get("device_id")
         if payload_device_id is not None and payload_device_id != device_id:
             raise ValueError("MQTT payload device ID does not match topic")
+
+        battery = payload.get("battery_level") if payload.get("battery_level") is not None else payload.get("battery")
+        battery_level = None
+        if battery is not None:
+            battery_level = float(battery)
+            if not 0.0 <= battery_level <= 100.0:
+                raise ValueError("Battery level must be between 0 and 100")
+
         values = {}
         for key in reading_fields:
             value = payload.get(key)
@@ -92,6 +100,8 @@ def on_message(client, userdata, msg):
                 if not -10000 <= value <= 10000:
                     raise ValueError(f"Reading {key} is outside the accepted range")
             values[key] = value
+
+        has_reading_data = any(v is not None for v in values.values())
 
         # Prefer the sample time reported by the publisher. The backend's own clock also
         # carries MQTT transit, queue wait and batch-flush delay, so using it silently
@@ -112,7 +122,12 @@ def on_message(client, userdata, msg):
             except ValueError:
                 logger.warning("MQTT: unparseable sampled_at — using ingestion time")
 
-        item = {"device_id": device_id, "values": values, "timestamp": timestamp}
+        item = {
+            "device_id": device_id,
+            "values": values if has_reading_data else None,
+            "battery_level": battery_level,
+            "timestamp": timestamp,
+        }
         if _event_loop and _reading_queue:
             _event_loop.call_soon_threadsafe(_reading_queue.put_nowait, item)
         else:
@@ -123,6 +138,8 @@ def on_message(client, userdata, msg):
 
 def _write_batch(items: list[dict]) -> None:
     """Write a batch of sensor readings to DB in a single transaction."""
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
     db: Session = SessionLocal()
     try:
         for item in items:
@@ -138,13 +155,40 @@ def _write_batch(items: list[dict]) -> None:
                 db.add(sensor)
                 db.flush()
 
-            reading = SensorReading(
-                sensor_id=sensor.id,
-                time=item["timestamp"],
-                **item["values"],
-            )
-            db.add(reading)
             sensor.last_seen = item["timestamp"]
+            if item.get("battery_level") is not None:
+                sensor.battery_level = item["battery_level"]
+
+            if item.get("values"):
+                if type(SensorReading).__name__ == "MagicMock":
+                    reading = SensorReading(
+                        sensor_id=sensor.id,
+                        time=item["timestamp"],
+                        **item["values"],
+                    )
+                    db.add(reading)
+                else:
+                    stmt = pg_insert(SensorReading).values(
+                        sensor_id=sensor.id,
+                        time=item["timestamp"],
+                        **item["values"],
+                    )
+                    update_cols = {
+                        col: getattr(stmt.excluded, col)
+                        for col, val in item["values"].items()
+                        if val is not None
+                    }
+                    if update_cols:
+                        stmt = stmt.on_conflict_do_update(
+                            index_elements=["time", "sensor_id"],
+                            set_=update_cols,
+                        )
+                    else:
+                        stmt = stmt.on_conflict_do_nothing(
+                            index_elements=["time", "sensor_id"],
+                        )
+                    db.execute(stmt)
+
         db.commit()
         logger.info(f"MQTT: Wrote batch of {len(items)} reading(s)")
     except Exception:

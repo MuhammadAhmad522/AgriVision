@@ -17,11 +17,12 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
+#include <esp_mac.h>
+
 #ifdef PROD_MODE
 #include <ArduinoOTA.h>
 #include <PubSubClient.h>
 #include <WiFi.h>
-#include <esp_mac.h>
 #endif
 
 #include "config.h"
@@ -93,6 +94,8 @@ PubSubClient mqttClient(wifiClient);
 // Timing state trackers
 unsigned long wifiRetryDelay = WIFI_RETRY_MIN;
 unsigned long lastWifiAttempt = 0;
+bool wifiConnecting = false;
+unsigned long wifiConnectStartTime = 0;
 bool otaRunning = false;
 
 /**
@@ -100,10 +103,27 @@ bool otaRunning = false;
  */
 static void _connect_wifi() {
   if (WiFi.status() == WL_CONNECTED) {
-    wifiRetryDelay = WIFI_RETRY_MIN;
+    if (wifiConnecting) {
+      Serial.print("WiFi: connected, IP ");
+      Serial.println(WiFi.localIP());
+      wifiConnecting = false;
+      wifiRetryDelay = WIFI_RETRY_MIN;
+    }
     return;
   }
+
   unsigned long now = millis();
+  if (wifiConnecting) {
+    if (now - wifiConnectStartTime >= 10000) {
+      Serial.println("WiFi: connection timeout, retrying with backoff...");
+      wifiConnecting = false;
+      wifiRetryDelay = min(wifiRetryDelay * 2, WIFI_RETRY_MAX);
+      lastWifiAttempt = now;
+      WiFi.disconnect();
+    }
+    return;
+  }
+
   if (now - lastWifiAttempt < wifiRetryDelay) return;
   lastWifiAttempt = now;
 
@@ -111,22 +131,8 @@ static void _connect_wifi() {
   Serial.println(WIFI_SSID);
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-  // Wait up to 10 seconds for connection
-  unsigned long start = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - start < 10000) {
-    delay(100);
-  }
-
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.print("WiFi: connected, IP ");
-    Serial.println(WiFi.localIP());
-    wifiRetryDelay = WIFI_RETRY_MIN;
-  } else {
-    Serial.println("WiFi: failed, retrying...");
-    // Exponential backoff capped at WIFI_RETRY_MAX
-    wifiRetryDelay = min(wifiRetryDelay * 2, WIFI_RETRY_MAX);
-  }
+  wifiConnecting = true;
+  wifiConnectStartTime = now;
 }
 
 /**
@@ -142,7 +148,14 @@ static void _connect_mqtt() {
   char clientId[32];
   snprintf(clientId, sizeof(clientId), "agri_%s", deviceId.c_str());
 
-  if (mqttClient.connect(clientId)) {
+  bool connected = false;
+  if (strlen(MQTT_USER) > 0) {
+    connected = mqttClient.connect(clientId, MQTT_USER, MQTT_PASS);
+  } else {
+    connected = mqttClient.connect(clientId);
+  }
+
+  if (connected) {
     Serial.println("MQTT: connected");
   } else {
     Serial.print("MQTT: failed, rc=");
@@ -212,6 +225,15 @@ static float _read_moisture() {
 static void _publish_sensors() {
   float tempC = _read_temperature();
   float moisturePct = _read_moisture();
+
+  bool hasProbeData = !isnan(tempC) || !isnan(moisturePct);
+
+  // If no probes are reporting valid data (e.g. unplugged/faulty), suppress
+  // empty reading telemetry to prevent broker and database row flooding.
+  if (!hasProbeData) {
+    Serial.println("[telemetry] No probe data available (probes disconnected or faulty). Telemetry suppressed.");
+    return;
+  }
 
   // Create JSON telemetry document
   JsonDocument doc;

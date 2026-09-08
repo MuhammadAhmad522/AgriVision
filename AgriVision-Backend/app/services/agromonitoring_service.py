@@ -231,7 +231,13 @@ async def create_polygon(name: str, geojson: dict[str, Any], field_id: UUID | No
 
 
 async def delete_polygon(polygon_id: str, field_id: UUID | None = None) -> None:
-    await _request("DELETE", f"polygons/{polygon_id}", field_id=field_id)
+    try:
+        await _request("DELETE", f"polygons/{polygon_id}", field_id=field_id)
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            logger.info("Polygon already removed on provider polygon_id=%s", polygon_id)
+            return
+        raise
 
 
 async def search_latest_scene(polygon_id: str, field_id: UUID | None = None) -> dict[str, Any] | None:

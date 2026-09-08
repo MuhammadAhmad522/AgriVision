@@ -123,17 +123,19 @@ final class FieldReplacingCoordinatesTests: XCTestCase {
     }
 
     func test_replacingCoordinates_preservesOtherFields() {
-        let field = Field(
+        var field = Field(
             id: UUID(), ownerId: UUID(), name: "Test",
             coordinates: nil, areaHa: 10, createdAt: Date(),
             cropType: "Wheat", plantationDate: Date(), expectedHarvestDate: Date(),
             ndviScore: 0.5, lastSatelliteSync: Date()
         )
+        field.agroStatus = "pending"
+        field.agroRetryable = true
         let replaced = field.replacingCoordinates(with: [])
         XCTAssertEqual(replaced.cropType, "Wheat")
         XCTAssertEqual(replaced.areaHa, 10)
         XCTAssertEqual(replaced.agroStatus, "pending")
-        XCTAssertTrue(replaced.agroRetryable)
+        XCTAssertEqual(replaced.agroRetryable, true)
     }
 }
 
@@ -211,7 +213,7 @@ final class FieldDecodingTests: XCTestCase {
         XCTAssertEqual(field.areaHa, 5.0)
         XCTAssertNil(field.cropType)
         XCTAssertEqual(field.agroStatus, "pending")
-        XCTAssertFalse(field.agroRetryable)
+        XCTAssertEqual(field.agroRetryable, false)
     }
 }
 

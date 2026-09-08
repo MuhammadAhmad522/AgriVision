@@ -1,6 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
-from uuid import uuid4
+from uuid import uuid4, UUID
 from datetime import datetime, timedelta, timezone
 
 from app.main import app
@@ -25,25 +25,39 @@ class MockUser:
 
 @pytest.fixture
 def e2e_client():
-    from app.models.db_models import User
+    from unittest.mock import patch
+    from app.models.db_models import User, Field, Sensor
     db = SessionLocal()
-    existing_user = db.query(User).filter(User.email == "e2e@agrivision.com").first()
-    if existing_user:
-        from app.models.db_models import Field, Sensor
-        db.query(Field).filter(Field.owner_id == existing_user.id).delete(synchronize_session=False)
-        db.query(Sensor).filter(Sensor.owner_id == existing_user.id).delete(synchronize_session=False)
-        db.delete(existing_user)
+    try:
+        existing_user = db.query(User).filter(User.email == "e2e@agrivision.com").first()
+        if existing_user:
+            db.query(Field).filter(Field.owner_id == existing_user.id).delete(synchronize_session=False)
+            db.query(Sensor).filter(Sensor.owner_id == existing_user.id).delete(synchronize_session=False)
+            db.delete(existing_user)
+            db.commit()
+            
+        user = User(id=uuid4(), email="e2e@agrivision.com", firebase_uid="mock-firebase-id")
+        db.add(user)
         db.commit()
-        
-    user = User(id=uuid4(), email="e2e@agrivision.com", firebase_uid="mock-firebase-id")
-    db.add(user)
-    db.commit()
+        db.refresh(user)
+        user_id = user.id
+    finally:
+        db.close()
     
     app.dependency_overrides[get_db] = _database_override
     app.dependency_overrides[get_current_user] = lambda: user
-    with TestClient(app) as client:
+    with patch("app.services.scheduler.run_ai_by_field_id"), patch("app.services.scheduler.sync_field_initial", return_value=True), TestClient(app) as client:
         yield client, user
     app.dependency_overrides.clear()
+
+    db_clean = SessionLocal()
+    try:
+        db_clean.query(Field).filter(Field.owner_id == user_id).delete(synchronize_session=False)
+        db_clean.query(Sensor).filter(Sensor.owner_id == user_id).delete(synchronize_session=False)
+        db_clean.query(User).filter(User.id == user_id).delete(synchronize_session=False)
+        db_clean.commit()
+    finally:
+        db_clean.close()
 
 def test_full_field_lifecycle(e2e_client):
     client, user = e2e_client
@@ -64,7 +78,7 @@ def test_full_field_lifecycle(e2e_client):
         
         res = client.post("/api/fields", json=field_payload)
         assert res.status_code == 201, f"Failed to create field: {res.text}"
-        field_id = res.json()["id"]
+        field_id = UUID(res.json()["id"])
         
         # 2. Register a sensor and bind it to the field
         sensor_id = uuid4()

@@ -194,60 +194,14 @@ struct DashboardView: View {
                     .presentationDetents([.medium, .large], selection: $alertsDetent)
                 }
                 .sheet(isPresented: $showingNotifications) {
-                    NavigationStack {
-                        List(viewModel.notifications) { notification in
-                            Button(action: {
-                                if !notification.isRead {
-                                    viewModel.markNotificationRead(notification)
-                                }
-                                if notification.referenceType == "recommendation" {
-                                    showingNotifications = false
-                                    showingAlerts = true
-                                }
-                            }) {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    HStack {
-                                        Text(notification.title)
-                                            .textStyle(.bodyStrong)
-                                            .foregroundColor(notification.isRead ? .secondary : Theme.Colors.primary)
-                                        Spacer()
-                                        if !notification.isRead {
-                                            Circle()
-                                                .fill(Color.blue)
-                                                .frame(width: 8, height: 8)
-                                        }
-                                    }
-                                    Text(notification.body)
-                                        .textStyle(.caption)
-                                        .foregroundColor(.secondary)
-                                    Text(notification.createdAt, style: .relative)
-                                        .font(.caption2)
-                                        .foregroundColor(.gray)
-                                }
-                                .padding(.vertical, 4)
-                            }
-                        }
-                        .overlay {
-                            if viewModel.notifications.isEmpty {
-                                VStack {
-                                    Image(systemName: "bell.slash")
-                                        .font(.system(size: 40))
-                                        .foregroundColor(.gray)
-                                        .padding(.bottom, 8)
-                                    Text("No new notifications")
-                                        .textStyle(.body)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                        }
-                        .navigationTitle("Notifications")
-                        .navigationBarTitleDisplayMode(.inline)
-                        .toolbar {
-                            ToolbarItem(placement: .navigationBarTrailing) {
-                                Button("Done") { showingNotifications = false }
-                            }
-                        }
-                    }
+                    NotificationInboxView(
+                        viewModel: viewModel,
+                        onOpenRecommendation: {
+                            showingNotifications = false
+                            showingAlerts = true
+                        },
+                        onDismiss: { showingNotifications = false }
+                    )
                     .presentationDetents([.medium, .large])
                 }
             }

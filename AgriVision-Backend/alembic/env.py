@@ -27,7 +27,9 @@ def include_object(object, name, type_, reflected, compare_to):
 
 
 def run_migrations_online():
-    connectable = engine_from_config(config.get_section(config.config_ini_section), prefix="sqlalchemy.", poolclass=pool.NullPool)
+    section = config.get_section(config.config_ini_section, {})
+    section["sqlalchemy.url"] = config.get_main_option("sqlalchemy.url")
+    connectable = engine_from_config(section, prefix="sqlalchemy.", poolclass=pool.NullPool)
     with connectable.connect() as connection:
         context.configure(
             connection=connection, 

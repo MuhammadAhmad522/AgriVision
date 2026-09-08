@@ -49,6 +49,10 @@ final class DashboardViewModel: ObservableObject {
     // it would just re-download unchanged satellite images and recommendation text.
     private static let fullDashboardRefreshInterval: TimeInterval = 300
 
+    // Notifications are cheap (one small list query) and time-sensitive, so they poll
+    // faster than the full dashboard refresh.
+    private static let notificationPollInterval: TimeInterval = 60
+
     var onSignOut: (() -> Void)?
     var onSettingsTap: (() -> Void)?
     var onChatTapped: ((UUID) -> Void)?
@@ -349,12 +353,26 @@ final class DashboardViewModel: ObservableObject {
         }
     }
 
-    private func refreshNotifications() async {
+    /// Notifications used to refresh only as a side effect of a full dashboard load, so
+    /// expert advice sent while the farmer sat on the dashboard did not appear until they
+    /// switched field or backgrounded the app. This is the public entry point used by both
+    /// the dashboard load and the inbox's own poll.
+    func refreshNotifications() async {
         guard let fetched = try? await dataService.fetchNotifications() else { return }
         notifications = fetched
         unreadNotificationsCount = fetched.filter { !$0.isRead }.count
     }
-    
+
+    /// Advice from an agronomist, newest first — the messages a person wrote, separated
+    /// from automatic system notices.
+    var expertAdvisories: [UserNotification] {
+        notifications.filter { $0.isFromExpert }
+    }
+
+    var hasUnreadExpertAdvice: Bool {
+        expertAdvisories.contains { !$0.isRead }
+    }
+
     func markNotificationRead(_ notification: UserNotification) {
         Task {
             if let updated = try? await dataService.markNotificationRead(id: notification.id) {
@@ -363,6 +381,26 @@ final class DashboardViewModel: ObservableObject {
                     unreadNotificationsCount = notifications.filter { !$0.isRead }.count
                 }
             }
+        }
+    }
+
+    /// Clears the badge in one call. Without this a run of advisories had to be opened
+    /// one at a time, which trains people to ignore the badge entirely.
+    func markAllNotificationsRead() {
+        Task {
+            guard (try? await dataService.markAllNotificationsRead()) != nil else { return }
+            await refreshNotifications()
+        }
+    }
+
+    /// Polls the inbox while it is on screen. Advice is time-sensitive — an irrigation
+    /// call that arrives an hour late is worth much less than one that arrives now.
+    func pollNotifications() async {
+        while !Task.isCancelled {
+            if isAppActive {
+                await refreshNotifications()
+            }
+            try? await Task.sleep(nanoseconds: UInt64(Self.notificationPollInterval * 1_000_000_000))
         }
     }
 

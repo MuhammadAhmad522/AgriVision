@@ -4,10 +4,12 @@ import { HttpClient } from '../core/api/http';
 import type { UserRole } from '../core/rbac/roles';
 import { GlassCard } from '../components/ui/GlassCard';
 import { MetricBadge } from '../components/ui/MetricBadge';
-import { Users, Mail, UserPlus, ShieldAlert, Trash2, AlertTriangle, ChevronDown, ChevronUp, ArrowRightLeft } from 'lucide-react';
+import { Users, Mail, UserPlus, ShieldAlert, Trash2, AlertTriangle, ChevronDown, ChevronUp, ArrowRightLeft, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
 
 import type { Field } from '../core/types';
+import { useToast } from '../core/ui/toast';
+import { normalizeEmail, isValidEmail, isUuid, describeError } from '../core/utils/sanitize';
 
 interface Invite {
   id: string;
@@ -20,26 +22,36 @@ interface Invite {
 interface UserProfileData {
   id: string;
   email: string;
+  display_name?: string | null;
   role: string;
   created_at: string;
 }
 
+const userLabel = (u: UserProfileData) => (u.display_name && u.display_name.trim()) || u.email;
+
 export const UsersView: React.FC = () => {
   const { sendInviteLink, user } = useAuth();
+  const toast = useToast();
   const [invites, setInvites] = useState<Invite[]>([]);
   const [users, setUsers] = useState<UserProfileData[]>([]);
   const [fields, setFields] = useState<Field[]>([]);
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [transferState, setTransferState] = useState<{fieldId: string, newOwnerId: string} | null>(null);
-  
+
   const [loading, setLoading] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'invites' | 'users'>('invites');
-  
+
   const [newEmail, setNewEmail] = useState('');
   const [newRole, setNewRole] = useState<UserRole>('agronomist');
+  const [emailError, setEmailError] = useState<string | null>(null);
   const [inviteStatus, setInviteStatus] = useState<{type: 'success' | 'error', msg: string} | null>(null);
 
   const fetchData = async () => {
+    setDataLoading(true);
+    setLoadError(null);
     try {
       const http = new HttpClient();
       const invitesData = await http.get<Invite[]>('/api/invitations');
@@ -47,69 +59,107 @@ export const UsersView: React.FC = () => {
 
       if (user?.role === 'admin') {
         const [usersData, fieldsData] = await Promise.all([
-          http.get<UserProfileData[]>('/api/admin/users').catch(() => []),
-          http.get<Field[]>('/api/fields?admin_view=true').catch(() => [])
+          http.get<UserProfileData[]>('/api/admin/users'),
+          http.get<Field[]>('/api/fields?admin_view=true')
         ]);
         setUsers(usersData);
         setFields(fieldsData);
       }
     } catch (e) {
-      console.error("Failed to fetch admin data", e);
+      const msg = describeError(e, 'Failed to load user and field data.');
+      setLoadError(msg);
+      toast.fromError(e, 'Failed to load user and field data.');
+    } finally {
+      setDataLoading(false);
     }
   };
 
   useEffect(() => {
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const handleDeleteUser = async (id: string) => {
+    if (!isUuid(id)) { toast.error('That user record has an invalid id.'); return; }
     if (!window.confirm("Are you sure you want to delete this user and ALL of their associated fields? This action is permanent and cannot be undone.")) return;
+    setBusyId(id);
     try {
       const http = new HttpClient();
       await http.delete(`/api/admin/users/${id}`);
+      toast.success('User and their fields were deleted.');
       fetchData();
-    } catch (e: any) {
-      alert("Failed to delete user: " + (e.message || "Unknown error"));
+    } catch (e) {
+      toast.fromError(e, 'Failed to delete user.');
+    } finally {
+      setBusyId(null);
     }
   };
 
   const handleDeleteField = async (id: string) => {
+    if (!isUuid(id)) { toast.error('That field record has an invalid id.'); return; }
     if (!window.confirm("Are you sure you want to permanently delete this field?")) return;
+    setBusyId(id);
     try {
       const http = new HttpClient();
       await http.delete(`/api/fields/${id}`);
+      toast.success('Field deleted.');
       fetchData();
-    } catch (e: any) {
-      alert("Failed to delete field: " + (e.message || "Unknown error"));
+    } catch (e) {
+      toast.fromError(e, 'Failed to delete field.');
+    } finally {
+      setBusyId(null);
     }
   };
 
   const handleTransferField = async (fieldId: string) => {
-    if (!transferState || transferState.fieldId !== fieldId || !transferState.newOwnerId) return;
+    if (!transferState || transferState.fieldId !== fieldId) return;
+    const newOwnerId = transferState.newOwnerId;
+    if (!isUuid(fieldId) || !isUuid(newOwnerId)) {
+      toast.error('Pick a valid destination user before transferring.');
+      return;
+    }
     if (!window.confirm("Are you sure you want to transfer ownership of this field?")) return;
+    setBusyId(fieldId);
     try {
       const http = new HttpClient();
-      await http.post(`/api/admin/fields/${fieldId}/transfer`, { new_owner_id: transferState.newOwnerId });
+      await http.post(`/api/admin/fields/${fieldId}/transfer`, { new_owner_id: newOwnerId });
+      toast.success('Field ownership transferred.');
       setTransferState(null);
       fetchData();
-    } catch (e: any) {
-      alert("Failed to transfer field: " + (e.message || "Unknown error"));
+    } catch (e) {
+      toast.fromError(e, 'Failed to transfer field.');
+    } finally {
+      setBusyId(null);
     }
   };
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
+    const email = normalizeEmail(newEmail);
+    if (!isValidEmail(email)) {
+      setEmailError('Enter a valid email address.');
+      setInviteStatus(null);
+      return;
+    }
+    if (newRole !== 'agronomist' && newRole !== 'admin') {
+      toast.error('Choose a valid role for the invite.');
+      return;
+    }
+    setEmailError(null);
     setLoading(true);
     setInviteStatus(null);
     try {
       const http = new HttpClient();
-      await http.post('/api/invitations', { email: newEmail, role: newRole });
-      await sendInviteLink(newEmail);
-      setInviteStatus({ type: 'success', msg: `Invitation sent to ${newEmail}` });
+      await http.post('/api/invitations', { email, role: newRole });
+      await sendInviteLink(email);
+      setInviteStatus({ type: 'success', msg: `Invitation sent to ${email}` });
+      toast.success(`Invitation sent to ${email}`);
       setNewEmail('');
       fetchData();
-    } catch (e: any) {
-      setInviteStatus({ type: 'error', msg: e.message || 'Failed to send invite' });
+    } catch (e) {
+      const msg = describeError(e, 'Failed to send invite.');
+      setInviteStatus({ type: 'error', msg });
+      toast.fromError(e, 'Failed to send invite.');
     } finally {
       setLoading(false);
     }
@@ -135,28 +185,49 @@ export const UsersView: React.FC = () => {
         </GlassCard>
       ) : (
         <>
+          {loadError && (
+            <GlassCard className="p-4 border-red-400/30 bg-red-500/5 flex items-center gap-3">
+              <AlertTriangle size={18} className="text-red-400 shrink-0" />
+              <span className="text-[13px] text-text-muted flex-1">{loadError}</span>
+              <button
+                onClick={fetchData}
+                disabled={dataLoading}
+                className="inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-white/5 px-3 py-1.5 text-[12px] font-semibold text-text-main hover:bg-white/10 transition-colors disabled:opacity-50"
+              >
+                <RefreshCw size={13} className={dataLoading ? 'animate-spin' : ''} /> Retry
+              </button>
+            </GlassCard>
+          )}
+
           <GlassCard className="p-6">
             <div className="flex items-center gap-2 mb-4">
               <UserPlus size={18} className="text-primary-light" />
               <h3 className="text-base font-bold text-text-main">Invite New User</h3>
             </div>
-            
+
             <form onSubmit={handleInvite} className="flex flex-col md:flex-row gap-4 items-start">
           <div className="flex-1 w-full">
             <label className="block text-[11px] font-semibold text-text-muted mb-1.5">Email Address</label>
             <div className="relative">
               <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-dim" />
-              <input 
-                type="email" 
-                required 
+              <input
+                type="email"
+                required
+                maxLength={254}
                 value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
-                className="w-full pl-10 pr-3.5 py-2.5 rounded-sm bg-black/30 border border-border-glass text-white text-sm outline-none focus:border-primary-light transition-colors"
+                onChange={(e) => { setNewEmail(e.target.value); if (emailError) setEmailError(null); }}
+                onBlur={() => setNewEmail((v) => normalizeEmail(v))}
+                aria-invalid={!!emailError}
+                className={clsx(
+                  "w-full pl-10 pr-3.5 py-2.5 rounded-sm bg-black/30 border text-white text-sm outline-none transition-colors",
+                  emailError ? "border-red-400/60 focus:border-red-400" : "border-border-glass focus:border-primary-light"
+                )}
                 placeholder="user@agrivision.ai"
               />
             </div>
+            {emailError && <p className="text-[11px] text-red-300 mt-1">{emailError}</p>}
           </div>
-          
+
           <div className="w-full md:w-[200px] shrink-0">
             <label className="block text-[11px] font-semibold text-text-muted mb-1.5">Role</label>
             <select 
@@ -246,7 +317,7 @@ export const UsersView: React.FC = () => {
                 {invites.length === 0 && (
                   <tr>
                     <td colSpan={4} className="p-8 text-center text-text-dim text-sm italic">
-                      No invitations sent yet.
+                      {dataLoading ? 'Loading invitations…' : loadError ? 'Could not load invitations.' : 'No invitations sent yet.'}
                     </td>
                   </tr>
                 )}
@@ -291,7 +362,12 @@ export const UsersView: React.FC = () => {
                             {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                           </button>
                         </td>
-                        <td className="p-4 font-semibold text-text-main">{u.email}</td>
+                        <td className="p-4 font-semibold text-text-main">
+                          {userLabel(u)}
+                          {u.display_name?.trim() && (
+                            <span className="block text-[11px] font-normal text-text-muted">{u.email}</span>
+                          )}
+                        </td>
                         <td className="p-4 font-semibold text-primary-light capitalize">{u.role.replace('_', ' ')}</td>
                         <td className="p-4 text-text-muted">
                           {new Date(u.created_at).toLocaleDateString()}
@@ -301,9 +377,10 @@ export const UsersView: React.FC = () => {
                         </td>
                         <td className="p-4 text-right">
                           {u.id !== user.uid ? (
-                            <button 
+                            <button
                               onClick={() => handleDeleteUser(u.id)}
-                              className="opacity-0 group-hover:opacity-100 btn-icon text-text-dim hover:text-accent-red hover:bg-red-400/10"
+                              disabled={busyId === u.id}
+                              className="opacity-0 group-hover:opacity-100 btn-icon text-text-dim hover:text-accent-red hover:bg-red-400/10 disabled:opacity-40"
                               title="Delete User"
                             >
                               <Trash2 size={16} />
@@ -319,7 +396,7 @@ export const UsersView: React.FC = () => {
                             <div className="bg-background-dark/50 rounded-lg border border-white/5 overflow-hidden">
                               <div className="p-3 border-b border-white/5 bg-white/5 flex items-center justify-between">
                                 <h4 className="font-bold text-[13px] text-text-main flex items-center gap-2">
-                                  Fields owned by {u.email}
+                                  Fields owned by {userLabel(u)}
                                 </h4>
                               </div>
                               {userFields.length > 0 ? (
@@ -348,22 +425,23 @@ export const UsersView: React.FC = () => {
                                               >
                                                 <option value="" disabled>Transfer to...</option>
                                                 {users.filter(other => other.id !== u.id).map(other => (
-                                                  <option key={other.id} value={other.id}>{other.email}</option>
+                                                  <option key={other.id} value={other.id}>{userLabel(other)}</option>
                                                 ))}
                                               </select>
                                               <button
                                                 onClick={() => handleTransferField(f.id)}
-                                                disabled={transferState?.fieldId !== f.id || !transferState?.newOwnerId}
+                                                disabled={transferState?.fieldId !== f.id || !transferState?.newOwnerId || busyId === f.id}
                                                 className="p-1 text-primary-light hover:text-primary disabled:opacity-50 transition-colors"
                                                 title="Confirm Transfer"
                                               >
                                                 <ArrowRightLeft size={14} />
                                               </button>
                                             </div>
-                                            
-                                            <button 
+
+                                            <button
                                               onClick={() => handleDeleteField(f.id)}
-                                              className="btn-icon text-text-dim hover:text-accent-red hover:bg-red-400/10"
+                                              disabled={busyId === f.id}
+                                              className="btn-icon text-text-dim hover:text-accent-red hover:bg-red-400/10 disabled:opacity-40"
                                               title="Delete Field"
                                             >
                                               <Trash2 size={15} />
@@ -389,7 +467,7 @@ export const UsersView: React.FC = () => {
                 {users.length === 0 && (
                   <tr>
                     <td colSpan={6} className="p-8 text-center text-text-dim text-sm italic">
-                      No users found.
+                      {dataLoading ? 'Loading users…' : loadError ? 'Could not load users.' : 'No users found.'}
                     </td>
                   </tr>
                 )}

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAuth } from '../../core/auth/AuthContext';
 import { useUIStore } from '../../core/store/uiStore';
-import { useFleetStore } from '../../core/store/fleetStore';
+import { useFleetFields, useFleetSensors } from '../../core/hooks/useFleet';
 import { canAccessTab } from '../../core/rbac/permissions';
 import { ROLE_METADATA } from '../../core/rbac/roles';
 import { Map, BarChart3, Radio, Sparkles, Settings, Layers, LogOut, User, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
@@ -10,7 +10,8 @@ import clsx from 'clsx';
 export const Sidebar: React.FC = () => {
   const activeTab = useUIStore(s => s.activeTab);
   const setActiveTab = useUIStore(s => s.setActiveTab);
-  const fields = useFleetStore(s => s.allFields);
+  const { fields } = useFleetFields();
+  const { sensors } = useFleetSensors();
   
   const { user, signOut } = useAuth();
   const isSidebarOpen = useUIStore(s => s.isSidebarOpen);
@@ -19,7 +20,8 @@ export const Sidebar: React.FC = () => {
   const allNavItems = [
     { id: 'gis', label: 'GIS Command Center', icon: Map, badge: 'Live GIS' },
     { id: 'analytics', label: 'Fleet Analytics', icon: BarChart3, badge: null },
-    { id: 'iot', label: 'IoT Hardware Fleet', icon: Radio, badge: '3 Nodes' },
+    // Real paired-probe count. The badge used to read a hardcoded "3 Nodes".
+    { id: 'iot', label: 'IoT Hardware Fleet', icon: Radio, badge: sensors.length > 0 ? `${sensors.length} Node${sensors.length === 1 ? '' : 's'}` : null },
     { id: 'advisory', label: 'AI Agronomy Studio', icon: Sparkles, badge: 'Gemini' },
     { id: 'users', label: 'User Management', icon: User, badge: 'Admin' },
     { id: 'settings', label: 'Control Settings', icon: Settings, badge: null }

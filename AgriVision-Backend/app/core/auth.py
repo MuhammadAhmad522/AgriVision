@@ -5,6 +5,7 @@ import firebase_admin
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from firebase_admin import auth
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.errors import APIError
@@ -67,22 +68,26 @@ async def get_current_user(
         raise APIError(401, "invalid_token", "Your session is invalid or expired.")
 
     user = db.query(User).filter(User.firebase_uid == uid).first()
-    email = decoded.get("email")
+    raw_email = decoded.get("email")
+    email = raw_email.strip().lower() if raw_email else None
+    raw_name = decoded.get("name")
+    display_name = raw_name.strip()[:255] if isinstance(raw_name, str) and raw_name.strip() else None
+
     if user is None and email:
-        user = db.query(User).filter(User.email == email).first()
+        user = db.query(User).filter(func.lower(User.email) == email).first()
         if user is not None:
             user.firebase_uid = uid
             db.commit()
             db.refresh(user)
 
+    from app.models.db_models import Invitation, UserRole
+    client = request.headers.get("X-Client", "unknown").lower()
+
     if user is None:
-        client = request.headers.get("X-Client", "unknown").lower()
-        
-        from app.models.db_models import Invitation, UserRole
         pending_invite = None
         if email:
             pending_invite = db.query(Invitation).filter(
-                Invitation.email == email,
+                func.lower(Invitation.email) == email,
                 Invitation.status == "pending"
             ).first()
 
@@ -95,18 +100,42 @@ async def get_current_user(
             raise APIError(403, "forbidden", "Access Denied. You are not authorized to access this portal.")
             
         role = pending_invite.role if pending_invite else UserRole.mobile_user
-        user = User(firebase_uid=uid, email=email, role=role)
+        user = User(firebase_uid=uid, email=email, role=role, display_name=display_name)
         db.add(user)
-        
+
         if pending_invite:
             pending_invite.status = "accepted"
-            
+
         db.commit()
         db.refresh(user)
-    elif email and user.email != email:
-        user.email = email
-        db.commit()
-        db.refresh(user)
+    else:
+        # Existing user: keep email and display name in sync with the Firebase profile.
+        changed = False
+        if email and (user.email is None or user.email.lower() != email):
+            user.email = email
+            changed = True
+        if display_name and user.display_name != display_name:
+            user.display_name = display_name
+            changed = True
+        if changed:
+            db.commit()
+            db.refresh(user)
+
+        # Check for pending invitation for existing user
+        if email:
+            pending_invite = db.query(Invitation).filter(
+                func.lower(Invitation.email) == email,
+                Invitation.status == "pending"
+            ).first()
+            if pending_invite:
+                user.role = pending_invite.role
+                pending_invite.status = "accepted"
+                db.commit()
+                db.refresh(user)
+
+        if client == "web" and user.role not in (UserRole.admin, UserRole.agronomist):
+            raise APIError(403, "forbidden", "Access Denied. You are not authorized to access this portal.")
+
     return user
 
 class RequireRole:

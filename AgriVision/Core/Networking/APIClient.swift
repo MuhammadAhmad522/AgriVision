@@ -157,6 +157,17 @@ final class APIClient {
                 if let envelope = try? decoder.decode(ErrorEnvelope.self, from: data) {
                     throw BackendAPIError(code: envelope.error.code, message: envelope.error.message, details: envelope.error.details ?? [], retryable: envelope.error.retryable, requestID: envelope.error.requestId, statusCode: response.statusCode)
                 }
+                if let rawJSON = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    if let detailString = rawJSON["detail"] as? String {
+                        throw BackendAPIError(code: "http_\(response.statusCode)", message: detailString, details: [], retryable: response.statusCode >= 500, requestID: response.value(forHTTPHeaderField: "X-Request-ID"), statusCode: response.statusCode)
+                    }
+                    if let detailArray = rawJSON["detail"] as? [[String: Any]] {
+                        let messages = detailArray.compactMap { $0["msg"] as? String }
+                        if !messages.isEmpty {
+                            throw BackendAPIError(code: "validation_error", message: messages.joined(separator: ", "), details: [], retryable: false, requestID: response.value(forHTTPHeaderField: "X-Request-ID"), statusCode: response.statusCode)
+                        }
+                    }
+                }
                 throw BackendAPIError(code: "http_\(response.statusCode)", message: "The server could not complete this request.", details: [], retryable: response.statusCode >= 500, requestID: response.value(forHTTPHeaderField: "X-Request-ID"), statusCode: response.statusCode)
             }
             return (data, response)

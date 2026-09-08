@@ -1,26 +1,22 @@
 import React from 'react';
 import { useAuth } from '../../core/auth/AuthContext';
-import { useFleetStore, selectClients, selectFilteredFields } from '../../core/store/fleetStore';
-import { useIoTStore } from '../../core/store/iotStore';
-import { useFields } from '../../core/hooks/useFarmQueries';
+import { useFleetStore } from '../../core/store/fleetStore';
+import { useVisibleFields, useClients, useActiveClient, useActiveField, useActiveDashboard } from '../../core/hooks/useFleet';
 import { useUIStore } from '../../core/store/uiStore';
 import { ROLE_METADATA } from '../../core/rbac/roles';
-import { RefreshCw, MapPin, CloudSun, User, LogOut, Users, Menu } from 'lucide-react';
+import { MapPin, CloudSun, User, LogOut, Menu } from 'lucide-react';
+import { FarmerPicker } from './FarmerPicker';
 
 export const TopHeader: React.FC = () => {
-  const fields = useFleetStore(selectFilteredFields);
-  const activeField = useFleetStore(s => s.activeField);
+  const { fields } = useVisibleFields();
+  const activeField = useActiveField();
   const setActiveField = useFleetStore(s => s.setActiveField);
-  const clients = useFleetStore(selectClients);
-  const activeClient = useFleetStore(s => s.activeClient);
+  const clients = useClients();
+  const activeClient = useActiveClient();
   const setActiveClient = useFleetStore(s => s.setActiveClient);
-  
-  const dashboardData = useIoTStore(s => s.dashboardData);
+
+  const { dashboard: dashboardData } = useActiveDashboard();
   const setSidebarOpen = useUIStore(s => s.setSidebarOpen);
-  
-  const fieldsQuery = useFields();
-  const refreshData = () => fieldsQuery.refetch();
-  const loading = fieldsQuery.isFetching;
 
   const { user, signOut } = useAuth();
   
@@ -41,24 +37,7 @@ export const TopHeader: React.FC = () => {
         </button>
 
         {isStaff && (
-          <div className="flex items-center gap-2 bg-[rgba(22,51,30,0.7)] border border-border-glass px-2 md:px-3.5 py-2 rounded-md min-w-0">
-            <Users size={16} className="text-accent-cyan shrink-0" />
-            <select
-              value={activeClient?.id || ''}
-              onChange={(e) => {
-                const selected = clients.find((c) => c.id === e.target.value);
-                setActiveClient(selected || null);
-              }}
-              className="bg-transparent border-none text-text-main font-heading font-bold text-xs md:text-sm outline-none cursor-pointer w-full text-ellipsis overflow-hidden whitespace-nowrap"
-            >
-              <option value="" className="bg-[#112616] text-white">All Farmers</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id} className="bg-[#112616] text-white">
-                  {c.email || 'Unknown User'}
-                </option>
-              ))}
-            </select>
-          </div>
+          <FarmerPicker clients={clients} activeClient={activeClient} onSelect={setActiveClient} />
         )}
 
         {(!isStaff || activeClient) && (
@@ -100,17 +79,8 @@ export const TopHeader: React.FC = () => {
         )}
       </div>
 
-      {/* Right: Sync Button + User Profile + Sign Out */}
+      {/* Right: User Profile + Sign Out */}
       <div className="flex items-center gap-2 md:gap-3.5 shrink-0">
-        <button
-          onClick={refreshData}
-          disabled={loading}
-          className="btn-secondary px-2 md:px-3.5 py-1.5 md:py-2 text-[13px]"
-          title="Sync Satellite & AI"
-        >
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-          <span className="hidden sm:inline">{loading ? 'Syncing...' : 'Sync Data'}</span>
-        </button>
 
         {/* User Profile Tag */}
         {user && (

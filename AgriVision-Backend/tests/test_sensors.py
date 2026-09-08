@@ -137,6 +137,11 @@ def test_pair_sensor_with_online_unowned_sensor(client):
     sensor.sensor_type = "soil"
     sensor.battery_level = None
     sensor.field_id = None
+    # SensorResponse now carries the owner/field labels staff need to tell probes apart;
+    # an unstubbed MagicMock would hand Pydantic a mock instead of a string or None.
+    sensor.owner_email = None
+    sensor.owner_name = None
+    sensor.field_name = None
     db.query.return_value.filter.return_value.with_for_update.return_value.first.return_value = sensor
 
     app.dependency_overrides[get_db] = lambda: db

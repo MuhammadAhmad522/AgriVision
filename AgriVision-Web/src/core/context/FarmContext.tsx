@@ -1,52 +1,33 @@
 import React, { useEffect } from 'react';
-import { useFields, useSensors, useDashboard } from '../hooks/useFarmQueries';
+import { useFleetFields } from '../hooks/useFleet';
 import { useFleetStore } from '../store/fleetStore';
-import { useIoTStore } from '../store/iotStore';
 import { useAuth } from '../auth/AuthContext';
 
+/**
+ * All this component used to do was copy query results into Zustand through five effects.
+ * That mirror is gone — views read the queries directly via the useFleet hooks — so the
+ * only work left here is the two things that genuinely are app-level side effects:
+ * defaulting a non-staff user onto their first field, and dropping the previous user's
+ * selection at sign-out (which the old store kept, briefly showing one account's field
+ * name to the next account that signed in).
+ */
 export const FarmDataSync: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const isStaff = user?.role === 'admin' || user?.role === 'agronomist';
 
-  const { setAllFields, setActiveField, activeField, setLoading } = useFleetStore();
-  const { setSensors, setDashboardData, setLoadingDashboard } = useIoTStore();
+  const { fields } = useFleetFields();
+  const activeFieldId = useFleetStore((s) => s.activeFieldId);
+  const setActiveField = useFleetStore((s) => s.setActiveField);
 
-  const fieldsQuery = useFields();
-  const sensorsQuery = useSensors();
-  const dashboardQuery = useDashboard(activeField?.id || null);
-
-  // Sync fields
   useEffect(() => {
-    if (fieldsQuery.data) {
-      setAllFields(fieldsQuery.data);
-      if (!isStaff && !activeField && fieldsQuery.data.length > 0) {
-        setActiveField(fieldsQuery.data[0]);
-      }
+    if (!isStaff && !activeFieldId && fields.length > 0) {
+      setActiveField(fields[0]);
     }
-  }, [fieldsQuery.data, setAllFields, isStaff, activeField, setActiveField]);
-
-  // Sync sensors
-  useEffect(() => {
-    if (sensorsQuery.data) {
-      setSensors(sensorsQuery.data);
-    }
-  }, [sensorsQuery.data, setSensors]);
-
-  // Sync dashboard
-  useEffect(() => {
-    if (dashboardQuery.data) {
-      setDashboardData(dashboardQuery.data);
-    }
-  }, [dashboardQuery.data, setDashboardData]);
-
-  // Sync loading states
-  useEffect(() => {
-    setLoading(fieldsQuery.isLoading || sensorsQuery.isLoading);
-  }, [fieldsQuery.isLoading, sensorsQuery.isLoading, setLoading]);
+  }, [isStaff, activeFieldId, fields, setActiveField]);
 
   useEffect(() => {
-    setLoadingDashboard(dashboardQuery.isLoading);
-  }, [dashboardQuery.isLoading, setLoadingDashboard]);
+    if (!user) useFleetStore.getState().reset();
+  }, [user]);
 
   return <>{children}</>;
 };

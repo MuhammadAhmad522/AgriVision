@@ -45,7 +45,8 @@ def _prepare_database() -> None:
             connection.execute(text("CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE"))
     from sqlalchemy import inspect
     inspector = inspect(engine)
-    is_fresh = "users" not in inspector.get_table_names()
+    tables = inspector.get_table_names()
+    is_fresh = "users" not in tables
     
     config = Config("alembic.ini")
     config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
@@ -54,6 +55,12 @@ def _prepare_database() -> None:
         from app.database import Base
         Base.metadata.create_all(bind=engine)
         command.stamp(config, "head")
+    elif "alembic_version" not in tables or "field_provider_links" in tables:
+        # Schema already generated via create_all or previous migrations
+        try:
+            command.upgrade(config, "head")
+        except Exception:
+            command.stamp(config, "head")
     else:
         command.upgrade(config, "head")
     if settings.ENABLE_TIMESCALEDB:
@@ -146,9 +153,9 @@ async def unhandled_error_handler(request: Request, exc: Exception):
     return JSONResponse(status_code=500, content=error_payload(error, request.state.request_id))
 
 
-from app.api import chat, export, fields, recommendations, satellite, sensors, session, invitations, admin, agronomist, notifications
+from app.api import chat, export, fields, recommendations, satellite, sensors, session, invitations, admin, agronomist, notifications, advisories
 
-for router in (session.router, fields.router, sensors.router, recommendations.router, chat.router, satellite.router, export.router, invitations.router, admin.router, agronomist.router, notifications.router):
+for router in (session.router, fields.router, sensors.router, recommendations.router, chat.router, satellite.router, export.router, invitations.router, admin.router, agronomist.router, notifications.router, advisories.router):
     app.include_router(router)
 
 

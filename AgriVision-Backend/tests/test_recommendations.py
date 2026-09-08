@@ -65,6 +65,7 @@ def _make_recommendation(**overrides):
         status="pending",
         ndvi_at_generation=None, created_at=now, expires_at=None,
         outcome=None, outcome_notes=None,
+        analysis_run_id=None, reviewed_by_id=None, reviewed_by_email=None, reviewed_at=None,
     )
     defaults.update(overrides)
     return MagicMock(**defaults)

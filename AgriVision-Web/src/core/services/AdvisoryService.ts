@@ -1,5 +1,5 @@
 import { http } from '../api/http';
-import type { AIRecommendation, ChatMessage, SeasonMemory, AISettings } from '../types';
+import type { AIRecommendation, AnalysisRunDetail, ChatMessage, SeasonMemory, AISettings, AIHealth, Advisory, AdvisoryCreate } from '../types';
 
 export class AdvisoryService {
   async getRecommendations(fieldId: string): Promise<AIRecommendation[]> {
@@ -29,6 +29,17 @@ export class AdvisoryService {
     return await http.get<AIRecommendation[]>('/api/recommendations/expert/pending');
   }
 
+  /** The model/prompt/policy version and context snapshot behind one recommendation.
+   * Read-only: null when the recommendation predates analysis-run tracking or the run
+   * record itself was pruned. */
+  async getAnalysisRun(recommendationId: string): Promise<AnalysisRunDetail | null> {
+    try {
+      return await http.get<AnalysisRunDetail>(`/api/recommendations/${recommendationId}/analysis-run`);
+    } catch {
+      return null;
+    }
+  }
+
   async validateRecommendation(
     recommendationId: string,
     status: 'approved' | 'rejected',
@@ -56,12 +67,32 @@ export class AdvisoryService {
     });
   }
 
+  /**
+   * Sends advice straight to the field owner's iOS notification inbox. Until this existed
+   * the only farmer-facing message the platform could produce was the automatic line
+   * emitted when a recommendation was reviewed — an agronomist had no way to say anything
+   * of their own.
+   */
+  async sendAdvisory(fieldId: string, advisory: AdvisoryCreate): Promise<Advisory> {
+    return await http.post<Advisory>(`/api/fields/${fieldId}/advisories`, advisory);
+  }
+
+  /** What has already been sent on this field, so advice is not repeated or contradicted. */
+  async getAdvisories(fieldId: string): Promise<Advisory[]> {
+    return await http.get<Advisory[]>(`/api/fields/${fieldId}/advisories`);
+  }
+
   async getAISettings(): Promise<AISettings> {
     return await http.get<AISettings>('/api/admin/settings/ai');
   }
 
   async updateAISettings(settings: AISettings): Promise<AISettings> {
     return await http.put<AISettings>('/api/admin/settings/ai', settings);
+  }
+
+  /** Live probe: issues one tiny generation call against the active provider. */
+  async checkAIHealth(): Promise<AIHealth> {
+    return await http.get<AIHealth>('/api/admin/settings/ai/health');
   }
 }
 

@@ -43,7 +43,9 @@ def field_to_response(field: Field, db: Session) -> FieldResponse:
     from app.models.db_models import FieldProviderLink, User
     link = db.query(FieldProviderLink).filter(FieldProviderLink.field_id == field.id, FieldProviderLink.provider == "agromonitoring").first()
     
-    owner_email = db.query(User.email).filter(User.id == field.owner_id).scalar()
+    owner_row = db.query(User.email, User.display_name).filter(User.id == field.owner_id).first()
+    owner_email = owner_row[0] if owner_row else None
+    owner_name = owner_row[1] if owner_row else None
 
     raw = db.query(ST_AsGeoJSON(Field.boundary)).filter(Field.id == field.id).scalar()
     coordinates: list[dict[str, float]] = []
@@ -57,6 +59,7 @@ def field_to_response(field: Field, db: Session) -> FieldResponse:
         id=field.id,
         owner_id=field.owner_id,
         owner_email=owner_email,
+        owner_name=owner_name,
         name=field.name,
         coordinates=coordinates,
         area_ha=field.area_ha,
@@ -117,8 +120,12 @@ def _assign_paired_sensor(db: Session, current_user: User, field: Field, sensor_
     sensor = db.query(Sensor).filter(Sensor.device_id == sensor_data.device_id).with_for_update().first()
     if sensor is None or sensor.owner_id is None:
         raise APIError(409, "sensor_not_paired", "Pair this sensor before assigning it to a field.")
-    if sensor.owner_id != current_user.id:
-        raise APIError(409, "sensor_owned_by_another_tenant", "That sensor is already paired to another account.")
+    # A probe may be attached to a field iff they share an owner. This used to compare
+    # against the caller instead, which blocked staff from attaching a farmer's paired
+    # probe to that same farmer's field — the only way hardware ever actually gets
+    # installed, since the web portal is staff-only.
+    if sensor.owner_id != field.owner_id:
+        raise APIError(409, "sensor_owned_by_another_tenant", "That sensor is paired to a different account than this field's owner.")
     if sensor.field_id is not None and sensor.field_id != field.id:
         raise APIError(409, "sensor_already_assigned", "That sensor is already assigned to another field.")
     sensor.field_id = field.id
@@ -212,7 +219,7 @@ def get_fields(
 
 @router.get("/{field_id}", response_model=FieldResponse)
 def get_field(field_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return field_to_response(owned_field(db, current_user, field_id), db)
+    return field_to_response(field_readable_by(db, current_user, field_id), db)
 
 
 @router.post("/{field_id}/sensors", response_model=SensorResponse)
@@ -222,11 +229,41 @@ def assign_sensor(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    field = owned_field(db, current_user, field_id, include_archived=False)
+    # Staff install and move hardware on behalf of farmers, so this is gated on field
+    # readability rather than ownership; _assign_paired_sensor still enforces that the
+    # probe and the field belong to the same farmer.
+    field = field_readable_by(db, current_user, field_id, include_archived=False)
     sensor = _assign_paired_sensor(db, current_user, field, sensor_data)
     db.commit()
     db.refresh(sensor)
     return sensor
+
+
+@router.delete("/{field_id}/sensors/{device_id}", status_code=status.HTTP_204_NO_CONTENT)
+def detach_sensor(
+    field_id: UUID,
+    device_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Detach a probe from a field without destroying its telemetry.
+
+    Un-pairing deletes the sensor record and cascades away every reading it ever took, so
+    it is the wrong tool for moving a probe between fields or pulling one for repair.
+    There was no non-destructive alternative until now.
+    """
+    field = field_readable_by(db, current_user, field_id, include_archived=False)
+    sensor = (
+        db.query(Sensor)
+        .filter(Sensor.device_id == device_id, Sensor.field_id == field.id)
+        .with_for_update()
+        .first()
+    )
+    if sensor is None:
+        raise APIError(404, "sensor_not_found", "No such sensor is assigned to this field.")
+    sensor.field_id = None
+    db.commit()
+    return None
 
 
 @router.get("/{field_id}/sensors", response_model=list[SensorResponse])
@@ -235,10 +272,10 @@ def get_field_sensors(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    field = owned_field(db, current_user, field_id)
+    field = field_readable_by(db, current_user, field_id)
     return (
         db.query(Sensor)
-        .filter(Sensor.field_id == field.id, Sensor.owner_id == current_user.id)
+        .filter(Sensor.field_id == field.id, Sensor.owner_id == field.owner_id)
         .order_by(Sensor.name.asc().nulls_last(), Sensor.device_id.asc())
         .all()
     )
@@ -300,7 +337,8 @@ def delete_field(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    owned_field(db, current_user, field_id)
+    if current_user.role != UserRole.admin:
+        owned_field(db, current_user, field_id)
     field = db.query(Field).filter(Field.id == field_id).with_for_update().first()
     if field is None:
         raise APIError(404, "field_not_found", "Field not found.")
@@ -513,7 +551,7 @@ def get_dashboard(field_id: UUID, db: Session = Depends(get_db), current_user: U
 @router.get("/{field_id}/weather-soil", include_in_schema=False)
 @router.get("/{field_id}/weather-soil/", include_in_schema=False)
 def weather_soil_compat(field_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    owned_field(db, current_user, field_id)
+    field_readable_by(db, current_user, field_id)
     configured = bool(settings.AGROMONITORING_API_KEY.strip())
     soil = _source_block(_latest_observation(db, field_id, "soil_current"), _source_state(db, field_id, "soil_current"), provider_configured=configured, label="Soil data")
     weather = _source_block(_latest_observation(db, field_id, "weather_forecast"), _source_state(db, field_id, "weather_forecast"), provider_configured=configured, label="Weather data")

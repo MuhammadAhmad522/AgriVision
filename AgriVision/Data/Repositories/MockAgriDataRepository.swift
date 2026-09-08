@@ -28,14 +28,40 @@ class MockAgriDataRepository: AgriDataService {
         }
     }
 
+    var mockFields: [Field] = []
+
     init(
         mockCropType: String = "Wheat",
         mockFieldID: UUID = UUID(),
-        mockOwnerID: UUID = UUID()
+        mockOwnerID: UUID = UUID(),
+        seedFields: Bool = true
     ) {
         self.mockCropType = mockCropType
         self.mockFieldID = mockFieldID
         self.mockOwnerID = mockOwnerID
+        if seedFields {
+            self.mockFields = [
+                Field(
+                    id: mockFieldID,
+                    ownerId: mockOwnerID,
+                    name: "Alpha Field",
+                    coordinates: [
+                        PointCoordinates(latitude: 31.5204, longitude: 74.3587),
+                        PointCoordinates(latitude: 31.5214, longitude: 74.3587),
+                        PointCoordinates(latitude: 31.5214, longitude: 74.3597),
+                        PointCoordinates(latitude: 31.5204, longitude: 74.3597)
+                    ],
+                    areaHa: 10.0,
+                    createdAt: Date(),
+                    cropType: mockCropType,
+                    plantationDate: Date().addingTimeInterval(-86400 * 30),
+                    expectedHarvestDate: Date().addingTimeInterval(86400 * 60),
+                    status: "active",
+                    ndviScore: 0.85,
+                    lastSatelliteSync: Date()
+                )
+            ]
+        }
     }
 
     func bootstrapSession() async throws -> SessionBootstrap {
@@ -62,7 +88,7 @@ class MockAgriDataRepository: AgriDataService {
     ) async throws -> Field {
         try await maybeThrow("saveField")
         try? await Task.sleep(nanoseconds: 1 * 1_000_000_000)
-        return Field(
+        let field = Field(
             id: UUID(),
             ownerId: UUID(),
             name: name,
@@ -77,12 +103,14 @@ class MockAgriDataRepository: AgriDataService {
             ndviScore: 0.85, // Mock a healthy field
             lastSatelliteSync: Date()
         )
+        mockFields.append(field)
+        return field
     }
 
     /// Mock implementation for fetching fields.
     func fetchFields(includeArchived: Bool = false) async throws -> [Field] {
         try await maybeThrow("fetchFields")
-        return []
+        return includeArchived ? mockFields : mockFields.filter { $0.status == "active" }
     }
 
 
@@ -115,6 +143,7 @@ class MockAgriDataRepository: AgriDataService {
     /// Mock implementation for deleting a field.
     func deleteField(id: UUID) async throws {
         try await maybeThrow("deleteField")
+        mockFields.removeAll { $0.id == id }
     }
 
     func refreshFieldData(for fieldId: UUID) async throws {
@@ -124,7 +153,12 @@ class MockAgriDataRepository: AgriDataService {
     func fetchDashboard(for fieldId: UUID) async throws -> DashboardSnapshot {
         try await maybeThrow("fetchDashboard")
         let fields = try await fetchFields()
-        let field = fields[0]
+        let field = fields.first ?? Field(
+            id: fieldId, ownerId: UUID(), name: "Mock Field",
+            coordinates: nil, areaHa: 10.0, createdAt: Date(),
+            cropType: "Wheat", plantationDate: nil, expectedHarvestDate: nil,
+            ndviScore: 0.8, lastSatelliteSync: Date()
+        )
         let weatherSoil = try await fetchWeatherSoil(for: fieldId)
         return DashboardSnapshot(
             field: field,
@@ -261,4 +295,6 @@ class MockAgriDataRepository: AgriDataService {
     func markNotificationRead(id: UUID) async throws -> UserNotification {
         return UserNotification(id: id, title: "Mock", body: "Mock", referenceId: nil, referenceType: nil, isRead: true, createdAt: Date())
     }
+
+    func markAllNotificationsRead() async throws {}
 }

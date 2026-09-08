@@ -3,7 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func as sa_func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.api.fields import field_readable_by
 from app.core.auth import get_current_user
@@ -17,17 +17,118 @@ from app.schemas.pydantic_schemas import SensorPairRequest, SensorPairResponse, 
 router = APIRouter(prefix="/api", tags=["Sensors"])
 
 
+def _is_staff(user: User) -> bool:
+    return user.role in ("admin", "agronomist")
+
+
 @router.get("/sensors", response_model=list[SensorResponse])
 def get_sensors(
+    owner_id: UUID | None = Query(None, description="Staff only: restrict to one farmer's hardware."),
+    field_id: UUID | None = Query(None, description="Restrict to probes assigned to one field."),
+    unassigned: bool = Query(False, description="Only probes not attached to any field."),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return (
-        db.query(Sensor)
-        .filter(Sensor.owner_id == current_user.id)
-        .order_by(Sensor.name.asc().nulls_last(), Sensor.device_id.asc())
+    """The hardware fleet.
+
+    This used to filter on `Sensor.owner_id == current_user.id` unconditionally. Sensors
+    belong to farmers, and the web portal is staff-only — so every agronomist opening the
+    IoT Hardware Fleet page saw an empty table, and any fleet counter derived from it read
+    zero. Staff now see the hardware belonging to the farmers whose fields they can read.
+    """
+    query = db.query(Sensor).options(joinedload(Sensor.owner), joinedload(Sensor.field))
+
+    if _is_staff(current_user):
+        if owner_id is not None:
+            query = query.filter(Sensor.owner_id == owner_id)
+    else:
+        query = query.filter(Sensor.owner_id == current_user.id)
+
+    if field_id is not None:
+        # Enforces read access on the field, so the filter cannot be used to enumerate
+        # hardware on a field the caller may not see.
+        field_readable_by(db, current_user, field_id)
+        query = query.filter(Sensor.field_id == field_id)
+
+    if unassigned:
+        query = query.filter(Sensor.field_id.is_(None))
+
+    return query.order_by(Sensor.name.asc().nulls_last(), Sensor.device_id.asc()).all()
+
+
+@router.get("/sensors/{device_id}/health")
+def get_sensor_health(
+    device_id: str,
+    hours: int = Query(24, ge=1, le=168),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Reporting behaviour for one probe: is it publishing, how often, and what last.
+
+    "Online" alone cannot distinguish a probe reporting every 30 seconds from one that
+    sent a single packet 59 minutes ago and died.
+    """
+    sensor = db.query(Sensor).options(joinedload(Sensor.field)).filter(Sensor.device_id == device_id).first()
+    if sensor is None:
+        raise APIError(404, "sensor_not_found", "Sensor not found.")
+    if not _is_staff(current_user) and sensor.owner_id != current_user.id:
+        raise APIError(403, "forbidden", "You can only inspect your own sensors.")
+
+    since = datetime.now(timezone.utc) - timedelta(hours=hours)
+    rows = (
+        db.query(SensorReading)
+        .filter(SensorReading.sensor_id == sensor.id, SensorReading.time >= since)
+        .order_by(SensorReading.time.desc())
+        .limit(1000)
         .all()
     )
+
+    latest = rows[0] if rows else None
+    # Median gap between consecutive packets describes the real cadence better than a mean,
+    # which one long outage would dominate.
+    gaps = [
+        (rows[i].time - rows[i + 1].time).total_seconds()
+        for i in range(len(rows) - 1)
+    ]
+    gaps = [g for g in gaps if g > 0]
+    median_gap = None
+    if gaps:
+        ordered = sorted(gaps)
+        mid = len(ordered) // 2
+        median_gap = ordered[mid] if len(ordered) % 2 else (ordered[mid - 1] + ordered[mid]) / 2
+
+    def _metric_coverage(attribute: str) -> int:
+        return sum(1 for r in rows if getattr(r, attribute, None) is not None)
+
+    return {
+        "device_id": sensor.device_id,
+        "sensor_id": str(sensor.id),
+        "field_id": str(sensor.field_id) if sensor.field_id else None,
+        "field_name": sensor.field_name,
+        "window_hours": hours,
+        "reading_count": len(rows),
+        "median_interval_seconds": median_gap,
+        "longest_gap_seconds": max(gaps) if gaps else None,
+        "first_reading_at": rows[-1].time if rows else None,
+        "last_reading_at": latest.time if latest else None,
+        "battery_level": sensor.battery_level,
+        "latest": {
+            "temperature": latest.temperature if latest else None,
+            "moisture": latest.moisture if latest else None,
+            "humidity": latest.humidity if latest else None,
+            "ph": latest.ph if latest else None,
+            "ec": latest.ec if latest else None,
+            "npk_n": latest.npk_n if latest else None,
+            "npk_p": latest.npk_p if latest else None,
+            "npk_k": latest.npk_k if latest else None,
+        } if latest else None,
+        # Which metrics this probe actually publishes, rather than which columns exist.
+        "reporting_metrics": {
+            name: _metric_coverage(name)
+            for name in ("temperature", "moisture", "humidity", "ph", "ec", "npk_n", "npk_p", "npk_k")
+            if _metric_coverage(name) > 0
+        },
+    }
 
 
 @router.get("/fields/{field_id}/sensor-readings")
@@ -126,20 +227,34 @@ async def pair_sensor(
     accepts only devices already paired to the same tenant.
     """
     await rate_limiter.check(f"sensor-pair:{current_user.firebase_uid}", 20, 3600)
+
+    # Staff install hardware for farmers. Pairing always claimed the device for the caller,
+    # so an agronomist provisioning a probe from the web portal claimed it for their own
+    # account — and since agronomists own no fields, that probe could never be assigned to
+    # anything. An explicit owner_id makes the real workflow expressible.
+    target_owner = current_user
+    if request.owner_id is not None and request.owner_id != current_user.id:
+        if not _is_staff(current_user):
+            raise APIError(403, "forbidden", "Only staff can pair hardware on behalf of another account.")
+        target_owner = db.query(User).filter(User.id == request.owner_id).first()
+        if target_owner is None:
+            raise APIError(404, "user_not_found", "That farmer account does not exist.")
+
     sensor = db.query(Sensor).filter(Sensor.device_id == request.device_id).with_for_update().first()
     if sensor is None:
         raise APIError(404, "sensor_not_found", "Sensor not found. Power it on and start the MQTT bridge, then try again.", retryable=True)
-    if sensor.owner_id not in (None, current_user.id):
+    if sensor.owner_id not in (None, target_owner.id):
         raise APIError(409, "sensor_owned_by_another_tenant", "That sensor is already paired to another account.")
 
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=settings.SENSOR_OFFLINE_CUTOFF_MINUTES)
     if sensor.last_seen is None or sensor.last_seen < cutoff:
         raise APIError(409, "sensor_not_online", "No recent sensor heartbeat was detected. Check its power and MQTT connection.", retryable=True)
 
-    sensor.owner_id = current_user.id
+    sensor.owner_id = target_owner.id
     db.commit()
     db.refresh(sensor)
-    return SensorPairResponse(message="Sensor paired and ready to assign to a field.", sensor=sensor)
+    owner_label = target_owner.email if target_owner.id != current_user.id else "your account"
+    return SensorPairResponse(message=f"Sensor paired to {owner_label} and ready to assign to a field.", sensor=sensor)
 
 
 @router.delete("/sensors/{device_id}", status_code=204)
@@ -158,7 +273,7 @@ def unpair_sensor(
     if sensor is None:
         raise APIError(404, "sensor_not_found", "Sensor not found.")
     
-    if sensor.owner_id != current_user.id:
+    if sensor.owner_id != current_user.id and not _is_staff(current_user):
         raise APIError(403, "forbidden", "You can only un-pair your own sensors.")
         
     db.delete(sensor)

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { advisoryService } from '../services/AdvisoryService';
+import type { AdvisoryCreate } from '../types';
 
 export function usePendingRecommendations() {
   return useQuery({
@@ -38,6 +39,14 @@ export function useTriggerReEvaluation() {
     onSuccess: (_, fieldId) => {
       queryClient.invalidateQueries({ queryKey: ['dashboard', fieldId] });
     }
+  });
+}
+
+export function useAnalysisRun(recommendationId: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ['advisory', 'analysis-run', recommendationId],
+    queryFn: () => recommendationId ? advisoryService.getAnalysisRun(recommendationId) : null,
+    enabled: enabled && !!recommendationId,
   });
 }
 
@@ -90,6 +99,31 @@ export function useUpdateAISettings() {
     mutationFn: (settings: any) => advisoryService.updateAISettings(settings),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings', 'ai'] });
+    },
+  });
+}
+
+export function useCheckAIHealth() {
+  return useMutation({
+    mutationFn: () => advisoryService.checkAIHealth(),
+  });
+}
+
+export function useAdvisories(fieldId: string | undefined) {
+  return useQuery({
+    queryKey: ['advisory', 'sent', fieldId],
+    queryFn: () => (fieldId ? advisoryService.getAdvisories(fieldId) : []),
+    enabled: !!fieldId,
+  });
+}
+
+export function useSendAdvisory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ fieldId, advisory }: { fieldId: string; advisory: AdvisoryCreate }) =>
+      advisoryService.sendAdvisory(fieldId, advisory),
+    onSuccess: (_, { fieldId }) => {
+      queryClient.invalidateQueries({ queryKey: ['advisory', 'sent', fieldId] });
     },
   });
 }

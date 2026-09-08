@@ -186,6 +186,34 @@ final class SettingsViewModel: ObservableObject {
         }
     }
 
+    func updateDisplayName(_ name: String) async -> Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 2 else {
+            presentError("Display name must be at least 2 characters long.")
+            return false
+        }
+        guard trimmed.count <= 80 else {
+            presentError("Display name cannot exceed 80 characters.")
+            return false
+        }
+        guard !name.contains(where: { $0.isNewline || $0 == "\t" }) else {
+            presentError("Display name cannot contain invalid control characters.")
+            return false
+        }
+
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            try await authService.updateDisplayName(trimmed)
+            profileName = trimmed
+            presentSuccess("Display name updated.")
+            return true
+        } catch {
+            presentError(error.userFacingMessage)
+            return false
+        }
+    }
+
     func linkGoogleAccount() {
         guard canLinkGoogle else { return }
         isLoading = true

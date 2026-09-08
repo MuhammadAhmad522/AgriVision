@@ -13,6 +13,10 @@ struct AIAdvisorCard: View {
     var onRetry: (() -> Void)? = nil
     var onOutcome: ((UUID, String) -> Void)? = nil
 
+    var visibleRecommendations: [FieldRecommendation] {
+        recommendations.filter { $0.expertStatus != "rejected" }
+    }
+
     var body: some View {
         GlassCard(title: "🤖 AI Field Advisor") {
             if isLoading {
@@ -22,7 +26,7 @@ struct AIAdvisorCard: View {
                         ShimmerRow()
                     }
                 }
-            } else if recommendations.isEmpty {
+            } else if visibleRecommendations.isEmpty {
                 if advisorStatus == "unavailable" {
                     AdvisorErrorState(
                         message: advisorMessage ?? "AI Advisor could not complete the latest analysis.",
@@ -53,9 +57,9 @@ struct AIAdvisorCard: View {
                             onRetry: onRetry
                         )
                     }
-                    ForEach(Array(recommendations.enumerated()), id: \.element.id) { index, rec in
+                    ForEach(Array(visibleRecommendations.enumerated()), id: \.element.id) { index, rec in
                         RecommendationRow(recommendation: rec, onOutcome: onOutcome)
-                        if index < recommendations.count - 1 {
+                        if index < visibleRecommendations.count - 1 {
                             Divider()
                                 .background(Theme.Colors.primaryLight.opacity(0.2))
                         }

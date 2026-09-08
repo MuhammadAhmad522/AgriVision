@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Eye, Layers, Maximize, Cuboid, ChevronDown } from 'lucide-react';
 import clsx from 'clsx';
-import { useFleetStore } from '../../core/store/fleetStore';
+import { useActiveField } from '../../core/hooks/useFleet';
+import { HEALTH_LEGEND } from '../../core/utils/health';
 
 interface GISToolbarProps {
   activeLayer: string;
@@ -11,11 +12,14 @@ interface GISToolbarProps {
   fitToAllFields: () => void;
 }
 
+// Only layers the backend actually serves. "False Color (NIR)" was listed here but no such
+// tile endpoint exists, so selecting it produced a blank overlay; NDWI is served and was
+// missing from the list.
 const RASTER_LAYERS = [
-  { id: 'ndvi', name: 'NDVI (Plant Health)' },
-  { id: 'evi', name: 'EVI (Enhanced Vegetation)' },
-  { id: 'truecolor', name: 'True Color (RGB)' },
-  { id: 'falsecolor', name: 'False Color (NIR)' },
+  { id: 'ndvi', name: 'NDVI (Plant Health)', hint: 'Canopy vigour' },
+  { id: 'ndwi', name: 'NDWI (Water Stress)', hint: 'Moisture in the canopy' },
+  { id: 'evi', name: 'EVI (Enhanced Vegetation)', hint: 'Vigour, less soil noise' },
+  { id: 'truecolor', name: 'True Color (RGB)', hint: 'What the eye would see' },
 ];
 
 export const GISToolbar: React.FC<GISToolbarProps> = ({ 
@@ -25,7 +29,7 @@ export const GISToolbar: React.FC<GISToolbarProps> = ({
   toggle3D, 
   fitToAllFields 
 }) => {
-  const activeField = useFleetStore(s => s.activeField);
+  const activeField = useActiveField();
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const activeRaster = RASTER_LAYERS.find(l => l.id === activeLayer);
@@ -69,16 +73,30 @@ export const GISToolbar: React.FC<GISToolbarProps> = ({
                       setDropdownOpen(false);
                     }}
                     className={clsx(
-                      "w-full text-left px-3 py-2 text-sm rounded-md transition-colors",
+                      "w-full text-left px-3 py-2 rounded-md transition-colors",
                       activeLayer === layer.id ? "bg-accent-orange/20 text-accent-orange" : "text-text-muted hover:bg-white/5 hover:text-white"
                     )}
                   >
-                    {layer.name}
+                    <span className="block text-sm">{layer.name}</span>
+                    <span className="block text-[10px] opacity-70">{layer.hint}</span>
                   </button>
                 ))}
               </div>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Health legend — the polygon colours are a triage signal, so they need a key. */}
+      <div className="absolute bottom-4 left-4 z-10 bg-[#0c1a11]/90 backdrop-blur-md border border-border-glass rounded-lg px-3 py-2.5 pointer-events-auto">
+        <p className="text-[10px] font-bold text-text-main uppercase tracking-wide mb-1.5">Field health</p>
+        <div className="flex flex-col gap-1">
+          {HEALTH_LEGEND.map((entry) => (
+            <div key={entry.band} className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: entry.color }} />
+              <span className="text-[10px] text-text-muted whitespace-nowrap">{entry.label}</span>
+            </div>
+          ))}
         </div>
       </div>
 

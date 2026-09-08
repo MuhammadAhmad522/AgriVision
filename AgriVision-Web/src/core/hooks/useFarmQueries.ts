@@ -4,6 +4,16 @@ import { fieldService } from '../services/FieldService';
 import { sensorService } from '../services/SensorService';
 import { advisoryService } from '../services/AdvisoryService';
 
+/**
+ * Refresh policy. A command centre is left open on a wall or a second monitor, so these
+ * queries refresh on their own and on window focus — previously nothing on this screen
+ * revalidated after the first load, and an agronomist could act on hours-old telemetry
+ * with nothing on screen suggesting it was old.
+ */
+const FIELD_REFRESH_MS = 5 * 60 * 1000;
+const SENSOR_REFRESH_MS = 60 * 1000; // probe liveness is the fastest-moving of the three
+const DASHBOARD_REFRESH_MS = 5 * 60 * 1000;
+
 export function useFields() {
   const { user } = useAuth();
   const isStaff = user?.role === 'admin' || user?.role === 'agronomist';
@@ -15,6 +25,9 @@ export function useFields() {
       return isStaff ? await fieldService.getAllFields() : await fieldService.getFields();
     },
     enabled: !!user,
+    staleTime: 60_000,
+    refetchInterval: FIELD_REFRESH_MS,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -27,6 +40,9 @@ export function useSensors() {
       return await sensorService.getDevices();
     },
     enabled: !!user,
+    staleTime: 30_000,
+    refetchInterval: SENSOR_REFRESH_MS,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -43,5 +59,8 @@ export function useDashboard(fieldId: string | null) {
       return dashboard;
     },
     enabled: !!fieldId,
+    staleTime: 60_000,
+    refetchInterval: DASHBOARD_REFRESH_MS,
+    refetchOnWindowFocus: true,
   });
 }

@@ -530,14 +530,22 @@ async def external_data_loop() -> None:
 
 
 async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) -> None:
-    if not _acquire_source_lock(db, field.id, "ai_analysis"):
+    field_id = field.id
+    field_name = field.name
+    crop_type = field.crop_type
+    area_ha = field.area_ha
+    plantation_date = field.plantation_date
+    expected_harvest_date = field.expected_harvest_date
+    latest_ndvi = field.latest_ndvi
+
+    if not _acquire_source_lock(db, field_id, "ai_analysis"):
         db.rollback()
         return
     if not force:
         ai_hours = _override(field, "ai_hours")
         if ai_hours:
             last_run = db.query(AIAnalysisRun.started_at).filter(
-                AIAnalysisRun.field_id == field.id,
+                AIAnalysisRun.field_id == field_id,
                 AIAnalysisRun.status == "completed",
             ).order_by(AIAnalysisRun.started_at.desc()).first()
             if last_run and last_run[0] > _utcnow() - timedelta(hours=ai_hours):
@@ -545,7 +553,7 @@ async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) ->
                 return
     stale_before = _utcnow() - timedelta(seconds=max(settings.AI_PROVIDER_TIMEOUT_SECONDS * 2, 120))
     active_run = db.query(AIAnalysisRun).filter(
-        AIAnalysisRun.field_id == field.id,
+        AIAnalysisRun.field_id == field_id,
         AIAnalysisRun.status == "running",
         AIAnalysisRun.started_at >= stale_before,
     ).first()
@@ -553,7 +561,7 @@ async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) ->
         db.rollback()
         return
     db.query(AIAnalysisRun).filter(
-        AIAnalysisRun.field_id == field.id,
+        AIAnalysisRun.field_id == field_id,
         AIAnalysisRun.status == "running",
         AIAnalysisRun.started_at < stale_before,
     ).update(
@@ -564,8 +572,8 @@ async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) ->
         },
         synchronize_session=False,
     )
-    observations = db.query(FieldObservation).filter(FieldObservation.field_id == field.id).order_by(FieldObservation.observed_at.desc()).limit(100).all()
-    sensors = db.query(Sensor).filter(Sensor.field_id == field.id).all()
+    observations = db.query(FieldObservation).filter(FieldObservation.field_id == field_id).order_by(FieldObservation.observed_at.desc()).limit(100).all()
+    sensors = db.query(Sensor).filter(Sensor.field_id == field_id).all()
     sensor_ids = [sensor.id for sensor in sensors]
     readings = [] if not sensor_ids else (
         db.query(SensorReading)
@@ -593,11 +601,11 @@ async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) ->
     }
     fresh_observations = [item for item in observations if item.expires_at is None or item.expires_at >= _utcnow()]
     latest_ndvi_observation = next((item for item in observations if item.metric == "ndvi"), None)
-    days_since_planting = max(0, (_utcnow().date() - field.plantation_date.date()).days) if field.plantation_date else None
+    days_since_planting = max(0, (_utcnow().date() - plantation_date.date()).days) if plantation_date else None
     recent_resolved = (
         db.query(FieldRecommendation)
         .filter(
-            FieldRecommendation.field_id == field.id,
+            FieldRecommendation.field_id == field_id,
             FieldRecommendation.status.in_(("implemented", "ignored")),
         )
         .order_by(FieldRecommendation.created_at.desc())
@@ -617,28 +625,28 @@ async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) ->
     ]
     agronomist_thread = (
         db.query(AIChatThread)
-        .filter(AIChatThread.field_id == field.id, AIChatThread.channel == "agronomist")
+        .filter(AIChatThread.field_id == field_id, AIChatThread.channel == "agronomist")
         .first()
     )
     agronomist_guidance = agronomist_thread.rolling_summary if agronomist_thread else None
     farmer_thread = (
         db.query(AIChatThread)
-        .filter(AIChatThread.field_id == field.id, AIChatThread.channel == "farmer")
+        .filter(AIChatThread.field_id == field_id, AIChatThread.channel == "farmer")
         .first()
     )
     farmer_reported_context = farmer_thread.rolling_summary if farmer_thread else None
     season_memory = _get_or_rotate_season_memory(db, field)
     context = {
         "field": {
-            "name": field.name,
-            "area_ha": field.area_ha,
-            "crop_type": field.crop_type,
-            "plantation_date": field.plantation_date,
-            "expected_harvest_date": field.expected_harvest_date,
+            "name": field_name,
+            "area_ha": area_ha,
+            "crop_type": crop_type,
+            "plantation_date": plantation_date,
+            "expected_harvest_date": expected_harvest_date,
             "days_since_planting": days_since_planting,
             "region": "Punjab, Pakistan",
         },
-        "latest_ndvi": field.latest_ndvi,
+        "latest_ndvi": latest_ndvi,
         "latest_ndvi_observed_at": latest_ndvi_observation.observed_at if latest_ndvi_observation else None,
         "latest_ndvi_fresh": bool(latest_ndvi_observation and latest_ndvi_observation in fresh_observations),
         "observations": [{
@@ -674,9 +682,9 @@ async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) ->
     # Count distinct evidence *types*, not raw rows: a single satellite pass emits
     # ndvi/evi/evi2 together, which would otherwise trivially satisfy "good" on its own.
     fresh_metrics = {item.metric for item in fresh_observations}
-    if field.crop_type and (len(fresh_metrics) >= 2 or (fresh_metrics and readings)):
+    if crop_type and (len(fresh_metrics) >= 2 or (fresh_metrics and readings)):
         data_quality = "good"
-    elif field.crop_type and (fresh_metrics or readings):
+    elif crop_type and (fresh_metrics or readings):
         data_quality = "limited"
     else:
         data_quality = "insufficient"
@@ -685,7 +693,7 @@ async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) ->
     fingerprint_payload = json.dumps(serializable_context, sort_keys=True, separators=(",", ":"))
     context_fingerprint = hashlib.sha256(fingerprint_payload.encode("utf-8")).hexdigest()
     duplicate = db.query(AIAnalysisRun).filter(
-        AIAnalysisRun.field_id == field.id,
+        AIAnalysisRun.field_id == field_id,
         AIAnalysisRun.status == "completed",
         AIAnalysisRun.context_fingerprint == context_fingerprint,
         AIAnalysisRun.model_name == provider.model_name,
@@ -696,7 +704,7 @@ async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) ->
         db.commit()
         return
     run = AIAnalysisRun(
-        field_id=field.id,
+        field_id=field_id,
         provider=provider.name,
         model_name=provider.model_name,
         prompt_version=settings.AI_PROMPT_VERSION,
@@ -709,6 +717,7 @@ async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) ->
     )
     db.add(run)
     db.flush()
+    run_id = run.id
     db.commit()
     db.refresh(run)
     try:
@@ -728,15 +737,22 @@ async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) ->
             ai_error_msg = str(exc)
             recommendations = []
 
+        # Check if field was deleted while AI was computing
+        field_still_exists = db.query(Field.id).filter(Field.id == field_id).first()
+        if not field_still_exists:
+            logger.info("Field %s was deleted during AI execution; discarding results.", field_id)
+            db.rollback()
+            return
+
         for item in recommendations:
             db.query(FieldRecommendation).filter(
-                FieldRecommendation.field_id == field.id,
+                FieldRecommendation.field_id == field_id,
                 FieldRecommendation.category == item["category"],
                 FieldRecommendation.status == "pending",
             ).update({"status": "superseded"}, synchronize_session=False)
             db.add(FieldRecommendation(
-                field_id=field.id,
-                analysis_run_id=run.id,
+                field_id=field_id,
+                analysis_run_id=run_id,
                 category=item["category"],
                 priority=item["priority"],
                 advice=item["advice"],
@@ -746,17 +762,19 @@ async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) ->
                 safety_level=item.get("safety_level", "guarded"),
                 requires_expert_confirmation=item.get("requires_expert_confirmation", False),
                 evidence=item.get("evidence"),
-                ndvi_at_generation=field.latest_ndvi,
+                ndvi_at_generation=latest_ndvi,
                 expires_at=_utcnow() + timedelta(days=7),
             ))
         run.status = "failed" if ai_failed else "completed"
         run.error = ai_error_msg if ai_failed else None
         run.completed_at = _utcnow()
         if not ai_failed and field_health is not None:
-            field.latest_health_score = field_health["score"]
-            field.latest_health_label = field_health["label"]
-            field.latest_health_rationale = field_health["rationale"]
-            field.latest_health_updated_at = _utcnow()
+            active_field = db.query(Field).filter(Field.id == field_id).first()
+            if active_field:
+                active_field.latest_health_score = field_health["score"]
+                active_field.latest_health_label = field_health["label"]
+                active_field.latest_health_rationale = field_health["rationale"]
+                active_field.latest_health_updated_at = _utcnow()
         db.commit()
 
         if not ai_failed and recommendations and season_memory:
@@ -767,7 +785,7 @@ async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) ->
                     recommendation_history=recommendation_history,
                     farmer_reported_context=farmer_reported_context,
                     days_since_planting=days_since_planting,
-                    crop_type=field.crop_type,
+                    crop_type=crop_type,
                 )
                 season_memory.narrative = update["narrative"]
                 if update.get("key_event"):
@@ -777,23 +795,27 @@ async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) ->
                     ]
                 db.commit()
             except Exception:
-                logger.warning("Season memory update failed field_id=%s", field.id, exc_info=True)
+                logger.warning("Season memory update failed field_id=%s", field_id, exc_info=True)
                 db.rollback()
     except asyncio.CancelledError:
-        run.status = "failed"
-        run.error = "AI analysis was interrupted and will retry."
-        run.completed_at = _utcnow()
-        db.commit()
+        if run_id:
+            run = db.query(AIAnalysisRun).filter(AIAnalysisRun.id == run_id).first()
+            if run:
+                run.status = "failed"
+                run.error = "AI analysis was interrupted and will retry."
+                run.completed_at = _utcnow()
+                db.commit()
         raise
     except Exception:
-        logger.exception("Unexpected AI analysis failure field_id=%s", field.id)
+        logger.exception("Unexpected AI analysis failure field_id=%s", field_id)
         db.rollback()
-        run = db.query(AIAnalysisRun).filter(AIAnalysisRun.id == run.id).first()
-        if run:
-            run.status = "failed"
-            run.error = "AI Advisor could not complete the analysis."
-            run.completed_at = _utcnow()
-            db.commit()
+        if run_id:
+            run = db.query(AIAnalysisRun).filter(AIAnalysisRun.id == run_id).first()
+            if run:
+                run.status = "failed"
+                run.error = "AI Advisor could not complete the analysis."
+                run.completed_at = _utcnow()
+                db.commit()
 
 
 async def run_ai_for_field_id(field_id: UUID, *, force: bool = False) -> None:
@@ -895,7 +917,32 @@ def _aggregate_sensor_readings() -> None:
             WHERE time >= date_trunc('hour', NOW()) - interval '24 hours'
               AND time < date_trunc('hour', NOW())
             GROUP BY bucket, sensor_id
-            ON CONFLICT (sensor_id, bucket) DO NOTHING
+            ON CONFLICT (sensor_id, bucket) DO UPDATE SET
+                temperature_avg = EXCLUDED.temperature_avg,
+                temperature_min = EXCLUDED.temperature_min,
+                temperature_max = EXCLUDED.temperature_max,
+                moisture_avg = EXCLUDED.moisture_avg,
+                moisture_min = EXCLUDED.moisture_min,
+                moisture_max = EXCLUDED.moisture_max,
+                humidity_avg = EXCLUDED.humidity_avg,
+                humidity_min = EXCLUDED.humidity_min,
+                humidity_max = EXCLUDED.humidity_max,
+                ph_avg = EXCLUDED.ph_avg,
+                ph_min = EXCLUDED.ph_min,
+                ph_max = EXCLUDED.ph_max,
+                ec_avg = EXCLUDED.ec_avg,
+                ec_min = EXCLUDED.ec_min,
+                ec_max = EXCLUDED.ec_max,
+                npk_n_avg = EXCLUDED.npk_n_avg,
+                npk_n_min = EXCLUDED.npk_n_min,
+                npk_n_max = EXCLUDED.npk_n_max,
+                npk_p_avg = EXCLUDED.npk_p_avg,
+                npk_p_min = EXCLUDED.npk_p_min,
+                npk_p_max = EXCLUDED.npk_p_max,
+                npk_k_avg = EXCLUDED.npk_k_avg,
+                npk_k_min = EXCLUDED.npk_k_min,
+                npk_k_max = EXCLUDED.npk_k_max,
+                reading_count = EXCLUDED.reading_count
         """))
         db.commit()
     except Exception:
@@ -910,9 +957,9 @@ def _purge_raw_readings() -> None:
         result = db.execute(
             text("""
                 DELETE FROM sensor_readings sr
-                USING sensors s, fields f
+                USING sensors s
+                LEFT JOIN fields f ON s.field_id = f.id
                 WHERE sr.sensor_id = s.id
-                  AND s.field_id = f.id
                   AND sr.time < NOW() - COALESCE(
                     (f.interval_overrides->>'retention_days')::int * interval '1 day',
                     interval '14 days'

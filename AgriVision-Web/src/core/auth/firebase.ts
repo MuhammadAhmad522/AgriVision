@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, browserLocalPersistence, setPersistence } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, browserLocalPersistence, setPersistence, onIdTokenChanged } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: "AIzaSyA36wGrvCZLvKS7_l395Uq1ngWhivfIpaQ",
@@ -16,3 +16,18 @@ export const googleProvider = new GoogleAuthProvider();
 
 // Avoid IndexedDB 'Database is closed/hidden' errors in incognito/strict browsers
 setPersistence(auth, browserLocalPersistence).catch(console.error);
+
+let cachedIdToken: string | null = null;
+onIdTokenChanged(auth, async (user) => {
+  if (user) {
+    try {
+      cachedIdToken = await user.getIdToken();
+    } catch {
+      cachedIdToken = null;
+    }
+  } else {
+    cachedIdToken = null;
+  }
+});
+
+export const getCachedAuthToken = (): string | null => cachedIdToken;

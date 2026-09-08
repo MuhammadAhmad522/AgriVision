@@ -1,21 +1,44 @@
 import React from 'react';
-import { Layers, Activity, Droplet, Thermometer, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Layers, Activity, Droplet, Thermometer, ChevronRight, ChevronLeft, Satellite, CloudSun, AlertTriangle } from 'lucide-react';
 import { GlassCard } from '../ui/GlassCard';
-import { useFleetStore } from '../../core/store/fleetStore';
-import { useIoTStore } from '../../core/store/iotStore';
+import { useActiveField, useActiveClient, useActiveDashboard } from '../../core/hooks/useFleet';
 import { useUIStore } from '../../core/store/uiStore';
+import { healthPresentation } from '../../core/utils/health';
 import clsx from 'clsx';
 
+/** Human-readable age, so a reviewer can judge whether a reading is worth acting on. */
+function relativeAge(iso?: string): string | null {
+  if (!iso) return null;
+  const ms = Date.now() - new Date(iso).getTime();
+  if (Number.isNaN(ms)) return null;
+  const hours = Math.floor(ms / 3_600_000);
+  if (hours < 1) return 'under an hour ago';
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
 export const GISInspectorDrawer: React.FC = () => {
-  const activeField = useFleetStore(s => s.activeField);
-  const activeClient = useFleetStore(s => s.activeClient);
-  const dashboardData = useIoTStore(s => s.dashboardData);
+  const activeField = useActiveField();
+  const activeClient = useActiveClient();
+  const { dashboard: dashboardData } = useActiveDashboard();
   const isInspectorOpen = useUIStore(s => s.isInspectorOpen);
   const setInspectorOpen = useUIStore(s => s.setInspectorOpen);
 
   const moisture = dashboardData?.sources.soil.data?.moisture;
   const soilTemp = dashboardData?.sources.soil.data?.surface_temp_c;
-  const ndviStats = dashboardData?.sources.satellite.data?.statistics?.ndvi;
+  const satellite = dashboardData?.sources.satellite;
+  const ndviStats = satellite?.data?.statistics?.ndvi;
+  const health = healthPresentation(activeField?.latest_health_score);
+  const sceneAge = relativeAge(satellite?.data?.acquired_at);
+  const cloud = satellite?.data?.cloud_percent;
+  // A scene that is old or heavily clouded is weak evidence — say so rather than letting a
+  // stale raster be read as today's field condition.
+  const sceneIsWeak = (cloud !== undefined && cloud > 30)
+    || (!!satellite?.data?.acquired_at && Date.now() - new Date(satellite.data.acquired_at).getTime() > 7 * 86_400_000);
+  const pendingReviews = (dashboardData?.recommendations || []).filter(
+    (r) => r.requires_expert_confirmation && r.expert_status === 'pending'
+  ).length;
 
   return (
     <div 
@@ -40,13 +63,47 @@ export const GISInspectorDrawer: React.FC = () => {
               <h2 className="text-xl font-heading font-bold text-white mb-1">{activeField.name}</h2>
               <div className="flex flex-col gap-1 text-sm text-text-muted">
                 <span className="bg-white/10 px-2 py-0.5 rounded-full inline-block w-max text-xs">
-                  {activeField.crop_type} • {activeField.area_ha} ha
+                  {activeField.crop_type} • {Number.isFinite(activeField.area_ha) ? `${activeField.area_ha.toFixed(2)} ha` : 'area unknown'}
                 </span>
-                {activeField.owner_email && (
-                  <span className="text-accent-cyan mt-1 text-xs">Owner: {activeField.owner_email}</span>
+                {(activeField.owner_name || activeField.owner_email) && (
+                  <span className="text-accent-cyan mt-1 text-xs" title={activeField.owner_email || undefined}>
+                    Owner: {activeField.owner_name || activeField.owner_email}
+                  </span>
                 )}
               </div>
             </div>
+
+            {/* Health verdict — the reason an agronomist opened this field at all. */}
+            <GlassCard className="p-4 flex flex-col gap-2" style={{ borderColor: `${health.color}55` }}>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-text-muted">AI field health</span>
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: `${health.color}22`, color: health.color }}>
+                  {health.label}
+                </span>
+              </div>
+              <div className="flex items-end gap-2">
+                <span className="text-3xl font-extrabold" style={{ color: health.color }}>
+                  {activeField.latest_health_score !== undefined && activeField.latest_health_score !== null
+                    ? activeField.latest_health_score.toFixed(0)
+                    : '--'}
+                </span>
+                {activeField.latest_health_score !== undefined && activeField.latest_health_score !== null && (
+                  <span className="text-xs text-text-muted mb-1">/ 100</span>
+                )}
+              </div>
+              {activeField.latest_health_rationale && (
+                <p className="text-[11px] text-text-muted leading-relaxed">{activeField.latest_health_rationale}</p>
+              )}
+              {relativeAge(activeField.latest_health_updated_at) && (
+                <p className="text-[10px] text-text-dim">Assessed {relativeAge(activeField.latest_health_updated_at)}</p>
+              )}
+              {pendingReviews > 0 && (
+                <div className="flex items-center gap-1.5 text-[11px] text-accent-orange mt-1">
+                  <AlertTriangle size={12} />
+                  {pendingReviews} recommendation{pendingReviews > 1 ? 's' : ''} awaiting your review
+                </div>
+              )}
+            </GlassCard>
 
             <GlassCard className="p-4 flex flex-col gap-3 border-accent-lime/20">
               <div className="flex items-center gap-2 text-text-main font-semibold border-b border-border-subtle pb-2">
@@ -75,14 +132,49 @@ export const GISInspectorDrawer: React.FC = () => {
             </GlassCard>
 
             <GlassCard className="p-4">
-               <h3 className="text-sm font-semibold text-text-main mb-3">Zonal Analysis</h3>
+               <div className="flex items-center gap-2 mb-3">
+                 <Satellite size={14} className="text-accent-cyan" />
+                 <h3 className="text-sm font-semibold text-text-main">Zonal Analysis</h3>
+               </div>
                <div className="flex justify-between items-end border-b border-white/5 pb-2">
                  <span className="text-xs text-text-muted">Mean NDVI</span>
-                 <span className="text-accent-orange font-bold font-mono">{ndviStats?.mean?.toFixed(2) || '0.74'}</span>
+                 {/* No invented fallback: an unavailable statistic reads as unavailable. */}
+                 <span className="text-accent-cyan font-bold font-mono">
+                   {ndviStats?.mean !== undefined ? ndviStats.mean.toFixed(2) : '--'}
+                 </span>
                </div>
-               <div className="flex justify-between items-end pt-2">
+               <div className="flex justify-between items-end pt-2 pb-2 border-b border-white/5">
                  <span className="text-xs text-text-muted">Std Dev</span>
-                 <span className="text-white font-mono">{ndviStats?.std?.toFixed(4) || '0.0012'}</span>
+                 <span className="text-white font-mono">
+                   {ndviStats?.std !== undefined ? ndviStats.std.toFixed(4) : '--'}
+                 </span>
+               </div>
+
+               {/* Scene provenance: NDVI is only as trustworthy as the image behind it. */}
+               <div className="flex flex-col gap-1 pt-2.5">
+                 <div className="flex justify-between items-center">
+                   <span className="text-xs text-text-muted flex items-center gap-1">
+                     <CloudSun size={12} /> Cloud cover
+                   </span>
+                   <span className="text-xs font-mono text-white">
+                     {cloud !== undefined ? `${cloud.toFixed(0)}%` : '--'}
+                   </span>
+                 </div>
+                 <div className="flex justify-between items-center">
+                   <span className="text-xs text-text-muted">Scene captured</span>
+                   <span className="text-xs font-mono text-white">{sceneAge ?? '--'}</span>
+                 </div>
+                 {sceneIsWeak && (
+                   <p className="text-[10px] text-accent-orange leading-relaxed mt-1.5 flex items-start gap-1">
+                     <AlertTriangle size={11} className="shrink-0 mt-0.5" />
+                     Imagery is stale or heavily clouded — treat this NDVI as weak evidence.
+                   </p>
+                 )}
+                 {!satellite?.data && (
+                   <p className="text-[10px] text-text-dim mt-1">
+                     {satellite?.message || 'No satellite scene available for this field yet.'}
+                   </p>
+                 )}
                </div>
             </GlassCard>
           </div>

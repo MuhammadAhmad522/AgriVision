@@ -95,7 +95,7 @@ def _clean_data():
     try:
         for t in ("field_recommendations", "ai_analysis_runs", "field_season_memories",
                    "ai_chat_threads", "sensor_readings",
-                   "sensors", "field_observations", "fields", "users"):
+                   "sensors", "field_observations", "fields", "invitations", "users"):
             # field_season_memories/ai_chat_threads are real migrated tables (not part of
             # _CREATE_TABLES above), guard in case a given DB snapshot predates them.
             if not engine.dialect.has_table(db.connection(), t):

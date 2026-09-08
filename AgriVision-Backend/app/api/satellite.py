@@ -6,7 +6,10 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from app.api.fields import owned_field
+from app.api.fields import field_readable_by
+
+# Staff-readable authorization check for satellite endpoints
+owned_field = field_readable_by
 from app.core.auth import get_current_user
 from app.core.config import settings
 from app.core.errors import APIError

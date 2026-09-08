@@ -16,14 +16,20 @@ from app.models.db_models import Field, Sensor, SensorReading, SensorReadingHour
 
 @pytest.fixture(autouse=True)
 def _clean():
+    def do_delete():
+        db = SessionLocal()
+        try:
+            for t in ("sensor_readings_hourly", "sensor_readings", "sensors", "fields", "invitations", "users"):
+                db.execute(text(f"DELETE FROM {t}"))
+            db.commit()
+        except Exception:
+            db.rollback()
+        finally:
+            db.close()
+
+    do_delete()
     yield
-    db = SessionLocal()
-    try:
-        for t in ("sensor_readings_hourly", "sensor_readings", "sensors", "fields", "users"):
-            db.execute(text(f"DELETE FROM {t}"))
-        db.commit()
-    finally:
-        db.close()
+    do_delete()
 
 
 def _seed_sensor_data():

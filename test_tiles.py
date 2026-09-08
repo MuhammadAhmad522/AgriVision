@@ -21,4 +21,5 @@ async def test_tiles():
             resp = await client.get(f"/api/fields/{field_id}/satellite/latest/tile/{layer}/12/12/12")
             print(f"{layer}: {resp.status_code}")
 
-asyncio.run(test_tiles())
+if __name__ == "__main__":
+    asyncio.run(test_tiles())

@@ -4,9 +4,19 @@ import { GlassCard } from '../components/ui/GlassCard';
 import { CheckCircle2, ShieldCheck, Lock, User, AlertCircle, ArrowRight } from 'lucide-react';
 import { auth } from '../core/auth/firebase';
 import { isSignInWithEmailLink } from 'firebase/auth';
+import { useToast } from '../core/ui/toast';
+import {
+  normalizeEmail,
+  isValidEmail,
+  cleanDisplayName,
+  isValidDisplayName,
+  checkPassword,
+  describeError,
+} from '../core/utils/sanitize';
 
 export const InviteAcceptView: React.FC = () => {
   const { completeSignInWithLink, registerInvitedUser, initialLoad } = useAuth();
+  const toast = useToast();
   
   const [step, setStep] = useState<'verifying' | 'prompt_email' | 'set_password' | 'success' | 'error'>('verifying');
   const [email, setEmail] = useState<string>('');
@@ -57,12 +67,9 @@ export const InviteAcceptView: React.FC = () => {
 
   const handleManualEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmedEmail = email.trim();
-    if (!trimmedEmail) return;
-
-    // Simple robust regex for email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(trimmedEmail)) {
+    const cleanEmail = normalizeEmail(email);
+    setEmail(cleanEmail);
+    if (!isValidEmail(cleanEmail)) {
       setErrorMessage('Please enter a valid email address.');
       return;
     }
@@ -70,14 +77,14 @@ export const InviteAcceptView: React.FC = () => {
     setLoading(true);
     setErrorMessage(null);
     try {
-      if (auth.currentUser && auth.currentUser.email === trimmedEmail) {
+      if (auth.currentUser && auth.currentUser.email === cleanEmail) {
         setStep('set_password');
         return;
       }
-      await completeSignInWithLink(trimmedEmail, window.location.href);
+      await completeSignInWithLink(cleanEmail, window.location.href);
       setStep('set_password');
     } catch (err: any) {
-      setErrorMessage(err.message || 'Could not verify link with this email.');
+      setErrorMessage(describeError(err, 'Could not verify the link with this email.'));
     } finally {
       setLoading(false);
     }
@@ -85,35 +92,36 @@ export const InviteAcceptView: React.FC = () => {
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmedName = displayName.trim();
-    const trimmedPassword = password.trim();
-    const trimmedConfirm = confirmPassword.trim();
+    const name = cleanDisplayName(displayName);
+    setDisplayName(name);
 
-    if (!trimmedName) {
+    if (!name) {
       setErrorMessage('Please enter your full name.');
       return;
     }
-    if (trimmedPassword.length < 8) {
-      setErrorMessage('Password must be at least 8 characters long.');
+    if (!isValidDisplayName(name)) {
+      setErrorMessage('Name must be 2–80 letters, spaces, hyphens, apostrophes or periods.');
       return;
     }
-    if (trimmedPassword !== trimmedConfirm) {
-      setErrorMessage('Passwords do not match.');
+    const pw = checkPassword(password, confirmPassword);
+    if (!pw.ok) {
+      setErrorMessage(pw.reason ?? 'Please choose a valid password.');
       return;
     }
 
     setLoading(true);
     setErrorMessage(null);
     try {
-      const profile = await registerInvitedUser(trimmedName, trimmedPassword);
+      const profile = await registerInvitedUser(name, password);
       setAssignedRole(profile.role);
       setStep('success');
+      toast.success('Account activated. Redirecting…');
       setTimeout(() => {
         window.location.href = '/';
       }, 2000);
     } catch (err: any) {
       console.error("Registration failed", err);
-      setErrorMessage(err.message || 'Failed to complete registration.');
+      setErrorMessage(describeError(err, 'Failed to complete registration.'));
     } finally {
       setLoading(false);
     }
@@ -166,6 +174,7 @@ export const InviteAcceptView: React.FC = () => {
                   <input
                     type="email"
                     required
+                    maxLength={254}
                     placeholder="agronomist@agrivision.ai"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -209,6 +218,7 @@ export const InviteAcceptView: React.FC = () => {
                   <input
                     type="text"
                     required
+                    maxLength={80}
                     placeholder="e.g. Dr. Tariq Mahmood"
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
@@ -224,6 +234,7 @@ export const InviteAcceptView: React.FC = () => {
                   <input
                     type="password"
                     required
+                    maxLength={128}
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -239,6 +250,7 @@ export const InviteAcceptView: React.FC = () => {
                   <input
                     type="password"
                     required
+                    maxLength={128}
                     placeholder="••••••••"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}

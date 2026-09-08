@@ -67,7 +67,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertNotNil(vm.successMessage)
     }
 
-    func test_setRefreshInterval_disallowed_fallsBackTo30() {
+    func test_setRefreshInterval_disallowed_fallsBackToDefault() {
         let prefs = MockPreferencesService()
         prefs.dashboardRefreshInterval = 15
         let vm = SettingsViewModel(
@@ -76,8 +76,8 @@ final class SettingsViewModelTests: XCTestCase {
             preferencesService: prefs
         )
         vm.setRefreshInterval(99)
-        XCTAssertEqual(vm.refreshInterval, 30)
-        XCTAssertEqual(prefs.dashboardRefreshInterval, 30)
+        XCTAssertEqual(vm.refreshInterval, UserDefaultsPreferencesService.defaultRefreshInterval)
+        XCTAssertEqual(prefs.dashboardRefreshInterval, UserDefaultsPreferencesService.defaultRefreshInterval)
     }
 
     func test_updateDisplayName_success() async {

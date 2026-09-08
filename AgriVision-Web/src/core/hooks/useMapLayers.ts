@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as maplibregl from 'maplibre-gl';
-import type { Field, SensorDevice } from '../types';
+import type { DashboardPayload, Field, SensorDevice } from '../types';
+import { healthPresentation } from '../utils/health';
 
 interface UseMapLayersOptions {
   mapInstance: React.MutableRefObject<maplibregl.Map | null>;
@@ -10,6 +11,18 @@ interface UseMapLayersOptions {
   sensors: SensorDevice[];
   activeLayer: string;
   fitToAllFields: () => void;
+  /** Dashboard for the active field — carries the cache-busted raster tile templates. */
+  dashboardData: DashboardPayload | null;
+}
+
+/** Centroid of a field's boundary, used to place labels and sensor pins. */
+function fieldCentroid(field: Field): [number, number] | null {
+  const points = (field.coordinates || [])
+    .map((c) => [c.lng ?? c.longitude, c.lat ?? c.latitude])
+    .filter((p): p is [number, number] => typeof p[0] === 'number' && typeof p[1] === 'number');
+  if (points.length === 0) return null;
+  const sum = points.reduce((acc, p) => [acc[0] + p[0], acc[1] + p[1]], [0, 0]);
+  return [sum[0] / points.length, sum[1] / points.length];
 }
 
 export function useMapLayers({
@@ -19,7 +32,8 @@ export function useMapLayers({
   activeField,
   sensors,
   activeLayer,
-  fitToAllFields
+  fitToAllFields,
+  dashboardData
 }: UseMapLayersOptions) {
   const markersRef = useRef<maplibregl.Marker[]>([]);
 
@@ -40,8 +54,10 @@ export function useMapLayers({
          coords.push([...coords[0]]);
       }
       
-      const ndviColor = (f.ndvi_score || 0.7) > 0.7 ? '#568c48' : (f.ndvi_score || 0.7) > 0.4 ? '#fb923c' : '#f87171';
-      
+      // Triage colour comes from the AI's holistic health score, not raw NDVI, and an
+      // unscored field reads grey rather than green.
+      const health = healthPresentation(f.latest_health_score);
+
       let minLng = coords[0][0], maxLng = coords[0][0];
       let minLat = coords[0][1], maxLat = coords[0][1];
       coords.forEach(c => {
@@ -56,13 +72,18 @@ export function useMapLayers({
       // Create HTML marker for the crop label only if not in pure satellite mode
       if (activeLayer !== 'satellite') {
         const el = document.createElement('div');
-        el.className = 'px-2 py-1 rounded bg-black/60 text-white text-xs font-bold whitespace-nowrap shadow-md backdrop-blur-sm pointer-events-none border border-white/20';
-        el.textContent = f.crop_type;
-        
+        el.className = 'px-2 py-1 rounded bg-black/60 text-white text-xs font-bold whitespace-nowrap shadow-md backdrop-blur-sm pointer-events-none border border-white/20 flex items-center gap-1.5';
+        const dot = document.createElement('span');
+        dot.style.cssText = `width:7px;height:7px;border-radius:9999px;background:${health.color};display:inline-block;flex:none;`;
+        const text = document.createElement('span');
+        text.textContent = `${f.name} · ${health.label}`;
+        el.appendChild(dot);
+        el.appendChild(text);
+
         const marker = new maplibregl.Marker({ element: el })
           .setLngLat([centerLng, centerLat])
           .addTo(map);
-        
+
         markersRef.current.push(marker);
       }
 
@@ -72,7 +93,7 @@ export function useMapLayers({
           id: f.id,
           name: f.name,
           crop: f.crop_type,
-          color: ndviColor,
+          color: health.color,
           isActive: f.id === activeField?.id
         },
         geometry: {
@@ -91,25 +112,27 @@ export function useMapLayers({
         fitToAllFields();
       }
       
-      // Toggle paint properties for 'clean 3D satellite view'
-      if (activeLayer === 'satellite') {
-        if (map.getLayer('fields-fill')) map.setPaintProperty('fields-fill', 'fill-opacity', 0.01);
-        if (map.getLayer('fields-outline')) {
-          map.setPaintProperty('fields-outline', 'line-dasharray', [1, 0]);
-          map.setPaintProperty('fields-outline', 'line-opacity', ['case', ['boolean', ['get', 'isActive'], false], 1, 0.6]);
-          map.setPaintProperty('fields-outline', 'line-color', '#f59e0b'); // Amber
-          map.setPaintProperty('fields-outline', 'line-width', ['case', ['boolean', ['get', 'isActive'], false], 4, 2]);
-        }
-        if (map.getLayer('sensors')) map.setLayoutProperty('sensors', 'visibility', 'none');
-      } else {
-        if (map.getLayer('fields-fill')) map.setPaintProperty('fields-fill', 'fill-opacity', ['case', ['boolean', ['get', 'isActive'], false], 0.35, 0.15]);
-        if (map.getLayer('fields-outline')) {
-          map.setPaintProperty('fields-outline', 'line-dasharray', [1, 0]);
-          map.setPaintProperty('fields-outline', 'line-opacity', ['case', ['boolean', ['get', 'isActive'], false], 1, 0.6]);
-          map.setPaintProperty('fields-outline', 'line-color', '#f59e0b'); // Amber
-          map.setPaintProperty('fields-outline', 'line-width', ['case', ['boolean', ['get', 'isActive'], false], 4, 2]);
-        }
-        if (map.getLayer('sensors')) map.setLayoutProperty('sensors', 'visibility', 'visible');
+      // The health choropleth is the point of the fleet view, so it stays visible over
+      // satellite imagery too — just lighter, so the underlying imagery is still readable.
+      // Outlines carry the health colour in both modes rather than a fixed amber, so a
+      // field's condition is legible at a glance without opening it.
+      if (map.getLayer('fields-fill')) {
+        map.setPaintProperty(
+          'fields-fill',
+          'fill-opacity',
+          activeLayer === 'satellite'
+            ? ['case', ['boolean', ['get', 'isActive'], false], 0.30, 0.18]
+            : ['case', ['boolean', ['get', 'isActive'], false], 0.45, 0.28]
+        );
+      }
+      if (map.getLayer('fields-outline')) {
+        map.setPaintProperty('fields-outline', 'line-dasharray', [1, 0]);
+        map.setPaintProperty('fields-outline', 'line-opacity', ['case', ['boolean', ['get', 'isActive'], false], 1, 0.75]);
+        map.setPaintProperty('fields-outline', 'line-color', ['get', 'color']);
+        map.setPaintProperty('fields-outline', 'line-width', ['case', ['boolean', ['get', 'isActive'], false], 4, 2]);
+      }
+      if (map.getLayer('sensors')) {
+        map.setLayoutProperty('sensors', 'visibility', activeLayer === 'satellite' ? 'none' : 'visible');
       }
     }
   }, [fields, activeField, mapLoaded, fitToAllFields, mapInstance, activeLayer]);
@@ -139,12 +162,21 @@ export function useMapLayers({
       map.fitBounds(bounds, { padding: { top: 80, bottom: 80, left: 80, right: 400 }, maxZoom: 16, duration: 1500 });
 
       // If not standard satellite, add raster source
-      if (activeLayer !== 'satellite') {
+      const satelliteData = dashboardData?.sources?.satellite?.data;
+      const tileTemplate = activeLayer === 'ndvi' ? satelliteData?.ndvi_tile_url
+        : activeLayer === 'ndwi' ? satelliteData?.ndwi_tile_url
+        : activeLayer === 'evi' ? satelliteData?.evi_tile_url
+        : activeLayer === 'truecolor' ? satelliteData?.truecolor_tile_url
+        : undefined;
+
+      if (activeLayer !== 'satellite' && tileTemplate) {
         const envUrl = import.meta.env.VITE_API_URL;
-        const baseUrl = envUrl !== undefined ? envUrl : 'http://localhost:8000';
+        const baseUrl = envUrl !== undefined ? envUrl : 'http://127.0.0.1:8000';
+        // Template already includes the `?v=<scene timestamp>` cache-buster, so a newly
+        // acquired scene actually replaces the previously cached tiles.
         map.addSource(sourceId, {
           type: 'raster',
-          tiles: [`${baseUrl}/api/fields/${activeField.id}/satellite/latest/tile/${activeLayer}/{z}/{x}/{y}`],
+          tiles: [`${baseUrl}${tileTemplate}`],
           tileSize: 256,
           maxzoom: 14,
           bounds: [bounds.getWest() - 0.05, bounds.getSouth() - 0.05, bounds.getEast() + 0.05, bounds.getNorth() + 0.05]
@@ -161,31 +193,35 @@ export function useMapLayers({
         }, 'fields-outline'); // Insert below outlines
       }
     }
-  }, [activeField, activeLayer, mapLoaded, mapInstance]);
+  }, [activeField, activeLayer, mapLoaded, mapInstance, dashboardData]);
 
   // Update sensor markers
   useEffect(() => {
     const map = mapInstance.current;
     if (!map || !mapLoaded) return;
 
-    const activeSensors = activeField ? sensors.filter(s => s.field_id === activeField.id) : sensors;
-    
-    const features = activeSensors.map(s => {
-      let coord = [74.3587, 31.5204];
-      if (activeField && activeField.coordinates.length > 0) {
-        const first = activeField.coordinates[0];
-        coord = [first.lng ?? first.longitude ?? 0, first.lat ?? first.latitude ?? 0];
-      }
-      return {
+    // Sensors have no stored latitude/longitude, so an exact pin would be a fabricated
+    // position. Until the hardware reports real coordinates, each sensor is drawn at the
+    // centroid of the field it is assigned to — an honest "somewhere in this field" marker
+    // rather than a false precise location on a boundary corner.
+    const fieldsById = new Map(fields.map((f) => [f.id, f]));
+    const activeSensors = (activeField ? sensors.filter(s => s.field_id === activeField.id) : sensors)
+      .filter((s) => s.field_id && fieldsById.has(s.field_id));
+
+    const features = activeSensors.flatMap(s => {
+      const parent = fieldsById.get(s.field_id as string);
+      const centroid = parent ? fieldCentroid(parent) : null;
+      if (!centroid) return [];
+      return [{
         type: 'Feature',
-        properties: { id: s.id, name: s.name },
-        geometry: { type: 'Point', coordinates: coord }
-      };
+        properties: { id: s.id, name: s.name ?? s.device_id },
+        geometry: { type: 'Point', coordinates: centroid }
+      }];
     });
 
     const source = map.getSource('sensors') as maplibregl.GeoJSONSource;
     if (source) {
       source.setData({ type: 'FeatureCollection', features: features as any });
     }
-  }, [sensors, activeField, mapLoaded, mapInstance]);
+  }, [sensors, fields, activeField, mapLoaded, mapInstance]);
 }

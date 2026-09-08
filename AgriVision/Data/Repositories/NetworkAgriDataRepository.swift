@@ -186,6 +186,10 @@ final class NetworkAgriDataRepository: AgriDataService {
     func markNotificationRead(id: UUID) async throws -> UserNotification {
         return try await apiClient.send("/api/notifications/\(id)/read", method: "POST")
     }
+
+    func markAllNotificationsRead() async throws {
+        try await apiClient.sendWithoutResponse("/api/notifications/read-all", method: "POST")
+    }
 }
 
 private struct FieldCreateRequest: Encodable {

@@ -721,6 +721,10 @@ def get_ai_provider(db: Any | None = None) -> AIProvider:
             mode = val.get("mode", mode)
             model_name = val.get("model", model_name)
 
+    # "paid" is a legacy alias for the Vertex AI enterprise path.
+    if mode == "paid":
+        mode = "vertex"
+
     current_config = {
         "mode": mode,
         "model": model_name,
@@ -749,7 +753,10 @@ def get_ai_provider(db: Any | None = None) -> AIProvider:
             if not api_key:
                 _provider = UnavailableAIProvider()
             else:
-                client = genai.Client(api_key=api_key)
+                # Explicit vertexai=False: the google-genai SDK otherwise honors the
+                # GOOGLE_GENAI_USE_VERTEXAI=true env var and routes the API key through the
+                # Vertex endpoint, which rejects it with 401 "API keys are not supported".
+                client = genai.Client(api_key=api_key, vertexai=False)
                 _provider = GeminiAIProvider(client, model_name, CuratedKnowledgeProvider())
                 
         _provider_config = current_config

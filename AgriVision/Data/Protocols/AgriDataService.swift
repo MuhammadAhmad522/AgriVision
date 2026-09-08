@@ -24,6 +24,7 @@ protocol AgriDataService {
     func fetchWeatherSoil(for fieldId: UUID) async throws -> FieldWeatherSoil
     func fetchNotifications() async throws -> [UserNotification]
     func markNotificationRead(id: UUID) async throws -> UserNotification
+    func markAllNotificationsRead() async throws
 }
 
 extension AgriDataService {

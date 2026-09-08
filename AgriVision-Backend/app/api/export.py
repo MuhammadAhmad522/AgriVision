@@ -9,7 +9,10 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func as sa_func
 from sqlalchemy.orm import Session
 
-from app.api.fields import owned_field
+from app.api.fields import field_readable_by
+
+# Staff-readable authorization check for export endpoints
+owned_field = field_readable_by
 from app.core.auth import get_current_user
 from app.database import get_db
 from app.models.db_models import (
@@ -63,8 +66,9 @@ def export_sensor_readings(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    owned_field(db, current_user, field_id)
-    sensor_ids = [row[0] for row in db.query(Sensor.id).filter(Sensor.field_id == field_id, Sensor.owner_id == current_user.id).all()]
+    field = owned_field(db, current_user, field_id)
+    owner_id = getattr(field, "owner_id", current_user.id) or current_user.id
+    sensor_ids = [row[0] for row in db.query(Sensor.id).filter(Sensor.field_id == field_id, Sensor.owner_id == owner_id).all()]
     if not sensor_ids:
         return _csv_stream(["sensor_id", "time", "no_data"], iter([]))
 

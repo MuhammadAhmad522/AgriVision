@@ -33,6 +33,9 @@ class User(Base):
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     firebase_uid = Column(String(128), unique=True, index=True, nullable=False)
     email = Column(String(320), unique=True, index=True)
+    # Human-readable name from the Firebase profile ("name" claim). Nullable: not every
+    # account has set one. UI falls back to email when this is absent.
+    display_name = Column(String(255), nullable=True)
     role = Column(Enum(UserRole, name="userrole", create_type=False), nullable=False, default=UserRole.mobile_user)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
@@ -124,6 +127,20 @@ class Sensor(Base):
     last_seen = Column(DateTime(timezone=True))
 
     field = relationship("Field", back_populates="sensors")
+    owner = relationship("User")
+
+    @property
+    def owner_email(self) -> str | None:
+        return self.owner.email if self.owner else None
+
+    @property
+    def owner_name(self) -> str | None:
+        value = self.owner.display_name if self.owner else None
+        return value if isinstance(value, str) else None
+
+    @property
+    def field_name(self) -> str | None:
+        return self.field.name if self.field else None
 
 
 class SensorReading(Base):
@@ -223,8 +240,18 @@ class FieldRecommendation(Base):
     outcome = Column(String(20))
     outcome_notes = Column(Text)
     outcome_at = Column(DateTime(timezone=True))
+    # Audit trail for expert_validate: who made the approve/reject call, and when. A
+    # recommendation that can gate a chemical intervention must have a reviewer of record.
+    reviewed_by_id = Column(PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+    reviewed_at = Column(DateTime(timezone=True))
 
     field = relationship("Field", back_populates="recommendations")
+    analysis_run = relationship("AIAnalysisRun")
+    reviewed_by = relationship("User", foreign_keys=[reviewed_by_id])
+
+    @property
+    def reviewed_by_email(self) -> str | None:
+        return self.reviewed_by.email if self.reviewed_by else None
 
 
 class AIChatThread(Base):
@@ -402,7 +429,26 @@ class UserNotification(Base):
     is_read = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    user = relationship("User")
+    # Which field the advice concerns. A farmer with several fields cannot act on a
+    # message that does not say where.
+    field_id = Column(PG_UUID(as_uuid=True), ForeignKey("fields.id", ondelete="CASCADE"), index=True, nullable=True)
+    # The staff member who sent it. Advice that can gate a chemical intervention must be
+    # attributable; SET NULL keeps the message when the account is removed.
+    created_by_id = Column(PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    priority = Column(String(20), nullable=False, default="normal", server_default="normal")
+    category = Column(String(50), nullable=False, default="system", server_default="system")
+
+    user = relationship("User", foreign_keys=[user_id])
+    created_by = relationship("User", foreign_keys=[created_by_id])
+    field = relationship("Field")
+
+    @property
+    def created_by_email(self) -> str | None:
+        return self.created_by.email if self.created_by else None
+
+    @property
+    def field_name(self) -> str | None:
+        return self.field.name if self.field else None
 
 
 class SystemSettings(Base):

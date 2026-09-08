@@ -1,18 +1,20 @@
 import React, { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { useFleetStore, selectFilteredFields } from '../core/store/fleetStore';
-import { useIoTStore } from '../core/store/iotStore';
+import { useFleetStore } from '../core/store/fleetStore';
+import { useVisibleFields, useActiveField, useFleetSensors, useActiveDashboard } from '../core/hooks/useFleet';
 import { useUIStore } from '../core/store/uiStore';
 import * as maplibregl from 'maplibre-gl';
 import { GISToolbar } from '../components/gis/GISToolbar';
 import { GISInspectorDrawer } from '../components/gis/GISInspectorDrawer';
 import { useMapLayers } from '../core/hooks/useMapLayers';
+import { getCachedAuthToken } from '../core/auth/firebase';
 
 export const GISMapView: React.FC = () => {
-  const fields = useFleetStore(selectFilteredFields);
-  const activeField = useFleetStore(s => s.activeField);
+  const { fields } = useVisibleFields();
+  const activeField = useActiveField();
   const setActiveField = useFleetStore(s => s.setActiveField);
-  const sensors = useIoTStore(s => s.sensors);
+  const { sensors } = useFleetSensors();
+  const { dashboard: dashboardData } = useActiveDashboard();
   const fieldsRef = useRef(fields);
 
   useEffect(() => {
@@ -59,22 +61,11 @@ export const GISMapView: React.FC = () => {
       transformRequest: (url, resourceType) => {
         // If the URL is hitting our own backend for tiles, inject the Firebase JWT
         if (resourceType === 'Tile' && url.includes('/api/fields/')) {
-          return (async () => {
-            let token = '';
-            try {
-              const { auth } = await import('../core/auth/firebase');
-              if (auth.currentUser) {
-                token = await auth.currentUser.getIdToken();
-              }
-            } catch (e) {
-              console.warn('Failed to fetch auth token for tile', e);
-            }
-            
-            return {
-              url,
-              headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-            };
-          })();
+          const token = getCachedAuthToken();
+          return {
+            url,
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+          };
         }
         return { url };
       }
@@ -228,7 +219,8 @@ export const GISMapView: React.FC = () => {
     activeField,
     sensors,
     activeLayer,
-    fitToAllFields
+    fitToAllFields,
+    dashboardData
   });
 
   const toggle3D = () => {
