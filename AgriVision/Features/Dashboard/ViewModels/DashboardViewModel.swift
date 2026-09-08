@@ -9,6 +9,8 @@ final class DashboardViewModel: ObservableObject {
     @Published var advisorStatus = "pending"
     @Published var advisorMessage: String?
     @Published var advisorDataQuality: String?
+    @Published var advisorRunId: UUID?
+    @Published var advisorRunStatus: String?
     @Published var loadedFieldId: UUID?
     @Published var readings: [SensorReading] = []
     @Published var sensorFleet: [SensorFleetEntry] = []
@@ -37,6 +39,12 @@ final class DashboardViewModel: ObservableObject {
     private let preferencesService: PreferencesService
     private var cancellables: Set<AnyCancellable> = []
     private var dashboardRequestToken: UUID?
+    // Notification ids seen on the previous inbox poll. A newly-arrived expert review or
+    // agronomist-guidance change means this field's recommendations changed server-side;
+    // without noticing that here, the recommendation card stays locked / shows a stale
+    // verdict until the 5-minute full-dashboard tier catches up.
+    private var lastKnownNotificationIDs: Set<UUID> = []
+    private var hasPolledNotificationsOnce = false
 
     // The app is hosted by UIKit (AppDelegate/SceneDelegate + UIHostingController), so
     // SwiftUI's @Environment(\.scenePhase) is never populated and cannot gate polling.
@@ -52,6 +60,12 @@ final class DashboardViewModel: ObservableObject {
     // Notifications are cheap (one small list query) and time-sensitive, so they poll
     // faster than the full dashboard refresh.
     private static let notificationPollInterval: TimeInterval = 60
+
+    // How often, and for how long, a user-triggered "Refresh advice" waits on the analysis
+    // run it started. The AI call itself is the slow part; the bound exists so the button
+    // always stops spinning even when the backend never picks the job up.
+    private static let advisorPollInterval: TimeInterval = 2
+    private static let advisorPollTimeout: TimeInterval = 90
 
     var onSignOut: (() -> Void)?
     var onSettingsTap: (() -> Void)?
@@ -219,6 +233,8 @@ final class DashboardViewModel: ObservableObject {
             advisorStatus = snapshot.advisor?.status ?? (recommendations.isEmpty ? "pending" : "available")
             advisorMessage = snapshot.advisor?.message
             advisorDataQuality = snapshot.advisor?.dataQuality
+            advisorRunId = snapshot.advisor?.runId
+            advisorRunStatus = snapshot.advisor?.runStatus
             // The 5s telemetry tier owns `readings` once it has data. The dashboard snapshot
             // carries a different, smaller window (50 rows vs the telemetry endpoint's 240),
             // so overwriting here made the charts visibly shrink every full refresh.
@@ -260,6 +276,8 @@ final class DashboardViewModel: ObservableObject {
         advisorStatus = "pending"
         advisorMessage = nil
         advisorDataQuality = nil
+        advisorRunId = nil
+        advisorRunStatus = nil
         loadedFieldId = nil
         readings = []
         sensorFleet = []
@@ -284,39 +302,104 @@ final class DashboardViewModel: ObservableObject {
         truecolorImageData = images.1
     }
 
-    func refreshRecommendations() async {
+    /// Applies only the advisor slice of a dashboard snapshot: the recommendations and the
+    /// state of the analysis run behind them. The refresh poll ticks every couple of seconds,
+    /// and a full `refreshData()` per tick would re-download satellite imagery, re-fetch
+    /// notifications, and contend with the background poller for `dashboardRequestToken` —
+    /// losing that race means discarding the very response the poll was waiting for.
+    /// Force an immediate recommendations-only refresh. Used when the farmer opens an
+    /// expert-review notification: the card must reflect the agronomist's verdict (and
+    /// unlock) right then, not on the next poll tick.
+    func syncRecommendationsNow() async {
         guard let fieldID = fieldSessionStore.activeFieldId else { return }
+        await applyAdvisorSlice(for: fieldID)
+    }
+
+    @discardableResult
+    private func applyAdvisorSlice(for fieldID: UUID) async -> Bool {
+        guard let snapshot = try? await dataService.fetchDashboard(for: fieldID) else { return false }
+        guard fieldID == fieldSessionStore.activeFieldId, snapshot.field.id == fieldID else { return false }
+        recommendations = snapshot.recommendations.filter { $0.fieldId == fieldID }
+        advisorStatus = snapshot.advisor?.status ?? (recommendations.isEmpty ? "pending" : "available")
+        advisorMessage = snapshot.advisor?.message
+        advisorDataQuality = snapshot.advisor?.dataQuality
+        advisorRunId = snapshot.advisor?.runId
+        advisorRunStatus = snapshot.advisor?.runStatus
+        return true
+    }
+
+    func refreshRecommendations() async {
+        guard let fieldID = fieldSessionStore.activeFieldId, !isRefreshingAI else { return }
         isRefreshingAI = true
         defer { isRefreshingAI = false }
-        // The backend runs the actual re-analysis as an async background job and returns
-        // immediately with whatever recommendations already existed — a single refetch right
-        // after would almost always show stale advice with a false "updated" message. Poll
-        // until a recommendation created after this trigger actually shows up (or the run
-        // fails), bounded so this can't hang forever.
-        let triggeredAt = Date()
+
+        // The backend runs the re-analysis as a background job and answers the trigger
+        // immediately with whatever advice already existed, so a single refetch would show
+        // unchanged text under a "updated" toast. Wait on the run itself: a run whose id
+        // differs from the one showing at trigger time and that is no longer "running" is
+        // this refresh's own result, whether or not it wrote new advice. Comparing
+        // recommendation timestamps against the device clock cannot do this — a run can
+        // legitimately finish without producing a recommendation, and the backend reports
+        // both "still running" and "finished with nothing to say" as advisorStatus "pending".
+        // Read the baseline from the server rather than from whatever this session happens to
+        // hold: an advisorRunId still nil because no dashboard load has landed yet would make
+        // the very first poll mistake the *previous* run for this refresh's own result.
+        let hasBaseline = await applyAdvisorSlice(for: fieldID)
+        guard fieldID == fieldSessionStore.activeFieldId else { return }
+        let previousRunId = advisorRunId
+        let knownIDs = Set(recommendations.map(\.id))
         do {
             advisorStatus = "pending"
             advisorMessage = "AI is reviewing the latest field evidence."
             try await dataService.refreshRecommendations(for: fieldID)
             guard fieldID == fieldSessionStore.activeFieldId else { return }
-            for attempt in 0..<8 {
-                if attempt > 0 { try? await Task.sleep(for: .seconds(3)) }
-                await refreshData()
+
+            let deadline = Date().addingTimeInterval(Self.advisorPollTimeout)
+            // Without a baseline to compare against, any run id looks new — so wait to watch
+            // a run actually start rather than mistaking the previous one for this result.
+            var sawRunStart = hasBaseline
+            while Date() < deadline {
+                try? await Task.sleep(for: .seconds(Self.advisorPollInterval))
                 guard fieldID == fieldSessionStore.activeFieldId else { return }
-                if recommendations.contains(where: { $0.createdAt > triggeredAt }) {
-                    successMessage = "Advice updated with latest insights."
-                    ToastMessageAutoDismiss.schedule(expectedMessage: successMessage ?? "", currentMessage: { [weak self] in self?.successMessage }, clearMessage: { [weak self] in self?.successMessage = nil })
-                    return
-                }
-                if advisorStatus == "unavailable" { return } // run failed — refreshData() already surfaced the real error
+                guard await applyAdvisorSlice(for: fieldID) else { continue }
+                guard fieldID == fieldSessionStore.activeFieldId else { return }
+
+                // Still showing the run that was current before the trigger — the job has
+                // not been picked up yet.
+                guard let runId = advisorRunId, runId != previousRunId else { continue }
+                guard advisorRunStatus != "running" else { sawRunStart = true; continue }
+                guard sawRunStart else { continue }
+
+                await finishAdvisorRefresh(for: fieldID, knownIDs: knownIDs)
+                return
             }
-            presentError("Still processing — check back in a moment.")
+            // The job never surfaced a run of its own — the backend skips a trigger while an
+            // analysis is already in flight for this field. Say so instead of spinning on.
+            presentError("AI is still analysing this field. The advice will update on its own once it finishes.")
         } catch {
             guard fieldID == fieldSessionStore.activeFieldId else { return }
             advisorStatus = "unavailable"
             advisorMessage = error.userFacingMessage
             presentError(error.userFacingMessage)
         }
+    }
+
+    /// Settles the UI once the triggered run has finished: the journal it may have written,
+    /// and a toast that distinguishes new advice from a review that found nothing to change.
+    private func finishAdvisorRefresh(for fieldID: UUID, knownIDs: Set<UUID>) async {
+        let hasNewAdvice = recommendations.contains { !knownIDs.contains($0.id) }
+        seasonMemory = try? await dataService.fetchSeasonMemory(for: fieldID)
+        guard fieldID == fieldSessionStore.activeFieldId else { return }
+        lastUpdatedAt = Date()
+
+        if advisorRunStatus == "failed" {
+            presentError(advisorMessage ?? "AI Advisor could not complete the latest analysis.")
+            return
+        }
+        successMessage = hasNewAdvice
+            ? "Advice updated with the latest insights."
+            : "AI reviewed your field — no new advice needed."
+        ToastMessageAutoDismiss.schedule(expectedMessage: successMessage ?? "", currentMessage: { [weak self] in self?.successMessage }, clearMessage: { [weak self] in self?.successMessage = nil })
     }
 
     func updateFeedback(_ recommendation: FieldRecommendation, status: String) async {
@@ -359,8 +442,26 @@ final class DashboardViewModel: ObservableObject {
     /// the dashboard load and the inbox's own poll.
     func refreshNotifications() async {
         guard let fetched = try? await dataService.fetchNotifications() else { return }
+        let previousIDs = lastKnownNotificationIDs
+        let firstPoll = !hasPolledNotificationsOnce
+        hasPolledNotificationsOnce = true
+        lastKnownNotificationIDs = Set(fetched.map(\.id))
         notifications = fetched
         unreadNotificationsCount = fetched.filter { !$0.isRead }.count
+
+        // An expert approve/reject (reference_type "recommendation") or a new agronomist
+        // guidance directive both change this field's recommendations on the server. Pull
+        // the fresh recommendation state now so the card unlocks / updates its verdict
+        // within one 60s notification tick instead of waiting out the 300s dashboard tier.
+        guard !firstPoll, let fieldID = fieldSessionStore.activeFieldId else { return }
+        let touchesRecommendations = fetched.contains { notif in
+            !previousIDs.contains(notif.id)
+                && (notif.fieldId == fieldID || notif.fieldId == nil)
+                && (notif.referenceType == "recommendation" || notif.category == "guidance_update")
+        }
+        if touchesRecommendations {
+            await applyAdvisorSlice(for: fieldID)
+        }
     }
 
     /// Advice from an agronomist, newest first — the messages a person wrote, separated

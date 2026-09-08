@@ -293,31 +293,8 @@ private struct RecommendationRow: View {
                         
                         // Action buttons if pending
                         if recommendation.status == "pending" && (!recommendation.requiresExpertConfirmation || recommendation.expertStatus != "pending") {
-                            HStack(spacing: 8) {
-                                Button(action: { onOutcome?(recommendation.id, "implemented") }) {
-                                    HStack {
-                                        Image(systemName: "checkmark")
-                                        Text("Implement")
-                                    }
-                                    .font(.caption.bold())
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(Color.green.opacity(0.2))
-                                    .foregroundColor(.green)
-                                    .cornerRadius(6)
-                                }
-                                Button(action: { onOutcome?(recommendation.id, "ignored") }) {
-                                    HStack {
-                                        Image(systemName: "xmark")
-                                        Text("Ignore")
-                                    }
-                                    .font(.caption.bold())
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(Color.red.opacity(0.2))
-                                    .foregroundColor(.red)
-                                    .cornerRadius(6)
-                                }
+                            RecommendationActionBar { status in
+                                onOutcome?(recommendation.id, status)
                             }
                             .padding(.top, 8)
                         }

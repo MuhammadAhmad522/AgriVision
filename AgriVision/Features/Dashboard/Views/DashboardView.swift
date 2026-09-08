@@ -199,6 +199,7 @@ struct DashboardView: View {
                         onOpenRecommendation: {
                             showingNotifications = false
                             showingAlerts = true
+                            Task { await viewModel.syncRecommendationsNow() }
                         },
                         onDismiss: { showingNotifications = false }
                     )

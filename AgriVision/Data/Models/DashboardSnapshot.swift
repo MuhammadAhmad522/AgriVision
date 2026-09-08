@@ -65,11 +65,18 @@ struct AdvisorSnapshot: Decodable {
     let message: String?
     let retryable: Bool?
     let dataQuality: String?
+    /// Identity and lifecycle of the analysis run behind this state. `status` alone cannot
+    /// separate "a run is in flight" from "a run finished without field-specific advice" —
+    /// both read as "pending" — so a client waiting on a refresh it triggered watches these.
+    var runId: UUID? = nil
+    var runStatus: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case status, message, retryable
         case lastUpdated = "last_updated"
         case dataQuality = "data_quality"
+        case runId = "run_id"
+        case runStatus = "run_status"
     }
 }
 

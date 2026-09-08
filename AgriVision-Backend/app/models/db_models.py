@@ -254,6 +254,46 @@ class FieldRecommendation(Base):
         return self.reviewed_by.email if self.reviewed_by else None
 
 
+class FieldGuidanceDirective(Base):
+    """A durable standing instruction from an agronomist that shapes this field's
+    automated AI recommendations (e.g. "prioritise water conservation this season").
+
+    Deliberately NOT the agronomist chat thread: a directive is structured, versioned,
+    attributable, individually retractable, and survives until explicitly removed or the
+    crop is replanted — unlike a lossy rolling chat summary that scrolls away after a few
+    turns. run_ai_for_field reads the active directives; adding/retracting one queues an
+    immediate forced re-run and notifies the field owner.
+    """
+
+    __tablename__ = "field_guidance_directives"
+
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    field_id = Column(PG_UUID(as_uuid=True), ForeignKey("fields.id", ondelete="CASCADE"), index=True, nullable=False)
+    text = Column(Text, nullable=False)
+    # active | retracted | superseded_by_replant
+    status = Column(String(24), nullable=False, default="active", server_default="active", index=True)
+    created_by_id = Column(PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    retracted_by_id = Column(PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    retracted_at = Column(DateTime(timezone=True), nullable=True)
+    # The first AI analysis run that actually incorporated this directive — powers the
+    # "your guidance was applied N minutes ago" indicator in the portal.
+    applied_run_id = Column(PG_UUID(as_uuid=True), ForeignKey("ai_analysis_runs.id", ondelete="SET NULL"), nullable=True)
+
+    field = relationship("Field")
+    created_by = relationship("User", foreign_keys=[created_by_id])
+    retracted_by = relationship("User", foreign_keys=[retracted_by_id])
+
+    @property
+    def created_by_email(self) -> str | None:
+        return self.created_by.email if self.created_by else None
+
+    @property
+    def created_by_name(self) -> str | None:
+        value = self.created_by.display_name if self.created_by else None
+        return value if isinstance(value, str) else None
+
+
 class AIChatThread(Base):
     __tablename__ = "ai_chat_threads"
     __table_args__ = (UniqueConstraint("field_id", "channel", name="uq_ai_chat_thread_field_channel"),)

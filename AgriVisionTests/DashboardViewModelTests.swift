@@ -235,6 +235,58 @@ final class DashboardViewModelTests: XCTestCase {
         XCTAssertEqual(vm.recommendations.first?.outcome, "useful")
     }
 
+    /// When an agronomist approves/rejects a recommendation in the expert queue, the farmer's
+    /// dashboard must pick up the verdict on the next notification poll — not stay locked
+    /// until the 5-minute full-dashboard tier catches up.
+    func test_expertReviewNotification_refreshesLockedRecommendation() async {
+        let fieldId = UUID()
+        let recId = UUID()
+        let auth = MockAuthService(isLoggedIn: true)
+        let store = FieldSessionStore(dataService: MockAgriDataRepository(mockFieldID: fieldId), authService: auth)
+        store.activeFieldId = fieldId
+        let mock = MockAgriDataRepository(mockFieldID: fieldId)
+        let vm = DashboardViewModel(
+            dataService: mock,
+            authService: auth,
+            preferencesService: MockPreferencesService(),
+            fieldSessionStore: store
+        )
+
+        func rec(expert: String) -> FieldRecommendation {
+            var r = FieldRecommendation(
+                id: recId, fieldId: fieldId, category: "Plant Health", priority: "high",
+                advice: "Apply fungicide", confidence: 0.7, status: "pending",
+                ndviAtGeneration: nil, createdAt: Date()
+            )
+            r.requiresExpertConfirmation = true
+            r.expertStatus = expert
+            return r
+        }
+
+        // Baseline: advice is awaiting expert review, no notifications yet.
+        mock.stubbedRecommendations = [rec(expert: "pending")]
+        mock.stubbedNotifications = []
+        await vm.refreshData()
+        XCTAssertEqual(vm.recommendations.first?.expertStatus, "pending")
+
+        // Agronomist approves: the server now returns "approved" and emits a review notification.
+        mock.stubbedRecommendations = [rec(expert: "approved")]
+        mock.stubbedNotifications = [
+            UserNotification(
+                id: UUID(), title: "Expert approved", body: "An agronomist approved the advice.",
+                referenceId: recId.uuidString, referenceType: "recommendation",
+                isRead: false, createdAt: Date(), fieldId: fieldId,
+                createdByEmail: "agro@example.test", category: "expert_review"
+            )
+        ]
+        await vm.refreshNotifications()
+
+        XCTAssertEqual(
+            vm.recommendations.first?.expertStatus, "approved",
+            "The card must unlock after the review notification arrives, not wait out the dashboard tier."
+        )
+    }
+
     // MARK: - Error path tests
 
     func test_refreshData_failure_showsError() async {
@@ -274,6 +326,29 @@ final class DashboardViewModelTests: XCTestCase {
         XCTAssertEqual(vm.advisorStatus, "unavailable")
         XCTAssertNotNil(vm.errorMessage)
         XCTAssertFalse(vm.isRefreshingAI)
+    }
+
+    /// The refresh spinner is driven by a poll on the analysis run the trigger starts. It has
+    /// to end on its own once that run settles — the earlier timestamp-based check could wait
+    /// out its whole budget for a run that finished without writing a new recommendation.
+    func test_refreshRecommendations_stopsSpinningOnceRunSettles() async {
+        let mockData = MockAgriDataRepository()
+        let auth = MockAuthService(isLoggedIn: true)
+        let store = FieldSessionStore(dataService: mockData, authService: auth)
+        try? await store.bootstrap()
+        let vm = DashboardViewModel(
+            dataService: mockData,
+            authService: auth,
+            preferencesService: MockPreferencesService(),
+            fieldSessionStore: store
+        )
+
+        await vm.refreshRecommendations()
+
+        XCTAssertFalse(vm.isRefreshingAI)
+        XCTAssertNotNil(vm.successMessage)
+        XCTAssertNil(vm.errorMessage)
+        XCTAssertEqual(vm.advisorStatus, "available")
     }
 
     func test_updateFeedback_failure_showsError() async {

@@ -209,6 +209,48 @@ def _canonical_category(value: Any) -> str:
     return "Field Monitoring"
 
 
+# Every model on the supported list is a Gemini 3.x thinking model, and thinking tokens are
+# charged against max_output_tokens. Left to itself the model spends 1500-1800 tokens
+# reasoning before it writes a single character of JSON, so a budget sized for the answer
+# alone gets consumed by the thoughts and the response comes back truncated at MAX_TOKENS —
+# valid-looking prose that cuts off mid-object and fails every JSON parse. These tasks are
+# structured extraction over an evidence packet, not open-ended reasoning, so cap the
+# thinking and give the answer itself real headroom.
+THINKING_LEVEL = "low"
+
+
+def _generation_config(**kwargs: Any) -> Any:
+    """Builds a GenerateContentConfig with the shared thinking policy applied."""
+    kwargs.setdefault("thinking_config", types.ThinkingConfig(thinking_level=THINKING_LEVEL))
+    return types.GenerateContentConfig(**kwargs)
+
+
+def _response_diagnostics(response: Any) -> str:
+    """Why a response could not be used, in the terms the API actually reports it. Without
+    this a truncated answer and a safety block are the same opaque parse failure in the log."""
+    try:
+        candidates = getattr(response, "candidates", None) or []
+        finish = [getattr(getattr(c, "finish_reason", None), "name", None) for c in candidates]
+        usage = getattr(response, "usage_metadata", None)
+        return (
+            f"finish_reason={finish} "
+            f"prompt_tokens={getattr(usage, 'prompt_token_count', None)} "
+            f"thoughts_tokens={getattr(usage, 'thoughts_token_count', None)} "
+            f"candidates_tokens={getattr(usage, 'candidates_token_count', None)} "
+            f"text_len={len(str(getattr(response, 'text', '') or ''))} "
+            f"prompt_feedback={getattr(response, 'prompt_feedback', None)}"
+        )
+    except Exception:  # diagnostics must never mask the original failure
+        return "diagnostics unavailable"
+
+
+def _hit_output_limit(response: Any) -> bool:
+    return any(
+        getattr(getattr(c, "finish_reason", None), "name", None) == "MAX_TOKENS"
+        for c in (getattr(response, "candidates", None) or [])
+    )
+
+
 def _recommendation_payload(response: Any) -> dict[str, Any]:
     parsed = getattr(response, "parsed", None)
     if hasattr(parsed, "model_dump"):
@@ -527,16 +569,21 @@ class GeminiAIProvider(AIProvider):
         )
         try:
             payload = None
+            truncated = False
             async with asyncio.timeout(settings.AI_PROVIDER_TIMEOUT_SECONDS):
                 for attempt in range(2):
-                    config = types.GenerateContentConfig(
+                    config = _generation_config(
                         system_instruction=SYSTEM_PROMPT,
                         temperature=0.1 if attempt == 0 else 0,
-                        max_output_tokens=2400,
+                        max_output_tokens=8192,
                         response_mime_type="application/json",
                         response_json_schema=RECOMMENDATION_SCHEMA,
                     )
                     retry_instruction = "" if attempt == 0 else "\nRETRY_REQUIREMENT=Return valid JSON only, matching the schema exactly."
+                    if attempt == 1 and truncated:
+                        # A retry that repeats an answer too long for the budget truncates in
+                        # the same place, so ask for the shortest schema-valid answer instead.
+                        retry_instruction += "\nRETRY_LENGTH=Return exactly one recommendation and keep every field short."
                     response = await asyncio.to_thread(
                         self.client.models.generate_content,
                         model=self.model_name,
@@ -547,9 +594,11 @@ class GeminiAIProvider(AIProvider):
                         payload = _recommendation_payload(response)
                         break
                     except ValueError:
+                        truncated = _hit_output_limit(response)
                         if attempt == 1:
+                            logger.error("Gemini recommendation payload was unusable: %s", _response_diagnostics(response))
                             raise
-                        logger.info("Gemini recommendation payload was invalid; retrying once")
+                        logger.info("Gemini recommendation payload was invalid; retrying once (%s)", _response_diagnostics(response))
 
             if payload is None:
                 raise ValueError("empty recommendation payload")
@@ -617,13 +666,14 @@ class GeminiAIProvider(AIProvider):
                     self.client.models.generate_content,
                     model=self.model_name,
                     contents=prompt,
-                    config=types.GenerateContentConfig(
+                    config=_generation_config(
                         system_instruction=SYSTEM_PROMPT,
                         temperature=0,
                         # The narrative alone is instructed to run ~1200 chars (~300+ tokens), plus
-                        # key_event and JSON scaffolding — 400 left no headroom and was truncating
-                        # mid-object, producing invalid JSON that _season_memory_payload rejected.
-                        max_output_tokens=900,
+                        # key_event and JSON scaffolding — and the model's own thinking is charged
+                        # against this same budget, which is what kept truncating the object
+                        # mid-key and producing JSON that _season_memory_payload rejected.
+                        max_output_tokens=4096,
                         response_mime_type="application/json",
                         response_json_schema=SEASON_MEMORY_SCHEMA,
                     ),
@@ -633,7 +683,7 @@ class GeminiAIProvider(AIProvider):
             try:
                 payload = _season_memory_payload(response)
             except ValueError as ve:
-                logger.warning("Season memory payload parsing failed: %s", ve)
+                logger.warning("Season memory payload parsing failed: %s (%s)", ve, _response_diagnostics(response))
                 return {"narrative": existing_narrative or "Field monitoring initiated.", "key_event": None}
             narrative = str(payload["narrative"]).strip()[:1200]
             key_event = str(payload.get("key_event") or "").strip()[:300] or None
@@ -678,13 +728,13 @@ class GeminiAIProvider(AIProvider):
                     self.client.models.generate_content,
                     model=self.model_name,
                     contents=parts,
-                    config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT, temperature=0.2, max_output_tokens=1800),
+                    config=_generation_config(system_instruction=SYSTEM_PROMPT, temperature=0.2, max_output_tokens=4096),
                 ),
                 timeout=settings.AI_PROVIDER_TIMEOUT_SECONDS,
             )
             text = (response.text or "").strip()
             if not text:
-                raise ValueError("empty response")
+                raise ValueError(f"empty response ({_response_diagnostics(response)})")
             if audience == "agronomist":
                 # The agronomist is the safety layer here, not someone who needs the farmer-facing guarded tone.
                 return text[:8000]

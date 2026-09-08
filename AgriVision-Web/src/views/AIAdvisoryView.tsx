@@ -10,9 +10,12 @@ import {
   useAnalysisRun,
   useSeasonMemory,
   useChatHistory,
-  useGuidanceHistory,
-  useSendGuidance
+  useFieldGuidance,
+  useAddGuidance,
+  useRetractGuidance
 } from '../core/hooks/useAdvisoryHooks';
+import { useToast } from '../core/ui/toast';
+import { describeError } from '../core/utils/sanitize';
 import { AdvisoryComposer } from '../components/advisory/AdvisoryComposer';
 import { GlassCard } from '../components/ui/GlassCard';
 import { MetricBadge } from '../components/ui/MetricBadge';
@@ -20,7 +23,7 @@ import { recommendationPriority, waitingFor, stalenessBand } from '../core/utils
 import {
   Sparkles, Brain, Zap, AlertTriangle, Clock, ExternalLink, MessageSquare, Send,
   BookOpen, ChevronDown, ChevronUp, ShieldCheck, FlaskConical, Inbox, Loader2,
-  CheckCircle2, XCircle, Smartphone, ArrowUpDown
+  CheckCircle2, XCircle, Smartphone, ArrowUpDown, Trash2
 } from 'lucide-react';
 import clsx from 'clsx';
 import type { AIRecommendation, Field } from '../core/types';
@@ -687,25 +690,74 @@ const FieldChatPanel: React.FC<{ fieldId: string }> = ({ fieldId }) => {
   );
 };
 
+function relativeSince(iso: string | null): string {
+  if (!iso) return '';
+  const ms = Date.now() - new Date(iso).getTime();
+  if (Number.isNaN(ms)) return '';
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+const GUIDANCE_MAX = 2000;
+
 const AgronomistGuidancePanel: React.FC<{ fieldId: string }> = ({ fieldId }) => {
   const dashboardQuery = useDashboard(fieldId);
-  const { data: messages = [], isLoading } = useGuidanceHistory(fieldId);
-  const sendGuidance = useSendGuidance();
+  const { data: directives = [], isLoading } = useFieldGuidance(fieldId);
+  const addGuidance = useAddGuidance();
+  const retractGuidance = useRetractGuidance();
+  const toast = useToast();
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
-  const handleSend = async () => {
+  const active = directives.filter((d) => d.status === 'active');
+  const history = directives.filter((d) => d.status !== 'active');
+  const busy = addGuidance.isPending || retractGuidance.isPending;
+
+  // A forced recommendation re-run is queued the moment guidance changes, but the model
+  // call itself takes a few seconds — nudge the dashboard a few times so the new advice
+  // surfaces without the agronomist reaching for a manual refresh.
+  const chaseRecommendations = () => {
+    [7000, 18000, 35000].forEach((delay) => window.setTimeout(() => dashboardQuery.refetch(), delay));
+  };
+
+  const handleAdd = async () => {
     const text = draft.trim();
-    if (!text || sendGuidance.isPending) return;
+    if (!text || busy) return;
     setError(null);
     try {
-      await sendGuidance.mutateAsync({ fieldId, text });
+      const result = await addGuidance.mutateAsync({ fieldId, text });
       setDraft('');
-      // Give the backend's fingerprint-triggered AI reconsideration a moment, then nudge one
-      // extra dashboard refresh instead of waiting for the normal reactive-tier poll.
-      window.setTimeout(() => { dashboardQuery.refetch(); }, 6000);
-    } catch (e: any) {
-      setError(e?.message || 'Failed to send guidance to the AI.');
+      if (result.deduplicated) {
+        toast.info('That instruction is already active for this field.');
+      } else {
+        toast.success('Guidance saved. Recommendations are regenerating, and the farmer has been notified.');
+        chaseRecommendations();
+      }
+    } catch (e) {
+      const msg = describeError(e, 'Failed to save guidance.');
+      setError(msg);
+      toast.fromError(e, 'Failed to save guidance.');
+    }
+  };
+
+  const handleRetract = async (directiveId: string) => {
+    if (busy) return;
+    setError(null);
+    setPendingId(directiveId);
+    try {
+      await retractGuidance.mutateAsync({ fieldId, directiveId });
+      toast.success('Guidance removed. Recommendations are regenerating, and the farmer has been notified.');
+      chaseRecommendations();
+    } catch (e) {
+      setError(describeError(e, 'Failed to remove guidance.'));
+      toast.fromError(e, 'Failed to remove guidance.');
+    } finally {
+      setPendingId(null);
     }
   };
 
@@ -715,49 +767,76 @@ const AgronomistGuidancePanel: React.FC<{ fieldId: string }> = ({ fieldId }) => 
         <Brain size={16} className="text-accent-lime" />
         <h3 className="text-sm font-bold text-text-main">Agronomist Guidance (to the AI)</h3>
       </div>
-      {/* Named explicitly so it is not mistaken for the farmer channel above — that
-          ambiguity is why there appeared to be a way to message the farmer when there
-          was not. */}
       <p className="text-[12px] text-text-muted mb-3 leading-relaxed">
-        Instructs the model, <span className="text-text-main font-semibold">not the farmer</span>. Shapes future
-        recommendations for this field; it cannot override safety rules on its own. To message
-        the farmer, use <span className="text-accent-cyan font-semibold">Send Advice to Farmer</span> above.
+        Standing instructions that steer this field's automated recommendations. Adding or removing one
+        <span className="text-text-main font-semibold"> immediately regenerates the recommendations</span> and
+        notifies the farmer that a change was made. It cannot override the model's hard safety rules. To send
+        the farmer advice directly, use <span className="text-accent-cyan font-semibold">Send Advice to Farmer</span> above.
       </p>
-      <div className="flex flex-col gap-2 max-h-80 overflow-y-auto mb-3">
+
+      <div className="flex flex-col gap-2 mb-3">
         {isLoading && <p className="text-text-muted text-xs">Loading…</p>}
-        {!isLoading && messages.length === 0 && (
-          <p className="text-text-muted text-xs">No guidance sent yet for this field.</p>
+        {!isLoading && active.length === 0 && (
+          <p className="text-text-muted text-xs">No active guidance. The AI is running on evidence alone for this field.</p>
         )}
-        {messages.map((m: any) => (
-          <div
-            key={m.id}
-            className={clsx(
-              'rounded-lg p-2.5 text-[13px] max-w-[90%]',
-              m.role === 'user' ? 'bg-primary-medium/15 self-end text-text-main' : 'bg-white/5 self-start text-text-main'
-            )}
-          >
-            <p className="text-[10px] text-text-dim mb-0.5">
-              {m.role === 'user' ? 'You' : 'AI'} · {new Date(m.created_at).toLocaleString()}
-            </p>
-            <p>{m.content}</p>
+        {active.map((d) => (
+          <div key={d.id} className="rounded-lg border border-primary-light/30 bg-primary-medium/10 p-2.5">
+            <p className="text-[13px] text-text-main">{d.text}</p>
+            <div className="flex items-center justify-between mt-1.5">
+              <span className="text-[10px] text-text-dim">
+                {d.created_by_name || d.created_by_email || 'Agronomist'} · {relativeSince(d.created_at)}
+                {d.applied_run_id
+                  ? <span className="text-accent-lime"> · applied to recommendations</span>
+                  : <span className="text-accent-orange"> · applying…</span>}
+              </span>
+              <button
+                onClick={() => handleRetract(d.id)}
+                disabled={busy}
+                className="inline-flex items-center gap-1 text-[11px] text-text-dim hover:text-accent-red transition-colors disabled:opacity-40"
+                title="Remove this guidance"
+              >
+                {pendingId === d.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                Remove
+              </button>
+            </div>
           </div>
         ))}
       </div>
+
+      {history.length > 0 && (
+        <details className="mb-3">
+          <summary className="text-[11px] text-text-dim cursor-pointer hover:text-text-muted">
+            {history.length} past directive{history.length === 1 ? '' : 's'}
+          </summary>
+          <div className="flex flex-col gap-1.5 mt-2">
+            {history.map((d) => (
+              <div key={d.id} className="rounded-md bg-white/5 p-2 text-[12px] text-text-muted line-through decoration-text-dim/60">
+                {d.text}
+                <span className="not-italic no-underline block text-[10px] text-text-dim mt-0.5">
+                  {d.status === 'superseded_by_replant' ? 'ended with the previous crop' : 'removed'} · {relativeSince(d.retracted_at)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
       <div className="flex gap-2">
         <textarea
           className="flex-1 bg-bg-main border border-border-glass rounded text-sm p-2 text-text-main outline-none focus:border-accent-lime transition-colors"
           placeholder="e.g. Prioritise water conservation this season for this field…"
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          maxLength={GUIDANCE_MAX}
+          onChange={(e) => { setDraft(e.target.value); if (error) setError(null); }}
           rows={2}
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAdd(); } }}
         />
         <button
           className="btn-primary px-3 disabled:opacity-50"
-          onClick={handleSend}
-          disabled={sendGuidance.isPending || !draft.trim()}
+          onClick={handleAdd}
+          disabled={busy || draft.trim().length < 3}
         >
-          {sendGuidance.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+          {addGuidance.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
         </button>
       </div>
       {error && (

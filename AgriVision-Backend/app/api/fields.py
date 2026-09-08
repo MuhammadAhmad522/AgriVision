@@ -484,6 +484,11 @@ def get_dashboard(field_id: UUID, db: Session = Depends(get_db), current_user: U
         advisor_message = None if recommendations else "AI analysis completed without a field-specific action."
     advisor = {
         "status": advisor_status,
+        # The run's own identity and lifecycle state, so a client that just triggered a
+        # re-analysis can tell "my run finished" from "a previous run's result is still
+        # showing" — `status` alone collapses both onto "pending"/"available".
+        "run_id": latest_ai_run.id if latest_ai_run is not None else None,
+        "run_status": latest_ai_run.status if latest_ai_run is not None else None,
         "last_updated": (
             latest_ai_run.completed_at or latest_ai_run.started_at
             if latest_ai_run is not None

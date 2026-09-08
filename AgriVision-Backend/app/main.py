@@ -153,9 +153,9 @@ async def unhandled_error_handler(request: Request, exc: Exception):
     return JSONResponse(status_code=500, content=error_payload(error, request.state.request_id))
 
 
-from app.api import chat, export, fields, recommendations, satellite, sensors, session, invitations, admin, agronomist, notifications, advisories
+from app.api import chat, export, fields, recommendations, satellite, sensors, session, invitations, admin, agronomist, notifications, advisories, guidance
 
-for router in (session.router, fields.router, sensors.router, recommendations.router, chat.router, satellite.router, export.router, invitations.router, admin.router, agronomist.router, notifications.router, advisories.router):
+for router in (session.router, fields.router, sensors.router, recommendations.router, chat.router, satellite.router, export.router, invitations.router, admin.router, agronomist.router, notifications.router, advisories.router, guidance.router):
     app.include_router(router)
 
 

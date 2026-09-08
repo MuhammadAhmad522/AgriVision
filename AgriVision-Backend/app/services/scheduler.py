@@ -18,6 +18,7 @@ from app.models.db_models import (
     AIChatThread,
     Field,
     FieldDeletionJob,
+    FieldGuidanceDirective,
     FieldObservation,
     FieldProviderLink,
     FieldRecommendation,
@@ -124,6 +125,15 @@ def _get_or_rotate_season_memory(db: Session, field: Field) -> FieldSeasonMemory
         return active
     if active:
         active.season_ended_at = _utcnow()  # replant (or a plantation_date edit): archive the old season
+        # Standing guidance is season-specific ("hold nitrogen, near harvest"): retire it
+        # with the crop rather than letting it bleed into the next planting.
+        db.query(FieldGuidanceDirective).filter(
+            FieldGuidanceDirective.field_id == field.id,
+            FieldGuidanceDirective.status == "active",
+        ).update(
+            {"status": "superseded_by_replant", "retracted_at": _utcnow()},
+            synchronize_session=False,
+        )
     memory = FieldSeasonMemory(field_id=field.id, season_started_at=field.plantation_date, narrative=None)
     db.add(memory)
     db.flush()
@@ -623,12 +633,22 @@ async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) ->
         }
         for item in recent_resolved
     ]
-    agronomist_thread = (
-        db.query(AIChatThread)
-        .filter(AIChatThread.field_id == field_id, AIChatThread.channel == "agronomist")
-        .first()
+    # Structured standing guidance from the agronomist(s) overseeing this field. Each is a
+    # durable, individually-retractable directive rather than a line in a chat summary that
+    # scrolls away — and adding/retracting one already queued this very run with force=True.
+    active_directives = (
+        db.query(FieldGuidanceDirective)
+        .filter(
+            FieldGuidanceDirective.field_id == field_id,
+            FieldGuidanceDirective.status == "active",
+        )
+        .order_by(FieldGuidanceDirective.created_at.asc())
+        .all()
     )
-    agronomist_guidance = agronomist_thread.rolling_summary if agronomist_thread else None
+    agronomist_guidance = (
+        "\n".join(f"- {d.text}" for d in active_directives) if active_directives else None
+    )
+    active_directive_ids = [d.id for d in active_directives]
     farmer_thread = (
         db.query(AIChatThread)
         .filter(AIChatThread.field_id == field_id, AIChatThread.channel == "farmer")
@@ -775,6 +795,14 @@ async def run_ai_for_field(field: Field, db: Session, *, force: bool = False) ->
                 active_field.latest_health_label = field_health["label"]
                 active_field.latest_health_rationale = field_health["rationale"]
                 active_field.latest_health_updated_at = _utcnow()
+        if not ai_failed and active_directive_ids:
+            # Record which run first acted on each still-active directive, so the portal can
+            # show the agronomist "your guidance was applied N minutes ago".
+            db.query(FieldGuidanceDirective).filter(
+                FieldGuidanceDirective.id.in_(active_directive_ids),
+                FieldGuidanceDirective.status == "active",
+                FieldGuidanceDirective.applied_run_id.is_(None),
+            ).update({"applied_run_id": run_id}, synchronize_session=False)
         db.commit()
 
         if not ai_failed and recommendations and season_memory:

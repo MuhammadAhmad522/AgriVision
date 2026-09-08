@@ -93,8 +93,8 @@ def _clean_data():
     yield
     db = SessionLocal()
     try:
-        for t in ("field_recommendations", "ai_analysis_runs", "field_season_memories",
-                   "ai_chat_threads", "sensor_readings",
+        for t in ("field_guidance_directives", "field_recommendations", "ai_analysis_runs",
+                   "field_season_memories", "ai_chat_threads", "sensor_readings",
                    "sensors", "field_observations", "fields", "invitations", "users"):
             # field_season_memories/ai_chat_threads are real migrated tables (not part of
             # _CREATE_TABLES above), guard in case a given DB snapshot predates them.
@@ -315,6 +315,85 @@ async def test_ai_run_includes_farmer_reported_context():
         call_kwargs = provider.recommendations.call_args
         sent_context = call_kwargs.args[0] if call_kwargs.args else call_kwargs.kwargs["context"]
         assert "yellow patches" in sent_context["farmer_reported_context"]
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_ai_run_uses_active_guidance_directives_and_stamps_applied_run():
+    db = SessionLocal()
+    try:
+        field_id, _ = _seed_field_and_data(db)
+        _add_observation(db, field_id.hex, "soil_current", {"moisture": 0.35})
+        active_id = uuid.uuid4().hex
+        retracted_id = uuid.uuid4().hex
+        db.execute(
+            text("""INSERT INTO field_guidance_directives (id, field_id, text, status, created_at)
+                     VALUES (:id, :fid, :t, 'active', :ts)"""),
+            {"id": active_id, "fid": field_id.hex, "t": "Prioritise water conservation this season.",
+             "ts": datetime.now(timezone.utc)},
+        )
+        db.execute(
+            text("""INSERT INTO field_guidance_directives (id, field_id, text, status, created_at)
+                     VALUES (:id, :fid, :t, 'retracted', :ts)"""),
+            {"id": retracted_id, "fid": field_id.hex, "t": "Old note that must NOT reach the model.",
+             "ts": datetime.now(timezone.utc)},
+        )
+        db.commit()
+
+        field = _make_field(field_id)
+        provider = _mock_provider()
+
+        with (
+            patch("app.services.scheduler._acquire_source_lock", return_value=True),
+            patch("app.services.scheduler.get_ai_provider", return_value=provider),
+        ):
+            from app.services.scheduler import run_ai_for_field
+            await run_ai_for_field(field, db)
+        db.commit()
+
+        from app.models.db_models import AIAnalysisRun, FieldGuidanceDirective
+        run = db.query(AIAnalysisRun).filter(AIAnalysisRun.field_id == field_id).first()
+        guidance_text = run.context_snapshot["agronomist_guidance"]
+        assert "water conservation" in guidance_text
+        assert "must NOT reach" not in guidance_text
+
+        call_kwargs = provider.recommendations.call_args
+        sent_context = call_kwargs.args[0] if call_kwargs.args else call_kwargs.kwargs["context"]
+        assert "water conservation" in sent_context["agronomist_guidance"]
+
+        active = db.query(FieldGuidanceDirective).filter(FieldGuidanceDirective.id == uuid.UUID(active_id)).first()
+        retracted = db.query(FieldGuidanceDirective).filter(FieldGuidanceDirective.id == uuid.UUID(retracted_id)).first()
+        assert active.applied_run_id == run.id
+        assert retracted.applied_run_id is None
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_replant_supersedes_active_guidance_directives():
+    from app.services.scheduler import _get_or_rotate_season_memory
+
+    db = SessionLocal()
+    try:
+        field_id, _ = _seed_field_and_data(db)
+        from app.models.db_models import Field, FieldGuidanceDirective, FieldSeasonMemory
+
+        field = db.query(Field).filter(Field.id == field_id).first()
+        field.plantation_date = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        db.add(FieldSeasonMemory(field_id=field_id, season_started_at=field.plantation_date, narrative="s1"))
+        directive = FieldGuidanceDirective(field_id=field_id, text="hold nitrogen, near harvest", status="active")
+        db.add(directive)
+        db.commit()
+
+        # Replant: plantation_date moves to a new season.
+        field.plantation_date = datetime(2026, 6, 1, tzinfo=timezone.utc)
+        _get_or_rotate_season_memory(db, field)
+        db.commit()
+
+        db.refresh(directive)
+        assert directive.status == "superseded_by_replant"
+        assert directive.retracted_at is not None
     finally:
         db.close()
 

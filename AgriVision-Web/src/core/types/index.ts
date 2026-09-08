@@ -243,6 +243,28 @@ export interface AISettings {
   model: string;
 }
 
+/** A durable agronomist instruction that steers a field's AI recommendation engine. */
+export interface GuidanceDirective {
+  id: string;
+  field_id: string;
+  text: string;
+  status: 'active' | 'retracted' | 'superseded_by_replant';
+  created_by_id: string | null;
+  created_by_email: string | null;
+  created_by_name: string | null;
+  created_at: string;
+  retracted_by_id: string | null;
+  retracted_at: string | null;
+  /** The first AI run that incorporated this directive; null until a run has applied it. */
+  applied_run_id: string | null;
+}
+
+export interface GuidanceMutationResult {
+  directive: GuidanceDirective;
+  ai_rerun_queued: boolean;
+  deduplicated: boolean;
+}
+
 /** Live probe result for the currently-active AI provider (admin settings portal). */
 export interface AIHealth {
   ok: boolean;

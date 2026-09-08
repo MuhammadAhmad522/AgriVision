@@ -36,7 +36,11 @@ struct UserNotification: Codable, Identifiable {
 
     /// True when this came from a person rather than the automatic system.
     var isFromExpert: Bool {
-        createdByEmail != nil && (category == "expert_advisory" || category == "expert_review")
+        createdByEmail != nil && (
+            category == "expert_advisory" ||
+            category == "expert_review" ||
+            category == "guidance_update"
+        )
     }
 
     enum CodingKeys: String, CodingKey {

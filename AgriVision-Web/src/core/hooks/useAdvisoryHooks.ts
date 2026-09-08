@@ -85,6 +85,39 @@ export function useSendGuidance() {
   });
 }
 
+/** Durable standing-guidance directives that steer a field's AI recommendation engine. */
+export function useFieldGuidance(fieldId: string | undefined) {
+  return useQuery({
+    queryKey: ['guidance', fieldId],
+    queryFn: () => (fieldId ? advisoryService.getGuidance(fieldId) : []),
+    enabled: !!fieldId,
+  });
+}
+
+export function useAddGuidance() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ fieldId, text }: { fieldId: string; text: string }) =>
+      advisoryService.addGuidance(fieldId, text),
+    onSuccess: (_, { fieldId }) => {
+      queryClient.invalidateQueries({ queryKey: ['guidance', fieldId] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard', fieldId] });
+    },
+  });
+}
+
+export function useRetractGuidance() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ fieldId, directiveId }: { fieldId: string; directiveId: string }) =>
+      advisoryService.retractGuidance(fieldId, directiveId),
+    onSuccess: (_, { fieldId }) => {
+      queryClient.invalidateQueries({ queryKey: ['guidance', fieldId] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard', fieldId] });
+    },
+  });
+}
+
 export function useAISettings(enabled: boolean = true) {
   return useQuery({
     queryKey: ['settings', 'ai'],

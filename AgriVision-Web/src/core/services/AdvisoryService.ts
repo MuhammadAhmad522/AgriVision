@@ -1,5 +1,5 @@
 import { http } from '../api/http';
-import type { AIRecommendation, AnalysisRunDetail, ChatMessage, SeasonMemory, AISettings, AIHealth, Advisory, AdvisoryCreate } from '../types';
+import type { AIRecommendation, AnalysisRunDetail, ChatMessage, SeasonMemory, AISettings, AIHealth, Advisory, AdvisoryCreate, GuidanceDirective, GuidanceMutationResult } from '../types';
 
 export class AdvisoryService {
   async getRecommendations(fieldId: string): Promise<AIRecommendation[]> {
@@ -65,6 +65,19 @@ export class AdvisoryService {
     return await http.post(`/api/fields/${fieldId}/agronomist-chat`, { message }, {
       headers: { 'Idempotency-Key': idempotencyKey },
     });
+  }
+
+  /** Durable standing guidance that shapes this field's AI recommendation engine. */
+  async getGuidance(fieldId: string): Promise<GuidanceDirective[]> {
+    return await http.get<GuidanceDirective[]>(`/api/fields/${fieldId}/guidance`);
+  }
+
+  async addGuidance(fieldId: string, text: string): Promise<GuidanceMutationResult> {
+    return await http.post<GuidanceMutationResult>(`/api/fields/${fieldId}/guidance`, { text });
+  }
+
+  async retractGuidance(fieldId: string, directiveId: string): Promise<GuidanceMutationResult> {
+    return await http.delete<GuidanceMutationResult>(`/api/fields/${fieldId}/guidance/${directiveId}`);
   }
 
   /**

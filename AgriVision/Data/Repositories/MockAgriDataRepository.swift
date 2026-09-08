@@ -9,7 +9,15 @@ import CoreLocation
 class MockAgriDataRepository: AgriDataService {
     
     var shouldFail: Bool = false
+    /// Identity of the "current" analysis run, rotated by `refreshRecommendations` so callers
+    /// waiting on a triggered run see it settle instead of polling until they time out.
+    private var advisorRunId = UUID()
     var failOnMethods: Set<String> = []
+
+    /// Test knobs: when set, override what the notification poll and the dashboard's
+    /// recommendation slice return, so a test can simulate "expert reviewed it".
+    var stubbedNotifications: [UserNotification] = []
+    var stubbedRecommendations: [FieldRecommendation]? = nil
 
     private let mockCropType: String
     private let mockFieldID: UUID
@@ -160,6 +168,12 @@ class MockAgriDataRepository: AgriDataService {
             ndviScore: 0.8, lastSatelliteSync: Date()
         )
         let weatherSoil = try await fetchWeatherSoil(for: fieldId)
+        let recommendations: [FieldRecommendation]
+        if let stub = stubbedRecommendations {
+            recommendations = stub
+        } else {
+            recommendations = try await fetchRecommendations(for: fieldId)
+        }
         return DashboardSnapshot(
             field: field,
             sources: DashboardSources(
@@ -175,9 +189,11 @@ class MockAgriDataRepository: AgriDataService {
                 lastUpdated: Date(),
                 message: nil,
                 retryable: false,
-                dataQuality: "good"
+                dataQuality: "good",
+                runId: advisorRunId,
+                runStatus: "completed"
             ),
-            recommendations: try await fetchRecommendations(for: fieldId)
+            recommendations: recommendations
         )
     }
 
@@ -206,6 +222,9 @@ class MockAgriDataRepository: AgriDataService {
 
     func refreshRecommendations(for fieldId: UUID) async throws {
         try await maybeThrow("refreshRecommendations")
+        // Mirrors the backend: the trigger queues a new analysis run, so the next dashboard
+        // fetch reports a run id the caller has not seen before.
+        advisorRunId = UUID()
     }
 
     func fetchSeasonMemory(for fieldId: UUID) async throws -> SeasonMemory? {
@@ -289,7 +308,8 @@ class MockAgriDataRepository: AgriDataService {
     }
 
     func fetchNotifications() async throws -> [UserNotification] {
-        return []
+        try await maybeThrow("fetchNotifications")
+        return stubbedNotifications
     }
     
     func markNotificationRead(id: UUID) async throws -> UserNotification {

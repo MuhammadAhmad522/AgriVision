@@ -367,3 +367,33 @@ class AIHealthResponse(BaseModel):
     knowledge: str
     latency_ms: int | None = None
     detail: str
+
+
+class GuidanceDirectiveCreate(StrictModel):
+    text: Annotated[str, PydanticField(min_length=3, max_length=2000)]
+
+    _clean_text = field_validator("text")(clean_text)
+
+
+class GuidanceDirectiveResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    field_id: UUID
+    text: str
+    status: str
+    created_by_id: UUID | None
+    created_by_email: str | None
+    created_by_name: str | None
+    created_at: datetime
+    retracted_by_id: UUID | None
+    retracted_at: datetime | None
+    applied_run_id: UUID | None
+
+
+class GuidanceDirectiveMutationResponse(BaseModel):
+    """A create/retract result plus whether a forced recommendation re-run was queued."""
+
+    directive: GuidanceDirectiveResponse
+    ai_rerun_queued: bool
+    deduplicated: bool = False
