@@ -6,9 +6,19 @@ import Foundation
  - `Codable`: Allows us to easily convert this data to and from JSON (which we get from a server).
  */
 struct SensorReading: Identifiable, Codable {
-    let id: UUID
-    let type: String
-    let value: Double
-    let unit: String
-    let timestamp: Date
+    let sensor_id: UUID
+    let time: Date
+    let temperature: Double?
+    let moisture: Double?
+    let humidity: Double?
+    var ph: Double? = nil
+    var ec: Double? = nil
+    var npk_n: Double? = nil
+    var npk_p: Double? = nil
+    var npk_k: Double? = nil
+    
+    // Synthesize an ID for SwiftUI lists since timeseries rows don't have UUID primary keys themselves
+    var id: String {
+        "\(sensor_id.uuidString)-\(time.timeIntervalSince1970)"
+    }
 }

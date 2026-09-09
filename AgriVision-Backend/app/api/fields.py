@@ -1,0 +1,567 @@
+import json
+from datetime import datetime, timedelta, timezone
+from uuid import UUID
+
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Response, status
+from geoalchemy2.functions import ST_AsGeoJSON
+from pydantic import BaseModel
+from sqlalchemy import func, text
+from sqlalchemy.orm import Session
+
+from app.core.auth import get_current_user
+from app.core.config import settings
+from app.core.errors import APIError
+from app.core.rate_limit import rate_limiter
+from app.database import get_db
+from app.models.db_models import (
+    AIAnalysisRun,
+    Field,
+    FieldDeletionJob,
+    FieldProviderLink,
+    FieldObservation,
+    FieldRecommendation,
+    ProviderCapability,
+    SatelliteScene,
+    Sensor,
+    SensorReading,
+    User,
+    UserRole,
+)
+from app.schemas.pydantic_schemas import FieldResponse, FieldUpdate, FieldWithSensorsCreate, SensorCreate, SensorResponse
+
+router = APIRouter(prefix="/api/fields", tags=["Fields"])
+
+
+def _coordinates_to_wkt(coordinates) -> str:
+    points = [(point.longitude, point.latitude) for point in coordinates]
+    if points[0] != points[-1]:
+        points.append(points[0])
+    return "POLYGON(({}))".format(", ".join(f"{lon:.8f} {lat:.8f}" for lon, lat in points))
+
+
+def field_to_response(field: Field, db: Session) -> FieldResponse:
+    from app.models.db_models import FieldProviderLink, User
+    link = db.query(FieldProviderLink).filter(FieldProviderLink.field_id == field.id, FieldProviderLink.provider == "agromonitoring").first()
+    
+    owner_row = db.query(User.email, User.display_name).filter(User.id == field.owner_id).first()
+    owner_email = owner_row[0] if owner_row else None
+    owner_name = owner_row[1] if owner_row else None
+
+    raw = db.query(ST_AsGeoJSON(Field.boundary)).filter(Field.id == field.id).scalar()
+    coordinates: list[dict[str, float]] = []
+    if raw:
+        exterior = (json.loads(raw).get("coordinates") or [[]])[0]
+        if len(exterior) > 1 and exterior[0] == exterior[-1]:
+            exterior = exterior[:-1]
+        coordinates = [{"longitude": float(point[0]), "latitude": float(point[1])} for point in exterior]
+
+    return FieldResponse(
+        id=field.id,
+        owner_id=field.owner_id,
+        owner_email=owner_email,
+        owner_name=owner_name,
+        name=field.name,
+        coordinates=coordinates,
+        area_ha=field.area_ha,
+        status=field.status,
+        archived_at=field.archived_at,
+        created_at=field.created_at,
+        updated_at=field.updated_at,
+        crop_type=field.crop_type,
+        plantation_date=field.plantation_date,
+        expected_harvest_date=field.expected_harvest_date,
+        agromonitoring_polygon_id=link.external_id if link else None,
+        agro_status=link.sync_status if link else ("pending" if settings.AGROMONITORING_API_KEY.strip() else "not_configured"),
+        agro_error=link.sync_error if link else (None if settings.AGROMONITORING_API_KEY.strip() else "Satellite data is not connected yet."),
+        agro_retryable=link.retryable if link else bool(settings.AGROMONITORING_API_KEY.strip()),
+        latest_ndvi=field.latest_ndvi,
+        last_satellite_sync=link.last_sync_at if link else None,
+        latest_health_score=field.latest_health_score,
+        latest_health_label=field.latest_health_label,
+        latest_health_rationale=field.latest_health_rationale,
+        latest_health_updated_at=field.latest_health_updated_at,
+    )
+
+
+def owned_field(db: Session, user: User, field_id: UUID, *, include_archived: bool = True) -> Field:
+    query = db.query(Field).filter(Field.id == field_id, Field.owner_id == user.id)
+    if not include_archived:
+        query = query.filter(Field.status == "active")
+    field = query.first()
+    if field is None:
+        raise APIError(404, "field_not_found", "Field not found.")
+    return field
+
+
+def field_readable_by(db: Session, user: User, field_id: UUID, *, include_archived: bool = True) -> Field:
+    """Like owned_field, but also allows staff (admin/agronomist) read-only access to any field.
+
+    Only use this for GET/read endpoints. Every write action stays on owned_field so staff
+    never act as the farmer.
+    """
+    query = db.query(Field).filter(Field.id == field_id)
+    if not include_archived:
+        query = query.filter(Field.status == "active")
+    field = query.first()
+    if field is None:
+        raise APIError(404, "field_not_found", "Field not found.")
+    if field.owner_id != user.id and user.role not in (UserRole.admin, UserRole.agronomist):
+        raise APIError(404, "field_not_found", "Field not found.")
+    return field
+
+
+async def _sync_field_background(field_id: UUID, force: bool = False) -> None:
+    from app.services.scheduler import sync_field_once
+
+    await sync_field_once(field_id, force=force)
+
+
+def _assign_paired_sensor(db: Session, current_user: User, field: Field, sensor_data: SensorCreate) -> Sensor:
+    sensor = db.query(Sensor).filter(Sensor.device_id == sensor_data.device_id).with_for_update().first()
+    if sensor is None or sensor.owner_id is None:
+        raise APIError(409, "sensor_not_paired", "Pair this sensor before assigning it to a field.")
+    # A probe may be attached to a field iff they share an owner. This used to compare
+    # against the caller instead, which blocked staff from attaching a farmer's paired
+    # probe to that same farmer's field — the only way hardware ever actually gets
+    # installed, since the web portal is staff-only.
+    if sensor.owner_id != field.owner_id:
+        raise APIError(409, "sensor_owned_by_another_tenant", "That sensor is paired to a different account than this field's owner.")
+    if sensor.field_id is not None and sensor.field_id != field.id:
+        raise APIError(409, "sensor_already_assigned", "That sensor is already assigned to another field.")
+    sensor.field_id = field.id
+    sensor.name = sensor_data.name or sensor.name
+    sensor.sensor_type = sensor_data.sensor_type
+    return sensor
+
+
+@router.post("", response_model=FieldResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=FieldResponse, status_code=status.HTTP_201_CREATED, include_in_schema=False)
+async def create_field(
+    field_data: FieldWithSensorsCreate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Allow enough headroom for validation retries while still bounding abusive creation traffic.
+    await rate_limiter.check(f"field-create:{current_user.firebase_uid}", 20, 3600)
+    # Serialize count-and-create for this tenant, including concurrent API requests.
+    db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:uid))"), {"uid": current_user.firebase_uid})
+    active_count = db.query(func.count(Field.id)).filter(Field.owner_id == current_user.id, Field.status == "active").scalar()
+    if active_count >= settings.ACTIVE_FIELD_LIMIT:
+        raise APIError(409, "active_field_limit", "You can have at most five fields. Delete one to add another.")
+
+    wkt = _coordinates_to_wkt(field_data.coordinates)
+    valid = db.execute(text("SELECT ST_IsValid(ST_GeomFromText(:wkt, 4326))"), {"wkt": wkt}).scalar()
+    if not valid:
+        raise APIError(422, "invalid_boundary", "The field boundary intersects itself or is otherwise invalid.")
+    computed_area = float(db.execute(text("SELECT ST_Area(ST_GeomFromText(:wkt, 4326)::geography) / 10000.0"), {"wkt": wkt}).scalar())
+    if computed_area <= 0:
+        raise APIError(422, "invalid_boundary", "The field boundary has no measurable area.")
+
+    if computed_area < 1.0 or computed_area > 3000.0:
+        raise APIError(
+            422,
+            "field_area_out_of_range",
+            "Field area must be between 1 and 3000 hectares.",
+        )
+
+    new_field = Field(
+        owner_id=current_user.id,
+        name=field_data.name,
+        boundary=f"SRID=4326;{wkt}",
+        area_ha=computed_area,
+        crop_type=field_data.crop_type,
+        plantation_date=field_data.plantation_date,
+        expected_harvest_date=field_data.expected_harvest_date,
+        status="active",
+    )
+    db.add(new_field)
+    db.flush()
+
+    for sensor_data in field_data.sensors:
+        _assign_paired_sensor(db, current_user, new_field, sensor_data)
+
+    db.commit()
+    db.refresh(new_field)
+    if settings.AGROMONITORING_API_KEY.strip():
+        from app.services.scheduler import sync_field_initial
+
+        completed = await sync_field_initial(new_field.id)
+        if not completed:
+            background_tasks.add_task(_sync_field_background, new_field.id)
+        db.expire_all()
+        new_field = db.query(Field).filter(Field.id == new_field.id).first()
+    # AI generation is independent from the provider sync and starts as soon
+    # as the field-creation response has been returned to the app.
+    from app.services.scheduler import run_ai_by_field_id
+
+    background_tasks.add_task(run_ai_by_field_id, new_field.id, force=True)
+    return field_to_response(new_field, db)
+
+
+@router.get("", response_model=list[FieldResponse])
+@router.get("/", response_model=list[FieldResponse], include_in_schema=False)
+def get_fields(
+    include_archived: bool = Query(False),
+    admin_view: bool = Query(False),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    query = db.query(Field)
+    if not (admin_view and current_user.role in (UserRole.admin, UserRole.agronomist)):
+        query = query.filter(Field.owner_id == current_user.id)
+        
+    if not include_archived:
+        query = query.filter(Field.status == "active")
+    fields = query.order_by(Field.created_at.asc()).all()
+    return [field_to_response(field, db) for field in fields]
+
+
+@router.get("/{field_id}", response_model=FieldResponse)
+def get_field(field_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return field_to_response(field_readable_by(db, current_user, field_id), db)
+
+
+@router.post("/{field_id}/sensors", response_model=SensorResponse)
+def assign_sensor(
+    field_id: UUID,
+    sensor_data: SensorCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Staff install and move hardware on behalf of farmers, so this is gated on field
+    # readability rather than ownership; _assign_paired_sensor still enforces that the
+    # probe and the field belong to the same farmer.
+    field = field_readable_by(db, current_user, field_id, include_archived=False)
+    sensor = _assign_paired_sensor(db, current_user, field, sensor_data)
+    db.commit()
+    db.refresh(sensor)
+    return sensor
+
+
+@router.delete("/{field_id}/sensors/{device_id}", status_code=status.HTTP_204_NO_CONTENT)
+def detach_sensor(
+    field_id: UUID,
+    device_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Detach a probe from a field without destroying its telemetry.
+
+    Un-pairing deletes the sensor record and cascades away every reading it ever took, so
+    it is the wrong tool for moving a probe between fields or pulling one for repair.
+    There was no non-destructive alternative until now.
+    """
+    field = field_readable_by(db, current_user, field_id, include_archived=False)
+    sensor = (
+        db.query(Sensor)
+        .filter(Sensor.device_id == device_id, Sensor.field_id == field.id)
+        .with_for_update()
+        .first()
+    )
+    if sensor is None:
+        raise APIError(404, "sensor_not_found", "No such sensor is assigned to this field.")
+    sensor.field_id = None
+    db.commit()
+    return None
+
+
+@router.get("/{field_id}/sensors", response_model=list[SensorResponse])
+def get_field_sensors(
+    field_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    field = field_readable_by(db, current_user, field_id)
+    return (
+        db.query(Sensor)
+        .filter(Sensor.field_id == field.id, Sensor.owner_id == field.owner_id)
+        .order_by(Sensor.name.asc().nulls_last(), Sensor.device_id.asc())
+        .all()
+    )
+
+
+@router.patch("/{field_id}", response_model=FieldResponse)
+def update_field(field_id: UUID, update: FieldUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    field = owned_field(db, current_user, field_id, include_archived=False)
+    for key, value in update.model_dump(exclude_unset=True).items():
+        if isinstance(value, BaseModel):
+            value = value.model_dump(exclude_none=True)
+        setattr(field, key, value)
+    if field.plantation_date and field.expected_harvest_date and field.expected_harvest_date <= field.plantation_date:
+        raise APIError(422, "invalid_harvest_date", "Expected harvest date must be after plantation date.")
+    db.commit()
+    db.refresh(field)
+    return field_to_response(field, db)
+
+
+@router.post("/{field_id}/harvest", deprecated=True)
+def harvest_field_removed(
+    field_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    owned_field(db, current_user, field_id)
+    raise APIError(410, "field_archiving_removed", "Field archiving is no longer supported. Update the app to permanently delete a field.")
+
+
+def queue_field_deletion(db: Session, field: Field, background_tasks: BackgroundTasks):
+    from app.models.db_models import FieldProviderLink, Sensor
+    from app.services.scheduler import process_field_deletion_job
+
+    link = db.query(FieldProviderLink).filter(FieldProviderLink.field_id == field.id, FieldProviderLink.provider == "agromonitoring").first()
+    polygon_id = link.external_id if link else None
+    field.status = "deleting"
+    
+    sensor_ids = [row[0] for row in db.query(Sensor.id).filter(Sensor.field_id == field.id).all()]
+    if sensor_ids:
+        db.query(Sensor).filter(Sensor.id.in_(sensor_ids)).update({"field_id": None}, synchronize_session=False)
+        
+    job = FieldDeletionJob(
+        field_id=field.id,
+        provider_polygon_id=polygon_id,
+        media_paths=[f"agro/{field.id}", f"chat/{field.id}"],
+        status="pending",
+    )
+    db.add(job)
+    db.flush()
+    db.delete(field)
+    db.commit()
+    background_tasks.add_task(process_field_deletion_job, job.id)
+
+
+@router.delete("/{field_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_field(
+    field_id: UUID,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role != UserRole.admin:
+        owned_field(db, current_user, field_id)
+    field = db.query(Field).filter(Field.id == field_id).with_for_update().first()
+    if field is None:
+        raise APIError(404, "field_not_found", "Field not found.")
+
+    queue_field_deletion(db, field, background_tasks)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+def _latest_observation(db: Session, field_id: UUID, metric: str) -> FieldObservation | None:
+    return (
+        db.query(FieldObservation)
+        .filter(FieldObservation.field_id == field_id, FieldObservation.metric == metric)
+        .order_by(FieldObservation.observed_at.desc())
+        .first()
+    )
+
+
+def _source_state(db: Session, field_id: UUID, metric: str) -> ProviderCapability | None:
+    return db.query(ProviderCapability).filter(
+        ProviderCapability.provider == "agromonitoring",
+        ProviderCapability.field_id == field_id,
+        ProviderCapability.capability == f"sync:{metric}",
+    ).first()
+
+
+def _source_block(
+    observation: FieldObservation | None,
+    source_state: ProviderCapability | None = None,
+    *,
+    provider_configured: bool = True,
+    label: str = "Data",
+) -> dict:
+    if observation is None:
+        if not provider_configured:
+            return {"status": "not_configured", "last_updated": None, "data": None, "message": f"{label} is not connected yet.", "retryable": False}
+        if source_state is not None and source_state.status in {"unavailable", "unsupported"}:
+            return {
+                "status": source_state.status,
+                "last_updated": source_state.checked_at,
+                "data": None,
+                "message": source_state.detail or f"{label} is currently unavailable.",
+                "retryable": source_state.status == "unavailable",
+            }
+        return {"status": "pending", "last_updated": None, "data": None, "message": f"{label} is being prepared.", "retryable": True}
+    now = datetime.now(timezone.utc)
+    failed_refresh = source_state is not None and source_state.status == "unavailable"
+    status_value = "stale" if failed_refresh or (observation.expires_at and observation.expires_at < now) else "available"
+    return {
+        "status": status_value,
+        "last_updated": observation.observed_at,
+        "data": observation.payload,
+        "message": (source_state.detail if failed_refresh else f"The latest {label.lower()} snapshot is stale.") if status_value == "stale" else None,
+        "retryable": status_value == "stale",
+    }
+
+
+@router.post("/{field_id}/data-refresh", status_code=status.HTTP_202_ACCEPTED)
+async def refresh_field_data(
+    field_id: UUID,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    field = owned_field(db, current_user, field_id, include_archived=False)
+    if not settings.AGROMONITORING_API_KEY.strip():
+        raise APIError(503, "agromonitoring_not_configured", "Satellite and weather services are not connected yet.")
+    from app.models.db_models import FieldProviderLink
+    link = db.query(FieldProviderLink).filter(FieldProviderLink.field_id == field.id, FieldProviderLink.provider == "agromonitoring").first()
+    if link and link.sync_status == "unsupported":
+        raise APIError(409, "agromonitoring_unsupported", link.sync_error or "This field is not supported by the satellite provider.")
+    await rate_limiter.check(f"provider-refresh:{current_user.firebase_uid}:{field_id}", 4, 3600)
+    background_tasks.add_task(_sync_field_background, field_id, True)
+    return {"status": "accepted", "message": "Field data refresh queued."}
+
+
+@router.get("/{field_id}/dashboard")
+def get_dashboard(field_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Read-only endpoint, so staff may open any field. Sensors are scoped to the field's
+    # owner rather than the caller — an agronomist viewing a farmer's field must see that
+    # farmer's hardware, not their own (which would always be empty).
+    field = field_readable_by(db, current_user, field_id)
+    sensors = db.query(Sensor).filter(Sensor.field_id == field.id, Sensor.owner_id == field.owner_id).all()
+    sensor_ids = [sensor.id for sensor in sensors]
+    latest_readings = []
+    if sensor_ids:
+        latest_readings = (
+            db.query(SensorReading)
+            .filter(SensorReading.sensor_id.in_(sensor_ids))
+            .order_by(SensorReading.time.desc())
+            .limit(50)
+            .all()
+        )
+    # Per-sensor breakdown, queried per sensor (not derived from latest_readings above) so a
+    # quiet sensor's true latest reading can't be crowded out by a chattier sibling sensor's
+    # rows within that shared top-50 window.
+    offline_cutoff = datetime.now(timezone.utc) - timedelta(minutes=settings.SENSOR_OFFLINE_CUTOFF_MINUTES)
+    sensor_fleet = []
+    for sensor in sensors:
+        latest_for_sensor = (
+            db.query(SensorReading)
+            .filter(SensorReading.sensor_id == sensor.id)
+            .order_by(SensorReading.time.desc())
+            .first()
+        )
+        sensor_fleet.append({
+            "sensor_id": sensor.id,
+            "name": sensor.name,
+            "device_id": sensor.device_id,
+            "sensor_type": sensor.sensor_type,
+            "is_online": bool(sensor.last_seen and sensor.last_seen >= offline_cutoff),
+            "last_seen": sensor.last_seen,
+            "reading": latest_for_sensor,
+        })
+    recommendations = (
+        db.query(FieldRecommendation)
+        .filter(
+            FieldRecommendation.field_id == field.id,
+            FieldRecommendation.status != "superseded",
+            (FieldRecommendation.expires_at.is_(None))
+            | (FieldRecommendation.expires_at >= datetime.now(timezone.utc)),
+        )
+        .order_by(FieldRecommendation.created_at.desc())
+        .limit(10)
+        .all()
+    )
+    latest_ai_run = (
+        db.query(AIAnalysisRun)
+        .filter(AIAnalysisRun.field_id == field.id)
+        .order_by(AIAnalysisRun.started_at.desc())
+        .first()
+    )
+    if latest_ai_run is None:
+        advisor_status = "available" if recommendations else "pending"
+        advisor_message = None if recommendations else "AI is preparing the first field assessment."
+    elif latest_ai_run.status == "running":
+        advisor_status = "pending"
+        advisor_message = "AI is reviewing the latest field evidence."
+    elif latest_ai_run.status == "failed":
+        advisor_status = "stale" if recommendations else "unavailable"
+        advisor_message = latest_ai_run.error or "AI Advisor could not complete the latest analysis."
+    else:
+        advisor_status = "available" if recommendations else "pending"
+        advisor_message = None if recommendations else "AI analysis completed without a field-specific action."
+    advisor = {
+        "status": advisor_status,
+        # The run's own identity and lifecycle state, so a client that just triggered a
+        # re-analysis can tell "my run finished" from "a previous run's result is still
+        # showing" — `status` alone collapses both onto "pending"/"available".
+        "run_id": latest_ai_run.id if latest_ai_run is not None else None,
+        "run_status": latest_ai_run.status if latest_ai_run is not None else None,
+        "last_updated": (
+            latest_ai_run.completed_at or latest_ai_run.started_at
+            if latest_ai_run is not None
+            else None
+        ),
+        "message": advisor_message,
+        "retryable": advisor_status in {"pending", "stale", "unavailable"},
+        "data_quality": latest_ai_run.data_quality if latest_ai_run is not None else None,
+    }
+    link = db.query(FieldProviderLink).filter(FieldProviderLink.field_id == field.id, FieldProviderLink.provider == "agromonitoring").first()
+    agro_status = link.sync_status if link else "pending"
+    agro_error = link.sync_error if link else None
+    agro_retryable = link.retryable if link else False
+    last_satellite_sync = link.last_sync_at if link else None
+
+    scene = db.query(SatelliteScene).filter(SatelliteScene.field_id == field.id).order_by(SatelliteScene.acquired_at.desc()).first()
+    provider_configured = bool(settings.AGROMONITORING_API_KEY.strip())
+    if scene is None:
+        satellite_status = agro_status if provider_configured or agro_status == "unsupported" else "not_configured"
+    else:
+        satellite_status = "stale" if agro_status in {"pending", "unavailable"} else "available"
+    version_param = f"?v={int(scene.acquired_at.timestamp())}" if scene and scene.acquired_at else ""
+    satellite = {
+        "status": satellite_status,
+        "last_updated": scene.acquired_at if scene else last_satellite_sync,
+        "data": None if scene is None else {
+            "scene_id": scene.id,
+            "acquired_at": scene.acquired_at,
+            "cloud_percent": scene.cloud_percent,
+            "coverage_percent": scene.coverage_percent,
+            "statistics": scene.statistics,
+            "ndvi_image_url": f"/api/fields/{field.id}/satellite/latest/ndvi{version_param}" if scene.ndvi_image_path else None,
+            "truecolor_image_url": f"/api/fields/{field.id}/satellite/latest/truecolor{version_param}" if scene.truecolor_image_path else None,
+            "ndvi_tile_url": f"/api/fields/{field.id}/satellite/latest/tile/ndvi/{{z}}/{{x}}/{{y}}{version_param}" if scene.ndvi_image_path else None,
+            "ndwi_tile_url": f"/api/fields/{field.id}/satellite/latest/tile/ndwi/{{z}}/{{x}}/{{y}}{version_param}" if scene.ndvi_image_path else None,
+            "evi_tile_url": f"/api/fields/{field.id}/satellite/latest/tile/evi/{{z}}/{{x}}/{{y}}{version_param}" if scene.ndvi_image_path else None,
+            "truecolor_tile_url": f"/api/fields/{field.id}/satellite/latest/tile/truecolor/{{z}}/{{x}}/{{y}}{version_param}" if scene.ndvi_image_path else None,
+        },
+        "message": agro_error if provider_configured or agro_status == "unsupported" else "Satellite data is not connected yet.",
+        "retryable": bool(agro_retryable and provider_configured),
+    }
+    return {
+        "field": field_to_response(field, db).model_dump(),
+        "sources": {
+            "satellite": satellite,
+            "soil": _source_block(_latest_observation(db, field.id, "soil_current"), _source_state(db, field.id, "soil_current"), provider_configured=provider_configured, label="Soil data"),
+            "weather": _source_block(_latest_observation(db, field.id, "weather_forecast"), _source_state(db, field.id, "weather_forecast"), provider_configured=provider_configured, label="Weather data"),
+            "uvi": _source_block(_latest_observation(db, field.id, "uvi_current"), _source_state(db, field.id, "uvi_current"), provider_configured=provider_configured, label="UV data"),
+            "sensors": {
+                "status": "not_configured" if not sensors else ("available" if latest_readings else "unavailable"),
+                "last_updated": latest_readings[0].time if latest_readings else None,
+                "data": latest_readings,
+                "configured_count": len(sensors),
+                "reporting_count": len({reading.sensor_id for reading in latest_readings}),
+                "message": "IoT monitoring is optional for this field." if not sensors else (None if latest_readings else "The paired sensor has not reported any readings yet."),
+                "retryable": bool(sensors and not latest_readings),
+            },
+            "sensor_fleet": sensor_fleet,
+        },
+        "advisor": advisor,
+        "recommendations": recommendations,
+    }
+
+
+@router.get("/{field_id}/weather-soil", include_in_schema=False)
+@router.get("/{field_id}/weather-soil/", include_in_schema=False)
+def weather_soil_compat(field_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    field_readable_by(db, current_user, field_id)
+    configured = bool(settings.AGROMONITORING_API_KEY.strip())
+    soil = _source_block(_latest_observation(db, field_id, "soil_current"), _source_state(db, field_id, "soil_current"), provider_configured=configured, label="Soil data")
+    weather = _source_block(_latest_observation(db, field_id, "weather_forecast"), _source_state(db, field_id, "weather_forecast"), provider_configured=configured, label="Weather data")
+    return {
+        "field_id": field_id,
+        "soil": soil["data"] or {"moisture": None, "surface_temp_c": None, "depth_temp_c": None, "source": soil["status"]},
+        "weather": weather["data"] or {"current": {"temp_c": None, "humidity": None, "description": None}, "forecast_days": [], "source": weather["status"]},
+    }

@@ -16,10 +16,10 @@ struct LoginView: View {
                 Button(action: { viewModel.rememberMe.toggle() }) {
                     HStack(spacing: 8) {
                         Image(systemName: viewModel.rememberMe ? "checkmark.square.fill" : "square")
-                            .foregroundColor(.authGreen)
+                            .foregroundColor(Theme.Colors.primary)
                         Text("Remember Me")
-                            .font(.system(size: 14))
-                            .foregroundColor(.authGreen)
+                            .textStyle(.captionStrong)
+                            .foregroundColor(Theme.Colors.primary)
                     }
                 }
 
@@ -27,13 +27,13 @@ struct LoginView: View {
 
                 Button(action: { viewModel.forgotPassword() }) {
                     Text("Forgot Password")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.authGreen)
+                        .textStyle(.captionStrong)
+                        .foregroundColor(Theme.Colors.primary)
                 }
             }
             .frame(width: UIConstants.Auth.formWidth)
 
-            AuthPrimaryButton(title: "Login") {
+            AuthPrimaryButton(title: "Login", isLoading: viewModel.isLoading) {
                 viewModel.login()
             }
             .padding(.top, 10)
@@ -41,18 +41,27 @@ struct LoginView: View {
             OrDividerView()
 
             SocialAuthButton(title: "Continue with Google") {
-                // TODO: Google login action
+                viewModel.continueWithGoogle()
+            }
+            .disabled(viewModel.isLoading)
+            .opacity(viewModel.isLoading ? 0.6 : 1.0)
+
+            if let error = viewModel.errorMessage {
+                Text(error)
+                    .textStyle(.caption)
+                    .foregroundColor(Theme.Colors.error)
+                    .padding(.horizontal)
             }
 
             Button(action: onSignupTap) {
                 HStack(spacing: 4) {
                     Text("Not a Member?")
-                        .foregroundColor(.authPlaceholder)
+                        .foregroundColor(Theme.Colors.textSecondary)
                     Text("Signup")
-                        .foregroundColor(.authGreen)
+                        .foregroundColor(Theme.Colors.primary)
                         .fontWeight(.bold)
                 }
-                .font(.system(size: 14))
+                .textStyle(.captionStrong)
             }
             .padding(.top, 10)
         }
@@ -62,6 +71,6 @@ struct LoginView: View {
 }
 
 #Preview {
-    LoginView(viewModel: LoginViewModel(), onSignupTap: {})
-        .background(Color.authCream)
+    LoginView(viewModel: LoginViewModel(authService: MockAuthService(), preferencesService: MockPreferencesService()), onSignupTap: {})
+        .background(Theme.Colors.background)
 }

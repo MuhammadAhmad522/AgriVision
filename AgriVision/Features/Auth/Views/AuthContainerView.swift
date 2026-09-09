@@ -7,9 +7,9 @@ struct AuthContainerView: View {
     
     @State private var containerHeight: CGFloat = 0
 
-    /// All three ViewModels are injected by the Coordinator (DIP / MVVM-C).
-    /// `@StateObject` with `StateObject(wrappedValue:)` keeps them alive for the
-    /// full lifetime of this View while ensuring the Coordinator owns creation.
+    // The Coordinator creates these ViewModels and passes them in.
+    // Using @StateObject here ensures this View keeps them alive in memory
+    // rather than accidentally destroying them during UI redraws.
     init(viewModel: AuthViewModel, loginViewModel: LoginViewModel, signupViewModel: SignupViewModel) {
         self._viewModel = StateObject(wrappedValue: viewModel)
         self._loginViewModel = StateObject(wrappedValue: loginViewModel)
@@ -24,8 +24,8 @@ struct AuthContainerView: View {
                 .aspectRatio(contentMode: .fill)
                 .ignoresSafeArea()
 
-            // `GeometryReader` replaces the previous `UIScreen.main.bounds.height`
-            // call, keeping this View free of UIKit dependencies (MVVM-C View rules).
+            // We use GeometryReader to get the dynamic screen size instead of
+            // UIScreen.main.bounds, making this view more adaptable to different devices.
             GeometryReader { proxy in
                 ScrollView(showsIndicators: false) {
                     VStack {
@@ -63,20 +63,7 @@ struct AuthContainerView: View {
                         }
                         .padding(.horizontal, UIConstants.Auth.cardHorizontalPadding)
                         .frame(width: UIConstants.Auth.cardWidth)
-                        .background(
-                            RoundedRectangle(cornerRadius: UIConstants.Auth.cardCornerRadius)
-                                .fill(Color.white.opacity(0.1))
-                                .background(
-                                    Color.white.opacity(0.1)
-                                        .blur(radius: 20)
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: UIConstants.Auth.cardCornerRadius)
-                                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                                )
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: UIConstants.Auth.cardCornerRadius))
-                        .shadow(color: Color.black.opacity(0.1), radius: 20, x: 0, y: 10)
+                        .glassmorphism(cornerRadius: UIConstants.Auth.cardCornerRadius)
                         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: viewModel.selectedTab)
 
                         Spacer(minLength: UIConstants.Auth.scrollSpacerMinLength)
@@ -101,7 +88,37 @@ struct AuthContainerView: View {
 #Preview {
     AuthContainerView(
         viewModel: AuthViewModel(),
-        loginViewModel: LoginViewModel(),
-        signupViewModel: SignupViewModel()
+        loginViewModel: LoginViewModel(authService: MockAuthService(), preferencesService: MockPreferencesService()),
+        signupViewModel: SignupViewModel(authService: MockAuthService(), userProfileService: MockUserProfileService())
     )
+}
+
+/// A custom, reusable modifier that applies a frosted-glass, multi-layered background effect.
+/// Use `.glassmorphism(cornerRadius:)` on any SwiftUI View to achieve the premium aesthetic.
+struct GlassmorphismModifier: ViewModifier {
+    var cornerRadius: CGFloat
+    
+    func body(content: Content) -> some View {
+        content
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .fill(Color.white.opacity(0.1))
+                    .background(
+                        Color.white.opacity(0.1)
+                            .blur(radius: 20)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: cornerRadius)
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                    )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+            .shadow(color: Color.black.opacity(0.1), radius: 20, x: 0, y: 10)
+    }
+}
+
+extension View {
+    func glassmorphism(cornerRadius: CGFloat) -> some View {
+        self.modifier(GlassmorphismModifier(cornerRadius: cornerRadius))
+    }
 }

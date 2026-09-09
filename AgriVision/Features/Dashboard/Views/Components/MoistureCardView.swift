@@ -1,0 +1,56 @@
+import SwiftUI
+import Charts
+
+struct MoistureCardView: View {
+    var moisture: Int?
+    var body: some View {
+        LiquidGlassCard {
+            VStack(spacing: 0) {
+                MetricCardHeader(icon: "drop.fill", iconColor: .cyan, title: "Soil Moisture")
+
+                Spacer(minLength: 0)
+                
+                ZStack(alignment: .bottom) {
+                    ZStack {
+                        Circle()
+                            .trim(from: 0.5, to: 1.0)
+                            .stroke(Color.gray.opacity(0.2), style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                            .padding(4)
+                        
+                        Circle()
+                            .trim(from: 0.5, to: 0.5 + (0.5 * CGFloat(moisture ?? 0) / 100))
+                            .stroke(Theme.Colors.primaryMedium, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                            .padding(4)
+                    }
+                    .frame(width: 80, height: 80)
+                    .frame(height: 40, alignment: .top) // Clip perfectly to the top half
+                    .clipped()
+                    
+                    Text(moisture.map { "\($0)%" } ?? "--")
+                        .textStyle(.title3)
+                        .foregroundColor(Theme.Colors.primary)
+                        .padding(.bottom, -2)
+                }
+                .padding(.top, 10)
+
+                Spacer(minLength: 0)
+
+                
+                VStack(spacing: 8) {
+                    Text("Satellite estimate")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.secondary)
+                    
+                    Text("Optimal: 30% – 50%")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(Theme.Colors.primaryMedium)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Theme.Colors.primaryMedium.opacity(0.12))
+                        .clipShape(Capsule())
+                }
+                .padding(.bottom, 16)
+            }
+        }
+    }
+}

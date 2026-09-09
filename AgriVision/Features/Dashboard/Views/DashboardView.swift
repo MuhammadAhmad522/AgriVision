@@ -1,78 +1,345 @@
 import SwiftUI
+import Charts
+import UIKit
 
-/**
- `DashboardView` is what the user actually sees on their screen.
- It is a passive view: it only renders state provided by the ViewModel and calls
- ViewModel methods in response to user interaction. It contains no business logic
- (Single Responsibility Principle).
- */
+private enum DashboardLayout {
+    static let collapsedAlertsSheetHeight: CGFloat = 250
+}
+
 struct DashboardView: View {
-
-    /// `@StateObject` owns the ViewModel and keeps it alive as long as this View is on screen.
-    @StateObject var viewModel: DashboardViewModel
-
+    @ObservedObject var viewModel: DashboardViewModel
+    @ObservedObject var settingsViewModel: SettingsViewModel
+    @State private var selectedTab: DashboardTab = .home
+    @State private var showingAlerts = false
+    @State private var showingNotifications = false
+    @State private var selectedMetricDetail: MetricDetailType?
+    @State private var showingHarvestPopup = false
+    @State private var alertsDetent: PresentationDetent = .medium
+    
+    // Grid configuration
+    let columns = [
+        GridItem(.flexible(), spacing: Theme.Spacing.medium),
+        GridItem(.flexible(), spacing: Theme.Spacing.medium)
+    ]
+    
     var body: some View {
-        List {
-            // Error banner — rendered only when the ViewModel exposes an error message.
-            // The View does not interpret or transform the error; it simply displays it.
-            if let errorMessage = viewModel.errorMessage {
-                Section {
-                    Text(errorMessage)
-                        .foregroundColor(.red)
-                        .font(.subheadline)
-                }
-            }
+        TabView(selection: $selectedTab) {
+            // MARK: - HOME TAB
+            NavigationStack {
+                ZStack {
+                    // Background
+                    Image("bg-image")
+                        .resizable()
+                        .scaledToFill()
+                        .ignoresSafeArea()
+                    
+                    ScrollView(.vertical, showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: Theme.Spacing.large) {
+                            // Safe area buffer to prevent header from hiding under the top notch/bar
+                            Color.clear.frame(height: 60)
+                            
+                            // Header
+                            DashboardHeaderView(
+                                userName: viewModel.userName ?? "Farmer",
+                                location: viewModel.activeField?.name ?? "No active field",
+                                profileImageURL: viewModel.profileImageURL,
+                                profileInitial: viewModel.profileInitial,
+                                showNotifications: $showingNotifications,
+                                notificationCount: viewModel.unreadNotificationsCount,
+                                onSignOut: { viewModel.signOut() }
+                            )
+                            .padding(.horizontal, Theme.Spacing.large)
+                            
+                            if !viewModel.dataAvailability.isEmpty {
+                                DataAvailabilityCard(items: viewModel.dataAvailability) {
+                                    Task { await viewModel.requestDataRefresh() }
+                                }
+                                .padding(.horizontal, Theme.Spacing.large)
+                            }
+                            
+                            // Harvest Ready Banner
+                            if viewModel.showHarvestAlert {
+                                HarvestReadyBanner {
+                                    showingHarvestPopup = true
+                                }
+                                .padding(.horizontal, Theme.Spacing.large)
+                            }
+                            
+                            // AI Recommendations Banner
+                            Button(action: { showingAlerts = true }) {
+                                HStack {
+                                    Image(systemName: "sparkles")
+                                        .foregroundColor(Theme.Colors.primaryLight)
+                                    Text("AI Recommendations")
+                                        .textStyle(.bodyStrong)
+                                        .foregroundColor(Theme.Colors.primary)
+                                    Spacer()
+                                    if !viewModel.recommendations.isEmpty {
+                                        Text("\(viewModel.recommendations.count)")
+                                            .font(.system(size: 12, weight: .bold))
+                                            .foregroundColor(.white)
+                                            .padding(6)
+                                            .background(Theme.Colors.error)
+                                            .clipShape(Circle())
+                                    }
+                                    Image(systemName: "chevron.right")
+                                        .foregroundColor(.gray)
+                                }
+                                .padding()
+                                .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                .shadow(color: .black.opacity(0.05), radius: 5, y: 2)
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.horizontal, Theme.Spacing.large)
+                            
+                            // Overview Section
+                            VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
+                                Text("Overview")
+                                    .textStyle(.title3)
+                                    .padding(.horizontal, Theme.Spacing.large)
+                                
+                                HStack(spacing: Theme.Spacing.medium) {
+                                    Button(action: { selectedMetricDetail = .weather }) {
+                                        WeatherCardView(weather: viewModel.weatherSoil?.weather)
+                                    }
+                                    .buttonStyle(.plain)
+                                    
+                                    Button(action: { selectedMetricDetail = .health }) {
+                                        HealthCardView(healthScore: viewModel.healthSummary?.score, healthLabel: viewModel.healthSummary?.label, cropType: viewModel.currentCropType)
+                                            .padding(.trailing, Theme.Spacing.large)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            
+                            // Metrics Grid
+                            VStack(alignment: .leading, spacing: Theme.Spacing.medium) {
+                                Text("Field Metrics")
+                                    .textStyle(.title3)
+                                    .padding(.horizontal, Theme.Spacing.large)
+                                
+                                LazyVGrid(columns: columns, spacing: Theme.Spacing.medium) {
+                                    Button(action: { selectedMetricDetail = .moisture }) {
+                                        MoistureCardView(moisture: viewModel.weatherSoil?.soil.moisture.map { Int($0 * 100) })
+                                    }
+                                    .buttonStyle(.plain)
+                                    
+                                    Button(action: { selectedMetricDetail = .phLevel }) {
+                                        PHLevelCardView(entries: viewModel.sensorFleet)
+                                    }
+                                    .buttonStyle(.plain)
+                                    
+                                    Button(action: { selectedMetricDetail = .liveSensor }) {
+                                        SensorLiveCardView(entries: viewModel.sensorFleet)
+                                    }
+                                    .buttonStyle(.plain)
+                                    
+                                    Button(action: { selectedMetricDetail = .ndvi }) {
+                                        NDVICardView(ndvi: viewModel.satellite?.data?.statistics?["ndvi"]?.mean)
+                                    }
+                                    .buttonStyle(.plain)
+                                    
+                                    Button(action: { selectedMetricDetail = .vegetationIndices }) {
+                                        VegetationIndicesCardView(statistics: viewModel.satellite?.data?.statistics)
+                                    }
+                                    .buttonStyle(.plain)
+                                    
+                                    Button(action: { selectedMetricDetail = .uvIndex }) {
+                                        UVIndexCardView(snapshot: viewModel.uvi?.data, status: viewModel.uvi?.status)
+                                    }
+                                    .buttonStyle(.plain)
+                                    
+                                    Button(action: { selectedMetricDetail = .soilChemistry }) {
+                                        SensorChemistryCardView(entries: viewModel.sensorFleet)
+                                    }
+                                    .buttonStyle(.plain)
+                                    
+                                    Button(action: { selectedMetricDetail = .soilTemp }) {
+                                        SoilTempCardView(surfaceTemp: viewModel.weatherSoil?.soil.surfaceTempC, depthTemp: viewModel.weatherSoil?.soil.depthTempC)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                .padding(.horizontal, Theme.Spacing.large)
+                            }
+                            
 
-            Section(header: Text("Live Sensor Data")) {
-                if viewModel.isLoading {
-                    ProgressView("Updating...")
-                } else {
-                    ForEach(viewModel.readings) { reading in
-                        SensorReadingRow(reading: reading)
+                            Spacer(minLength: 100)
+                        }
                     }
+                    .refreshable { await viewModel.refreshData() }
+                }
+                .navigationBarHidden(true)
+                .sheet(item: $selectedMetricDetail) { detailType in
+                    MetricDetailContainerView(type: detailType, viewModel: viewModel)
+                        .presentationDetents([.medium, .large])
+                        .presentationDragIndicator(.visible)
+                }
+                .sheet(isPresented: $showingAlerts) {
+                    NavigationStack {
+                        AlertsBottomSheet(
+                            viewModel: viewModel,
+                            onAskAI: {
+                                showingAlerts = false
+                                selectedTab = .advisor
+                            }
+                        )
+                        .navigationTitle("AI Recommendations")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .navigationBarTrailing) {
+                                Button("Done") { showingAlerts = false }
+                            }
+                        }
+                    }
+                    .presentationDetents([.medium, .large], selection: $alertsDetent)
+                }
+                .sheet(isPresented: $showingNotifications) {
+                    NotificationInboxView(
+                        viewModel: viewModel,
+                        onOpenRecommendation: {
+                            showingNotifications = false
+                            showingAlerts = true
+                            Task { await viewModel.syncRecommendationsNow() }
+                        },
+                        onDismiss: { showingNotifications = false }
+                    )
+                    .presentationDetents([.medium, .large])
                 }
             }
+            .tabItem { Label("Home", systemImage: "house.fill") }
+            .tag(DashboardTab.home)
+            
+            // MARK: - FIELDS TAB
+            NavigationStack {
+                FieldsView(
+                    fieldStore: viewModel.fieldSessionStore,
+                    satellite: viewModel.satellite,
+                    satelliteImageData: viewModel.satelliteImageData,
+                    sensorCount: viewModel.sensorCount,
+                    snapshotFieldId: viewModel.loadedFieldId,
+                    isLoadingSnapshot: viewModel.isLoading,
+                    profileImageURL: viewModel.profileImageURL,
+                    profileInitial: viewModel.profileInitial,
+                    onAddField: viewModel.addField,
+                    onSignOut: { viewModel.signOut() }
+                )
+            }
+            .tabItem { Label("Fields", systemImage: "leaf.fill") }
+            .tag(DashboardTab.fields)
+            
+            // MARK: - AI ADVISOR TAB
+            NavigationStack {
+                if let activeFieldId = viewModel.fieldSessionStore.activeFieldId {
+                    AIChatView(viewModel: AIChatViewModel(
+                        dataService: viewModel.dataService,
+                        fieldId: activeFieldId,
+                        onMessageSent: { [weak viewModel] in
+                            Task {
+                                try? await Task.sleep(for: .seconds(6))
+                                await viewModel?.refreshData()
+                            }
+                        }
+                    ))
+                    .id(activeFieldId)
+                } else {
+                    ContentUnavailableView(
+                        "No Field Selected",
+                        systemImage: "leaf",
+                        description: Text("Select or add a field to chat with the AI Advisor.")
+                    )
+                }
+            }
+            .tabItem { Label("Advisor", systemImage: "sparkles") }
+            .tag(DashboardTab.advisor)
+            
+            // MARK: - SETTINGS TAB
+            NavigationStack {
+                SettingsView(
+                    viewModel: settingsViewModel,
+                    lastUpdated: viewModel.lastUpdatedAt,
+                    onBack: { selectedTab = .home }
+                )
+            }
+            .tabItem { Label("Settings", systemImage: "gearshape.fill") }
+            .tag(DashboardTab.settings)
         }
-        .navigationTitle(viewModel.title)
-        .onAppear {
-            Task {
-                await viewModel.refreshData()
+        .tint(Theme.Colors.primaryMedium)
+        .toolbar(.hidden, for: .navigationBar)
+        .task {
+            // pollUntilCancelled() seeds an initial refreshData() and then owns both poll
+            // tiers; foreground/background is handled from UIApplication notifications in
+            // the view model, and a field switch is picked up by its activeFieldId sink.
+            await viewModel.pollUntilCancelled()
+        }
+        .overlay(alignment: .top) {
+            if let error = viewModel.errorMessage {
+                ToastView(message: error, type: .error).padding(.top, 56).padding(.horizontal)
+            } else if let success = viewModel.successMessage {
+                ToastView(message: success, type: .success).padding(.top, 56).padding(.horizontal)
             }
         }
-        .refreshable {
-            await viewModel.refreshData()
+        .alert("Harvest Ready", isPresented: $showingHarvestPopup) {
+            Button("Cancel", role: .cancel) { }
+            Button("Harvest Now", role: .destructive) {
+                viewModel.harvestNow()
+            }
+        } message: {
+            Text("This field and all its data will be permanently deleted once harvested. Do you want to continue?")
         }
     }
+
 }
 
-struct SensorReadingRow: View {
-    let reading: SensorReading
 
+private enum DashboardTab: Hashable {
+    case home
+    case fields
+    case advisor
+    case settings
+}
+
+// MARK: - Components
+
+
+// Custom slanted shape sticking to the left
+
+
+
+
+// MARK: - Metric Cards
+
+
+
+
+
+
+
+
+
+
+
+
+// MARK: - Bottom Alerts Card
+
+struct HarvestReadyBanner: View {
+    var action: () -> Void
+    
     var body: some View {
-        HStack {
-            VStack(alignment: .leading) {
-                Text(reading.type)
-                    .font(.headline)
-
-                Text(reading.timestamp, style: .time)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+        Button(action: action) {
+            HStack {
+                Image(systemName: "leaf.arrow.circlepath")
+                    .foregroundColor(.white)
+                Text("Ready for Harvest")
+                    .textStyle(.bodyStrong)
+                    .foregroundColor(.white)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.white.opacity(0.8))
             }
-
-            Spacer()
-
-            Text("\(String(format: "%.1f", reading.value)) \(reading.unit)")
-                .fontWeight(.bold)
-                .foregroundColor(AppColors.mediumGreen)
+            .padding()
+            .background(Theme.Colors.success, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .shadow(color: .black.opacity(0.1), radius: 5, y: 2)
         }
-        .padding(.vertical, 4)
-    }
-}
-
-// MARK: - Preview
-
-#Preview {
-    NavigationStack {
-        DashboardView(viewModel: DashboardViewModel(dataService: MockAgriDataRepository()))
+        .buttonStyle(.plain)
     }
 }

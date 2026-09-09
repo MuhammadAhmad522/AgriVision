@@ -3,11 +3,10 @@ import SwiftUI
 
 /**
  `AppCoordinator` is the root coordinator for the application.
- Its sole responsibility is managing the top-level flow: Splash → Onboarding → Auth → Dashboard
- (with shortcuts that skip Onboarding or Auth when the user has already completed them).
-
- All dependencies are injected via the initializer (Dependency Inversion Principle).
- Concrete navigation for each feature is delegated to child coordinators (Single Responsibility Principle).
+ It manages the top-level app flow: Splash → Onboarding → Auth → Dashboard.
+ 
+ It acts as the "boss" of the app, injecting necessary services (like Firebase) and handing off
+ specific, screen-to-screen navigation to child coordinators (like AuthCoordinator).
  */
 final class AppCoordinator: Coordinator {
 
@@ -25,15 +24,29 @@ final class AppCoordinator: Coordinator {
     /// The data service supplied to child coordinators.
     /// Injected as a protocol so the real vs. mock implementation is chosen at the composition root (DIP).
     private let dataService: AgriDataService
+    
+    /// The authentication service handling user login/signup.
+    private let authService: AuthService
+    private let userProfileService: UserProfileService
+    private let preferencesService: PreferencesService
+    private let fieldSessionStore: FieldSessionStore
 
     init(
         window: UIWindow,
         onboardingStateService: OnboardingStateService,
-        dataService: AgriDataService
+        dataService: AgriDataService,
+        authService: AuthService,
+        userProfileService: UserProfileService,
+        preferencesService: PreferencesService,
+        fieldSessionStore: FieldSessionStore
     ) {
         self.window = window
         self.onboardingStateService = onboardingStateService
         self.dataService = dataService
+        self.authService = authService
+        self.userProfileService = userProfileService
+        self.preferencesService = preferencesService
+        self.fieldSessionStore = fieldSessionStore
         self.navigationController = UINavigationController()
         // Hide the navigation bar by default for a cleaner, full-screen experience.
         self.navigationController.isNavigationBarHidden = true
@@ -62,8 +75,12 @@ final class AppCoordinator: Coordinator {
 
     private func showOnboarding() {
         if onboardingStateService.hasSeenOnboarding {
-            // Onboarding already completed, but the user still needs to log in.
-            showAuth()
+            // Check if user is already logged in
+            if authService.isUserLoggedIn {
+                checkFieldsAndRoute()
+            } else {
+                showAuth()
+            }
             return
         }
 
@@ -84,7 +101,12 @@ final class AppCoordinator: Coordinator {
     }
     /// Shows the authentication flow (Login/Signup).
     private func showAuth() {
-        let authCoordinator = AuthCoordinator(navigationController: navigationController)
+        let authCoordinator = AuthCoordinator(
+            navigationController: navigationController,
+            authService: authService,
+            userProfileService: userProfileService,
+            preferencesService: preferencesService
+        )
         
         authCoordinator.onFinished = { [weak self, weak authCoordinator] in
             guard let self = self, let coordinator = authCoordinator else { return }
@@ -93,18 +115,95 @@ final class AppCoordinator: Coordinator {
             self.childCoordinators.removeAll { $0 === coordinator }
             
             // Now transition to the main dashboard.
-            self.showMain()
+            self.checkFieldsAndRoute()
         }
         
         childCoordinators.append(authCoordinator)
         authCoordinator.start()
     }
     
+    private func checkFieldsAndRoute() {
+        Task {
+            do {
+                try await fieldSessionStore.bootstrap()
+                await MainActor.run {
+                    if fieldSessionStore.fields.isEmpty {
+                        showFieldSelection()
+                    } else {
+                        showMain()
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    showBackendConnectionError(error)
+                }
+            }
+        }
+    }
+
+    private func showBackendConnectionError(_ error: Error) {
+        let view = BackendConnectionView(
+            message: error.userFacingMessage,
+            isRetrying: fieldSessionStore.isRefreshing,
+            onRetry: { [weak self] in self?.checkFieldsAndRoute() },
+            onSignOut: { [weak self] in
+                guard let self else { return }
+                try? self.authService.signOut()
+                self.fieldSessionStore.clear()
+                self.showAuth()
+            }
+        )
+        navigationController.setViewControllers([UIHostingController(rootView: view)], animated: true)
+    }
+    
+    private func showFieldSelection() {
+        let fieldCoordinator = FieldSelectionCoordinator(
+            navigationController: navigationController,
+            authService: authService,
+            dataService: dataService
+        )
+        
+        fieldCoordinator.onFieldConfirmed = { [weak self, weak fieldCoordinator] in
+            guard let self = self, let coordinator = fieldCoordinator else { return }
+            self.childCoordinators.removeAll { $0 === coordinator }
+            Task {
+                try? await self.fieldSessionStore.refresh()
+                await MainActor.run { self.showMain() }
+            }
+        }
+        
+        fieldCoordinator.onCancel = {
+            // No-op: Map cancel pops back to AddFieldIntro screen within the same coordinator flow
+        }
+
+        fieldCoordinator.onSignOut = { [weak self, weak fieldCoordinator] in
+            guard let self = self else { return }
+            if let coordinator = fieldCoordinator {
+                self.childCoordinators.removeAll { $0 === coordinator }
+            }
+            self.fieldSessionStore.clear()
+            self.showAuth()
+        }
+
+        childCoordinators.append(fieldCoordinator)
+        fieldCoordinator.start()
+    }
+    
     private func showMain() {
         let dashboardCoordinator = DashboardCoordinator(
             navigationController: navigationController,
-            dataService: dataService
+            dataService: dataService,
+            authService: authService,
+            preferencesService: preferencesService,
+            fieldSessionStore: fieldSessionStore
         )
+        dashboardCoordinator.onSignOut = { [weak self] in
+            // When sign out occurs in the dashboard, we unwind to the auth flow.
+            self?.childCoordinators.removeAll { $0 === dashboardCoordinator }
+            self?.fieldSessionStore.clear()
+            self?.showAuth()
+        }
+        
         childCoordinators.append(dashboardCoordinator)
         dashboardCoordinator.start()
     }

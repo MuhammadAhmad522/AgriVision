@@ -60,3 +60,14 @@ fastlane/test_output
 *.swp
 *~
 *.orig
+
+## Firebase
+GoogleService-Info.plist
+firebase-credentials.json
+
+## Local secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key

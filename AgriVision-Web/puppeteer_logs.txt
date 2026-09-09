@@ -1,0 +1,39 @@
+[CONSOLE DEBUG] [vite] connecting...
+[CONSOLE INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[CONSOLE DEBUG] [vite] connected.
+[CONSOLE DEBUG] [vite] connecting...
+[CONSOLE DEBUG] [vite] connected.
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/13/3339/5788 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/13/3339/5787 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/13/3340/5788 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/13/3340/5787 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/13/3338/5788 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/13/3338/5787 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/13/3339/5789 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/13/3339/5786 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/13/3340/5789 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/13/3338/5789 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/13/3340/5786 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/13/3338/5786 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/13/3337/5789 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/13/3339/5785 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/13/3338/5790 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/13/3338/5785 - net::ERR_ABORTED
+[API] /fields response: [{"id":"204928f3-0ba8-4f1e-8e3c-cc7287ae4b32","owner_id":"fc34ed25-8b7c-4425-8cc2-7cb819e6ff0f","owner_email":"muhammadahmad522@gmail.com","name":"My Field","coordinates":[{"longitude":74.3615524,"latitude":31.52042827},{"longitude":74.36132023,"latitude":31.51827944},{"longitude":74.36766352,"latitude":31.51836427},{"longitude":74.36769668,"latitude":31.52141785}],"area_ha":17.029546227728204,"status":"active","archived_at":null,"created_at":"2026-09-02T04:46:52.559586Z","updated_at":"2026-09-0
+[API] /fields response: [{"id":"204928f3-0ba8-4f1e-8e3c-cc7287ae4b32","owner_id":"fc34ed25-8b7c-4425-8cc2-7cb819e6ff0f","owner_email":"muhammadahmad522@gmail.com","name":"My Field","coordinates":[{"longitude":74.3615524,"latitude":31.52042827},{"longitude":74.36132023,"latitude":31.51827944},{"longitude":74.36766352,"latitude":31.51836427},{"longitude":74.36769668,"latitude":31.52141785}],"area_ha":17.029546227728204,"status":"active","archived_at":null,"created_at":"2026-09-02T04:46:52.559586Z","updated_at":"2026-09-0
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/14/6680/11576 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/14/6680/11575 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/14/6677/11575 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/14/6677/11576 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/14/6678/11574 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/14/6677/11577 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/14/6679/11577 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/13359/23153 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/13359/23152 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/13356/23152 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/13356/23153 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/13357/23154 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/13358/23151 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/13357/23151 - net::ERR_ABORTED
+[REQ FAILED] https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/16/26715/46303 - net::ERR_ABORTED
+[SYSTEM] CANVAS INFO: {"width":472,"height":300,"display":"block"}

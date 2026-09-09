@@ -1,0 +1,399 @@
+import math
+import re
+from datetime import datetime
+from typing import Annotated, Any, Literal, Optional
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field as PydanticField, field_validator, model_validator
+
+
+SafeName = Annotated[str, PydanticField(min_length=1, max_length=100)]
+
+
+def clean_text(value: str) -> str:
+    value = " ".join(value.strip().split())
+    if any(ord(char) < 32 for char in value):
+        raise ValueError("Control characters are not allowed")
+    return value
+
+
+class StrictModel(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+
+class PointCoordinates(StrictModel):
+    longitude: Annotated[float, PydanticField(ge=-180, le=180)]
+    latitude: Annotated[float, PydanticField(ge=-90, le=90)]
+
+
+class SensorCreate(StrictModel):
+    device_id: Annotated[str, PydanticField(min_length=3, max_length=100, pattern=r"^[A-Za-z0-9._:-]+$")]
+    name: Optional[Annotated[str, PydanticField(max_length=100)]] = None
+    sensor_type: Annotated[str, PydanticField(min_length=1, max_length=50, pattern=r"^[A-Za-z0-9_-]+$")] = "multi_sensor"
+
+    _clean_name = field_validator("name")(lambda value: clean_text(value) if value else value)
+
+
+class SensorResponse(BaseModel):
+    id: UUID
+    field_id: Optional[UUID]
+    device_id: str
+    name: Optional[str]
+    sensor_type: str
+    battery_level: Optional[float]
+    last_seen: Optional[datetime]
+    # Staff manage hardware across many farmers, so a probe must say whose it is and
+    # where it sits without a second lookup per row.
+    owner_id: Optional[UUID] = None
+    owner_email: Optional[str] = None
+    owner_name: Optional[str] = None
+    field_name: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SensorPairRequest(StrictModel):
+    device_id: Annotated[str, PydanticField(min_length=3, max_length=100, pattern=r"^[A-Za-z0-9._:-]+$")]
+    # Staff pair hardware on a farmer's behalf. Without this the web app could only ever
+    # claim a probe for the signed-in agronomist, who owns no fields — leaving it
+    # permanently unassignable.
+    owner_id: Optional[UUID] = None
+
+
+class SensorPairResponse(BaseModel):
+    is_paired: Literal[True] = True
+    message: str
+    sensor: SensorResponse
+
+
+class FieldCreate(StrictModel):
+    name: SafeName
+    coordinates: Annotated[list[PointCoordinates], PydanticField(min_length=3, max_length=500)]
+    area_ha: Optional[Annotated[float, PydanticField(gt=0, le=100000)]] = None
+    crop_type: Optional[Annotated[str, PydanticField(max_length=80)]] = None
+    plantation_date: Optional[datetime] = None
+    expected_harvest_date: Optional[datetime] = None
+
+    _clean_name = field_validator("name")(clean_text)
+    _clean_crop = field_validator("crop_type")(lambda value: clean_text(value) if value else value)
+
+    @model_validator(mode="after")
+    def validate_boundary_and_dates(self):
+        points = [(point.longitude, point.latitude) for point in self.coordinates]
+        if len(set(points)) < 3:
+            raise ValueError("A field boundary requires at least three distinct coordinates")
+        for first, second in zip(points, points[1:] + points[:1]):
+            if first == second:
+                raise ValueError("Adjacent boundary coordinates must be distinct")
+        if self.plantation_date and self.expected_harvest_date and self.expected_harvest_date <= self.plantation_date:
+            raise ValueError("Expected harvest date must be after plantation date")
+        return self
+
+
+class FieldWithSensorsCreate(FieldCreate):
+    sensors: list[SensorCreate] = PydanticField(default_factory=list, max_length=20)
+
+
+class FieldIntervalOverrides(StrictModel):
+    weather_hours: Optional[Annotated[int, PydanticField(ge=1, le=720)]] = None
+    soil_hours: Optional[Annotated[int, PydanticField(ge=1, le=720)]] = None
+    uvi_hours: Optional[Annotated[int, PydanticField(ge=1, le=720)]] = None
+    satellite_hours: Optional[Annotated[int, PydanticField(ge=1, le=720)]] = None
+    ai_hours: Optional[Annotated[int, PydanticField(ge=1, le=720)]] = None
+    retention_days: Optional[Annotated[int, PydanticField(ge=1, le=365)]] = None
+
+
+class FieldUpdate(StrictModel):
+    name: Optional[SafeName] = None
+    crop_type: Optional[Annotated[str, PydanticField(max_length=80)]] = None
+    expected_harvest_date: Optional[datetime] = None
+    interval_overrides: Optional[FieldIntervalOverrides] = None
+
+    _clean_name = field_validator("name")(lambda value: clean_text(value) if value else value)
+    _clean_crop = field_validator("crop_type")(lambda value: clean_text(value) if value else value)
+
+
+class FieldResponse(BaseModel):
+    id: UUID
+    owner_id: UUID
+    owner_email: Optional[str] = None
+    owner_name: Optional[str] = None
+    name: str
+    coordinates: list[PointCoordinates] = PydanticField(default_factory=list)
+    area_ha: float
+    status: str
+    archived_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+    crop_type: Optional[str] = None
+    plantation_date: Optional[datetime] = None
+    expected_harvest_date: Optional[datetime] = None
+    latest_ndvi: Optional[float] = None
+    interval_overrides: Optional[dict[str, int]] = None
+    agromonitoring_polygon_id: Optional[str] = None
+    agro_status: Optional[str] = None
+    agro_error: Optional[str] = None
+    agro_retryable: Optional[bool] = None
+    last_satellite_sync: Optional[datetime] = None
+    latest_health_score: Optional[float] = None
+    latest_health_label: Optional[str] = None
+    latest_health_rationale: Optional[str] = None
+    latest_health_updated_at: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SensorReadingDB(BaseModel):
+    time: datetime
+    sensor_id: UUID
+    temperature: Optional[float] = None
+    moisture: Optional[float] = None
+    humidity: Optional[float] = None
+    ph: Optional[float] = None
+    ec: Optional[float] = None
+    npk_n: Optional[float] = None
+    npk_p: Optional[float] = None
+    npk_k: Optional[float] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SensorReadingHourlyDB(BaseModel):
+    bucket: datetime
+    sensor_id: UUID
+    temperature_avg: Optional[float] = None
+    temperature_min: Optional[float] = None
+    temperature_max: Optional[float] = None
+    moisture_avg: Optional[float] = None
+    moisture_min: Optional[float] = None
+    moisture_max: Optional[float] = None
+    humidity_avg: Optional[float] = None
+    humidity_min: Optional[float] = None
+    humidity_max: Optional[float] = None
+    ph_avg: Optional[float] = None
+    ph_min: Optional[float] = None
+    ph_max: Optional[float] = None
+    ec_avg: Optional[float] = None
+    ec_min: Optional[float] = None
+    ec_max: Optional[float] = None
+    npk_n_avg: Optional[float] = None
+    npk_n_min: Optional[float] = None
+    npk_n_max: Optional[float] = None
+    npk_p_avg: Optional[float] = None
+    npk_p_min: Optional[float] = None
+    npk_p_max: Optional[float] = None
+    npk_k_avg: Optional[float] = None
+    npk_k_min: Optional[float] = None
+    npk_k_max: Optional[float] = None
+    reading_count: int
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RecommendationResponse(BaseModel):
+    id: UUID
+    field_id: UUID
+    category: str
+    priority: str
+    advice: str
+    rationale: Optional[str] = None
+    confidence: Optional[float] = None
+    confidence_reason: Optional[str] = None
+    evidence: Optional[Any] = None
+    safety_level: str = "guarded"
+    requires_expert_confirmation: bool = False
+    expert_status: str = "pending"
+    expert_notes: Optional[str] = None
+    status: str
+    ndvi_at_generation: Optional[float] = None
+    created_at: datetime
+    expires_at: Optional[datetime] = None
+    outcome: Optional[str] = None
+    outcome_notes: Optional[str] = None
+    analysis_run_id: Optional[UUID] = None
+    reviewed_by_id: Optional[UUID] = None
+    reviewed_by_email: Optional[str] = None
+    reviewed_at: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AnalysisRunDetailResponse(BaseModel):
+    """The evidence behind one AI recommendation: what model and rules produced it, and
+    what data it actually saw. Kept as a separate on-demand fetch rather than embedded in
+    every recommendation, since context_snapshot/evidence can be a large blob and the
+    expert queue lists many recommendations at once."""
+
+    id: UUID
+    field_id: UUID
+    provider: str
+    status: str
+    model_name: Optional[str] = None
+    prompt_version: Optional[str] = None
+    policy_version: Optional[str] = None
+    data_quality: Optional[str] = None
+    context_snapshot: Optional[Any] = None
+    evidence: Optional[Any] = None
+    error: Optional[str] = None
+    started_at: datetime
+    completed_at: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SeasonMemoryResponse(BaseModel):
+    field_id: UUID
+    season_started_at: datetime
+    narrative: Optional[str] = None
+    key_events: Any = []
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RecommendationExpertValidation(StrictModel):
+    status: Literal["pending", "approved", "rejected"]
+    notes: Optional[Annotated[str, PydanticField(max_length=2000)]] = None
+
+    _clean_notes = field_validator("notes")(lambda value: clean_text(value) if value else value)
+
+
+class RecommendationFeedback(StrictModel):
+    status: Literal["pending", "implemented", "ignored"]
+
+
+class RecommendationOutcome(StrictModel):
+    outcome: Literal["useful", "ineffective", "harmful"]
+    notes: Optional[Annotated[str, PydanticField(max_length=1000)]] = None
+
+    _clean_notes = field_validator("notes")(lambda value: clean_text(value) if value else value)
+
+
+class ChatMessageRequest(StrictModel):
+    message: Annotated[str, PydanticField(min_length=1, max_length=2000)]
+
+    _clean_message = field_validator("message")(clean_text)
+
+
+class ChatAttachmentResponse(BaseModel):
+    id: UUID
+    mime_type: str
+    byte_size: int
+    width: int
+    height: int
+    url: str
+
+
+class ChatMessageResponse(BaseModel):
+    id: UUID
+    role: Literal["user", "model"]
+    content: str
+    status: Literal["completed", "failed", "processing"] = "completed"
+    attachments: list[ChatAttachmentResponse] = PydanticField(default_factory=list)
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ChatTurnResponse(BaseModel):
+    user_message: ChatMessageResponse
+    assistant_message: ChatMessageResponse
+
+
+class UserSchema(BaseModel):
+    id: UUID
+    firebase_uid: str
+    email: Optional[str]
+    role: str
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SessionBootstrapResponse(BaseModel):
+    user: UserSchema
+    fields: list[FieldResponse]
+    active_field_limit: int = 5
+    active_field_count: int
+
+
+class ErrorBody(BaseModel):
+    code: str
+    message: str
+    details: Optional[Any] = None
+    retryable: bool = False
+    request_id: str
+
+
+class ErrorEnvelope(BaseModel):
+    error: ErrorBody
+
+_EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
+
+class InvitationCreate(StrictModel):
+    email: str
+    role: str
+
+    @field_validator("email")
+    def validate_email(cls, v: str) -> str:
+        v = v.strip().lower()
+        if not _EMAIL_REGEX.match(v) or len(v) > 320:
+            raise ValueError("Invalid email format")
+        return v
+
+    @field_validator("role")
+    def validate_role(cls, v):
+        allowed_roles = ["admin", "agronomist"]
+        if v not in allowed_roles:
+            raise ValueError(f"Role must be one of {allowed_roles}")
+        return v
+
+class InvitationResponse(BaseModel):
+    id: UUID
+    email: str
+    role: str
+    status: str
+    created_at: datetime
+
+
+class AISettingsUpdate(StrictModel):
+    # "vertex" is what the portal sends for paid enterprise mode; "paid" is kept as a
+    # legacy alias (older DB rows / tests) and normalized to vertex in get_ai_provider.
+    mode: Literal["free", "vertex", "paid", "gemini", "mock"]
+    model: Annotated[str, PydanticField(min_length=2, max_length=100)]
+
+
+class AISettingsResponse(BaseModel):
+    mode: str
+    model: str
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AIHealthResponse(BaseModel):
+    ok: bool
+    mode: str
+    model: str
+    provider: str
+    knowledge: str
+    latency_ms: int | None = None
+    detail: str
+
+
+class GuidanceDirectiveCreate(StrictModel):
+    text: Annotated[str, PydanticField(min_length=3, max_length=2000)]
+
+    _clean_text = field_validator("text")(clean_text)
+
+
+class GuidanceDirectiveResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    field_id: UUID
+    text: str
+    status: str
+    created_by_id: UUID | None
+    created_by_email: str | None
+    created_by_name: str | None
+    created_at: datetime
+    retracted_by_id: UUID | None
+    retracted_at: datetime | None
+    applied_run_id: UUID | None
+
+
+class GuidanceDirectiveMutationResponse(BaseModel):
+    """A create/retract result plus whether a forced recommendation re-run was queued."""
+
+    directive: GuidanceDirectiveResponse
+    ai_rerun_queued: bool
+    deduplicated: bool = False

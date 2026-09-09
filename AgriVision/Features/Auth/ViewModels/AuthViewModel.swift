@@ -14,11 +14,12 @@ enum AuthTab: String {
 /// It exposes `onAuthComplete` so the Coordinator can react to a successful
 /// login or signup without the View or any child ViewModel having direct
 /// knowledge of the Coordinator (MVVM-C / DIP).
+@MainActor
 final class AuthViewModel: ObservableObject {
 
     // MARK: - Published State
 
-    @Published var selectedTab: AuthTab = .signup
+    @Published var selectedTab: AuthTab = .login
 
     // MARK: - Coordinator Callback
 

@@ -1,0 +1,10 @@
+.git
+.env
+firebase-credentials.json
+venv
+**/__pycache__
+*.py[cod]
+.pytest_cache
+media
+graphify-out
+.DS_Store

@@ -1,0 +1,167 @@
+import Foundation
+
+struct SourceState<Value: Decodable>: Decodable {
+    let status: String
+    let lastUpdated: Date?
+    let data: Value?
+    let message: String?
+    let retryable: Bool?
+    let configuredCount: Int?
+    let reportingCount: Int?
+
+    var availability: DataSourceStatus { DataSourceStatus(rawValue: status) ?? .unavailable }
+    var canRetry: Bool { retryable ?? false }
+
+    init(
+        status: String,
+        lastUpdated: Date?,
+        data: Value?,
+        message: String?,
+        retryable: Bool? = nil,
+        configuredCount: Int? = nil,
+        reportingCount: Int? = nil
+    ) {
+        self.status = status
+        self.lastUpdated = lastUpdated
+        self.data = data
+        self.message = message
+        self.retryable = retryable
+        self.configuredCount = configuredCount
+        self.reportingCount = reportingCount
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case status, data, message, retryable
+        case lastUpdated = "last_updated"
+        case configuredCount = "configured_count"
+        case reportingCount = "reporting_count"
+    }
+}
+
+enum DataSourceStatus: String, Decodable {
+    case available, pending, stale, unavailable, unsupported
+    case notConfigured = "not_configured"
+}
+
+struct DataAvailabilityItem: Identifiable {
+    let id: String
+    let title: String
+    let status: DataSourceStatus
+    let lastUpdated: Date?
+    let message: String?
+    let retryable: Bool
+}
+
+struct DashboardSnapshot: Decodable {
+    let field: Field
+    let sources: DashboardSources
+    let advisor: AdvisorSnapshot?
+    let recommendations: [FieldRecommendation]
+}
+
+struct AdvisorSnapshot: Decodable {
+    let status: String
+    let lastUpdated: Date?
+    let message: String?
+    let retryable: Bool?
+    let dataQuality: String?
+    /// Identity and lifecycle of the analysis run behind this state. `status` alone cannot
+    /// separate "a run is in flight" from "a run finished without field-specific advice" —
+    /// both read as "pending" — so a client waiting on a refresh it triggered watches these.
+    var runId: UUID? = nil
+    var runStatus: String? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case status, message, retryable
+        case lastUpdated = "last_updated"
+        case dataQuality = "data_quality"
+        case runId = "run_id"
+        case runStatus = "run_status"
+    }
+}
+
+struct DashboardSources: Decodable {
+    let satellite: SourceState<SatelliteSnapshot>
+    let soil: SourceState<FieldWeatherSoil.SoilData>
+    let weather: SourceState<FieldWeatherSoil.WeatherData>
+    let uvi: SourceState<UVISnapshot>
+    let sensors: SourceState<[SensorReading]>
+    let sensorFleet: [SensorFleetEntry]
+
+    enum CodingKeys: String, CodingKey {
+        case satellite, soil, weather, uvi, sensors
+        case sensorFleet = "sensor_fleet"
+    }
+}
+
+/// Per-sensor breakdown for a field — distinct from `sensors` above (which is a single
+/// blended list of recent readings across all sensors): this carries each sensor's own
+/// identity, online/offline status (based on the backend's SENSOR_OFFLINE_CUTOFF_MINUTES),
+/// and its own latest reading, so the dashboard can show which specific device is down.
+struct SensorFleetEntry: Decodable, Identifiable {
+    let sensorId: UUID
+    let name: String?
+    let deviceId: String
+    let sensorType: String
+    let isOnline: Bool
+    let lastSeen: Date?
+    var reading: SensorReading?
+
+    var id: UUID { sensorId }
+    var displayName: String { (name?.isEmpty == false ? name : nil) ?? deviceId }
+
+    enum CodingKeys: String, CodingKey {
+        case name, reading
+        case sensorId = "sensor_id"
+        case deviceId = "device_id"
+        case sensorType = "sensor_type"
+        case isOnline = "is_online"
+        case lastSeen = "last_seen"
+    }
+}
+
+struct SatelliteSnapshot: Decodable {
+    let sceneId: UUID
+    let acquiredAt: Date
+    let cloudPercent: Double?
+    let coveragePercent: Double?
+    let statistics: [String: VegetationStatistics]?
+    let ndviImageURL: String?
+    let truecolorImageURL: String?
+    let ndviTileURL: String?
+    let ndwiTileURL: String?
+    let eviTileURL: String?
+    let truecolorTileURL: String?
+
+    enum CodingKeys: String, CodingKey {
+        case statistics
+        case sceneId = "scene_id"
+        case acquiredAt = "acquired_at"
+        case cloudPercent = "cloud_percent"
+        case coveragePercent = "coverage_percent"
+        case ndviImageURL = "ndvi_image_url"
+        case truecolorImageURL = "truecolor_image_url"
+        case ndviTileURL = "ndvi_tile_url"
+        case ndwiTileURL = "ndwi_tile_url"
+        case eviTileURL = "evi_tile_url"
+        case truecolorTileURL = "truecolor_tile_url"
+    }
+}
+
+struct VegetationStatistics: Decodable {
+    let mean: Double?
+    let median: Double?
+    let min: Double?
+    let max: Double?
+    let standardDeviation: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case mean, median, min, max
+        case standardDeviation = "std"
+    }
+}
+
+struct UVISnapshot: Decodable {
+    let uvi: Double?
+    let dt: Int?
+}

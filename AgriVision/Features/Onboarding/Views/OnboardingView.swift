@@ -41,8 +41,8 @@ struct OnboardingView: View {
                     HStack {
                         Spacer()
                         Button("Skip") { onComplete() }
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(AppColors.limeGreen)
+                            .textStyle(.bodyStrong)
+                            .foregroundColor(Theme.Colors.primaryLight)
                             .padding(.trailing, 24)
                     }
                     .padding(.top, 10)
@@ -70,7 +70,7 @@ struct OnboardingView: View {
                         HStack(spacing: 8) {
                             ForEach(0..<viewModel.pages.count, id: \.self) { index in
                                 Circle()
-                                    .fill(viewModel.currentPage == index ? AppColors.charcoalGreen : AppColors.limeGreen.opacity(0.3))
+                                    .fill(viewModel.currentPage == index ? Theme.Colors.primary : Theme.Colors.primaryLight.opacity(0.3))
                                     .frame(width: 8, height: 8)
                             }
                         }
@@ -80,15 +80,28 @@ struct OnboardingView: View {
                                 viewModel.handleNextAction(onComplete: onComplete)
                             }
                         }) {
-                            Image(systemName: "chevron.right.2")
-                                .font(.system(size: 20, weight: .bold))
-                                .foregroundColor(AppColors.mediumGreen)
-                                .padding(12)
-                                .background(
-                                    Circle()
-                                        .fill(Color.white)
-                                        .shadow(color: AppColors.mediumGreen.opacity(0.3), radius: 4, x: 0, y: 4)
+                            ZStack {
+                                VisualEffectBlur(blurStyle: .systemUltraThinMaterial)
+                                    .clipShape(Circle())
+                                
+                                LinearGradient(
+                                    colors: [Theme.Colors.primaryLight.opacity(0.8), Theme.Colors.primaryMedium.opacity(0.8)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
                                 )
+                                .clipShape(Circle())
+                                .opacity(0.1) // Subtle tint
+                                
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 24, weight: .bold))
+                                    .foregroundColor(Theme.Colors.primary)
+                            }
+                            .frame(width: 60, height: 60)
+                            .shadow(color: Theme.Colors.primaryMedium.opacity(0.3), radius: 8, x: 0, y: 4)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.white.opacity(0.5), lineWidth: 1)
+                            )
                         }
                     }
                 }
@@ -134,7 +147,7 @@ struct OnboardingPageView: View {
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 200, height: 200)
-                        .foregroundColor(AppColors.mediumGreen)
+                        .foregroundColor(Theme.Colors.primaryMedium)
                 } else {
                     let mainSize = UIConstants.Onboarding.mainImageFrame * page.imageScale
                     Image(page.imageName)
@@ -150,22 +163,22 @@ struct OnboardingPageView: View {
             // The text content area for titles and descriptions.
             VStack(spacing: 16) {
                 Text(page.title)
-                    .font(.system(size: isFirstPage ? UIConstants.Onboarding.mainTitleSize : UIConstants.Onboarding.titleSize, weight: .bold))
+                    .textStyle(isFirstPage ? .display : .title1)
                     .multilineTextAlignment(.center)
                     .lineLimit(nil)
                     .minimumScaleFactor(0.8)
-                    .foregroundColor(AppColors.mediumGreen)
+                    .foregroundColor(Theme.Colors.primaryMedium)
                     .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
                     .padding(.horizontal, 30)
                 
                 // Only shows the description text if it's not empty.
                 if !page.description.isEmpty {
                     Text(page.description)
-                        .font(.system(size: UIConstants.Onboarding.descriptionSize))
+                        .textStyle(.body)
                         .multilineTextAlignment(.center)
                         .lineLimit(nil)
                         .minimumScaleFactor(0.8)
-                        .foregroundColor(AppColors.charcoalGreen)
+                        .foregroundColor(Theme.Colors.primary)
                         .padding(.horizontal, 40)
                 }
             }
@@ -182,4 +195,3 @@ struct OnboardingPageView: View {
             .toolbar(.hidden, for: .navigationBar)
     }
 }
-
