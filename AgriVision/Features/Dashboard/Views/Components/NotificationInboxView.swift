@@ -83,9 +83,9 @@ struct NotificationInboxView: View {
                 }
             }
             .refreshable { await viewModel.refreshNotifications() }
-            // Advice is time-sensitive, so the inbox refreshes itself while open rather
-            // than only when the dashboard happens to reload.
-            .task { await viewModel.pollNotifications() }
+            // Advice is time-sensitive, so the inbox refreshes immediately when opened.
+            // The global polling loop keeps it fresh while open.
+            .task { await viewModel.refreshNotifications() }
         }
     }
 

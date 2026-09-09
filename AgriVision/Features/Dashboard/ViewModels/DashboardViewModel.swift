@@ -58,8 +58,8 @@ final class DashboardViewModel: ObservableObject {
     private static let fullDashboardRefreshInterval: TimeInterval = 300
 
     // Notifications are cheap (one small list query) and time-sensitive, so they poll
-    // faster than the full dashboard refresh.
-    private static let notificationPollInterval: TimeInterval = 60
+    // continuously in the background to provide near-instantaneous updates.
+    private static let notificationPollInterval: TimeInterval = 5
 
     // How often, and for how long, a user-triggered "Refresh advice" waits on the analysis
     // run it started. The AI call itself is the slow part; the bound exists so the button
@@ -160,7 +160,8 @@ final class DashboardViewModel: ObservableObject {
         await refreshData()
         async let sensors: Void = pollSensorReadings()
         async let dashboard: Void = pollFullDashboard()
-        _ = await (sensors, dashboard)
+        async let notifications: Void = pollNotifications()
+        _ = await (sensors, dashboard, notifications)
     }
 
     private func pollSensorReadings() async {
@@ -494,14 +495,14 @@ final class DashboardViewModel: ObservableObject {
         }
     }
 
-    /// Polls the inbox while it is on screen. Advice is time-sensitive — an irrigation
+    /// Polls the inbox continuously. Advice is time-sensitive — an irrigation
     /// call that arrives an hour late is worth much less than one that arrives now.
-    func pollNotifications() async {
+    private func pollNotifications() async {
         while !Task.isCancelled {
-            if isAppActive {
+            try? await Task.sleep(nanoseconds: UInt64(Self.notificationPollInterval * 1_000_000_000))
+            if isAppActive, !Task.isCancelled {
                 await refreshNotifications()
             }
-            try? await Task.sleep(nanoseconds: UInt64(Self.notificationPollInterval * 1_000_000_000))
         }
     }
 

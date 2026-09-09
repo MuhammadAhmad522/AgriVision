@@ -610,7 +610,7 @@ const FieldAnalytics: React.FC = () => {
                   stroke="none"
                   fill="#568c48"
                   fillOpacity={0.22}
-                  connectNulls={false}
+                  connectNulls={true}
                   isAnimationActive={false}
                 />
                 <Line
@@ -620,7 +620,7 @@ const FieldAnalytics: React.FC = () => {
                   stroke="#9ad46c"
                   strokeWidth={2}
                   dot={false}
-                  connectNulls={false}
+                  connectNulls={true}
                   isAnimationActive={false}
                 />
               </ComposedChart>
@@ -666,7 +666,7 @@ const FieldAnalytics: React.FC = () => {
                   stroke="none"
                   fill="#fb923c"
                   fillOpacity={0.18}
-                  connectNulls={false}
+                  connectNulls={true}
                   isAnimationActive={false}
                 />
                 <Line
@@ -676,7 +676,7 @@ const FieldAnalytics: React.FC = () => {
                   stroke="#fb923c"
                   strokeWidth={2}
                   dot={false}
-                  connectNulls={false}
+                  connectNulls={true}
                   isAnimationActive={false}
                 />
               </ComposedChart>
